@@ -83,7 +83,7 @@ function JobCard({ job, onOpen }) {
   );
 }
 
-function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, currency, toast }) {
+function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, currency, toast }) {
   const job = state.jobs.find(j => j.id === id);
   if (!job) return null;
   const v = vehiclesById[job.vehicle];
@@ -151,7 +151,7 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, currency, 
           <div className="mono muted" style={{ fontSize: 10, letterSpacing: '0.14em' }}>ASSIGNED TECH</div>
           <div className="avatar av-sm" style={{ background: job.techColor, color: '#0b0b0b' }}>{job.techInitials}</div>
           <div style={{ flex: 1, fontWeight: 600 }}>{job.tech}</div>
-          <button className="btn btn-sm btn-ghost"><Icon.Pen size={12} /></button>
+          <button className="btn btn-sm btn-ghost" onClick={() => onEdit(job.id)}><Icon.Pen size={12} /></button>
         </div>
 
         {/* Status actions */}
@@ -231,8 +231,8 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, currency, 
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn"><Icon.Print size={14} /> Print Job</button>
-          <button className="btn"><Icon.Pen size={14} /> Edit</button>
+          <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print Job</button>
+          <button className="btn" onClick={() => onEdit(job.id)}><Icon.Pen size={14} /> Edit</button>
           <div style={{ flex: 1 }}></div>
           {job.status === "done" ? (
             <button className="btn btn-primary" onClick={() => onGenerateInvoice(job.id)}>
@@ -397,4 +397,77 @@ function NewJobModal({ onClose, setState, toast }) {
   );
 }
 
-export { JobsScreen, JobDrawer, NewJobModal, KANBAN_COLS };
+function EditJobModal({ id, state, setState, onClose, toast }) {
+  const job = state.jobs.find(j => j.id === id);
+  const [title, setTitle] = React.useState(job ? job.title : "");
+  const [priority, setPriority] = React.useState(job ? job.priority : "normal");
+  const [techId, setTechId] = React.useState(() => {
+    const t = technicians.find(t => t.name === (job && job.tech));
+    return t ? t.id : (technicians[0] && technicians[0].id);
+  });
+  const [status, setStatus] = React.useState(job ? job.status : "waiting");
+  const [promised, setPromised] = React.useState(job && job.promised ? job.promised.split(' ')[1] || "17:00" : "17:00");
+  const [notes, setNotes] = React.useState(job ? job.notes : "");
+
+  if (!job) return null;
+
+  function submit() {
+    if (!title.trim()) { toast("សូមបញ្ចូលចំណងជើង", "error"); return; }
+    const tech = technicians.find(t => t.id === techId) || { name: job.tech, initials: job.techInitials, color: job.techColor };
+    const datePart = (job.promised && job.promised.split(' ')[0]) || "2026-05-17";
+    setState(s => ({
+      ...s,
+      jobs: s.jobs.map(j => j.id === id ? {
+        ...j, title: title.trim(), priority, status,
+        tech: tech.name, techInitials: tech.initials, techColor: tech.color,
+        promised: datePart + " " + promised, notes,
+      } : j),
+    }));
+    toast(`កែ Job ${id} ជោគជ័យ`, "ok");
+    onClose();
+  }
+
+  return (
+    <Modal title={"កែ Job · EDIT " + id} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={submit}><Icon.Check size={14} /> រក្សាទុក</button>
+      </>}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>ចំណងជើង Job · TITLE</label>
+          <input className="input" value={title} onChange={e => setTitle(e.target.value)} autoFocus />
+        </div>
+        <div className="field">
+          <label>ជាងជួសជុល · TECHNICIAN</label>
+          <select className="select" value={techId} onChange={e => setTechId(e.target.value)}>
+            {technicians.map(t => <option key={t.id} value={t.id}>{t.name} · {t.role}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label>ស្ថានភាព · STATUS</label>
+          <select className="select" value={status} onChange={e => setStatus(e.target.value)}>
+            {KANBAN_COLS.map(c => <option key={c.id} value={c.id}>{c.title.split(' · ')[0]}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label>អាទិភាព · PRIORITY</label>
+          <select className="select" value={priority} onChange={e => setPriority(e.target.value)}>
+            <option value="normal">Normal</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+        <div className="field">
+          <label>សន្យាបញ្ចប់ · PROMISED</label>
+          <input className="input" type="time" value={promised} onChange={e => setPromised(e.target.value)} />
+        </div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>កំណត់ត្រា · NOTES</label>
+          <textarea className="textarea" value={notes} onChange={e => setNotes(e.target.value)} />
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+export { JobsScreen, JobDrawer, NewJobModal, EditJobModal, KANBAN_COLS };

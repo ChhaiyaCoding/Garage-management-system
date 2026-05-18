@@ -11,7 +11,7 @@ const { customers, vehicles, parts, jobs, invoices, quotations, bookings, techni
 // ════════════════════════════════════════════════════════════
 // PARTS INVENTORY
 // ════════════════════════════════════════════════════════════
-function PartsScreen({ state, currency, toast }) {
+function PartsScreen({ state, currency, toast, onNewPart }) {
   const [tab, setTab] = React.useState("all");
   const [search, setSearch] = React.useState("");
   const allParts = state.parts;
@@ -39,7 +39,7 @@ function PartsScreen({ state, currency, toast }) {
         <div className="page-actions">
           <button className="btn"><Icon.Download size={14} /> Export</button>
           <button className="btn"><Icon.Tag size={14} /> Barcode</button>
-          <button className="btn btn-primary"><Icon.Plus size={14} /> Part ថ្មី</button>
+          <button className="btn btn-primary" onClick={onNewPart}><Icon.Plus size={14} /> Part ថ្មី</button>
         </div>
       </div>
 
@@ -161,7 +161,7 @@ function PartsScreen({ state, currency, toast }) {
 // ════════════════════════════════════════════════════════════
 // QUOTATION
 // ════════════════════════════════════════════════════════════
-function QuotationScreen({ state, currency, onNewQuote, toast }) {
+function QuotationScreen({ state, currency, onNewQuote, toast, onConvert, onSend, onView }) {
   const [tab, setTab] = React.useState("all");
   const allQuotes = state.quotations;
   const filtered = tab === "all" ? allQuotes : allQuotes.filter(q => q.status === tab);
@@ -260,9 +260,9 @@ function QuotationScreen({ state, currency, onNewQuote, toast }) {
                   <td><span className={"chip chip-" + stCls}>{q.status.toUpperCase()}</span></td>
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn btn-sm btn-ghost" title="View"><Icon.Doc size={12} /></button>
-                      <button className="btn btn-sm btn-ghost" title="Send"><Icon.Send size={12} /></button>
-                      {q.status === "accepted" && <button className="btn btn-sm btn-ghost" title="Convert to Job"><Icon.Wrench size={12} /></button>}
+                      <button className="btn btn-sm btn-ghost" title="View" onClick={() => onView(q.id)}><Icon.Doc size={12} /></button>
+                      <button className="btn btn-sm btn-ghost" title="Send" onClick={() => onSend(q.id)}><Icon.Send size={12} /></button>
+                      {q.status === "accepted" && <button className="btn btn-sm btn-ghost" title="Convert to Job" onClick={() => onConvert(q.id)}><Icon.Wrench size={12} /></button>}
                     </div>
                   </td>
                 </tr>
@@ -373,7 +373,7 @@ function NewQuoteModal({ onClose, setState, toast, currency }) {
 // ════════════════════════════════════════════════════════════
 // INVOICES
 // ════════════════════════════════════════════════════════════
-function InvoicesScreen({ state, currency, onOpenInvoice }) {
+function InvoicesScreen({ state, currency, onOpenInvoice, onNewInvoice }) {
   const [tab, setTab] = React.useState("all");
   const allInv = state.invoices;
   const filtered = tab === "all" ? allInv : allInv.filter(i => i.status === tab);
@@ -390,7 +390,7 @@ function InvoicesScreen({ state, currency, onOpenInvoice }) {
         </div>
         <div className="page-actions">
           <button className="btn"><Icon.Download size={14} /> Export</button>
-          <button className="btn btn-primary"><Icon.Plus size={14} /> Invoice ថ្មី</button>
+          <button className="btn btn-primary" onClick={onNewInvoice}><Icon.Plus size={14} /> Invoice ថ្មី</button>
         </div>
       </div>
 
@@ -468,7 +468,7 @@ function InvoicesScreen({ state, currency, onOpenInvoice }) {
                   <td className="num"><Money value={inv.paid} currency={currency} /></td>
                   <td className="muted">{inv.method}</td>
                   <td><span className={"chip chip-" + stCls}>{inv.status.toUpperCase()}</span></td>
-                  <td><button className="btn btn-sm btn-ghost" onClick={e => e.stopPropagation()}><Icon.Print size={12} /></button></td>
+                  <td><button className="btn btn-sm btn-ghost" onClick={e => { e.stopPropagation(); window.print(); }}><Icon.Print size={12} /></button></td>
                 </tr>
               );
             })}
@@ -488,8 +488,8 @@ function InvoiceModal({ id, state, currency, onClose, toast }) {
     <Modal wide title={"Invoice · " + inv.id} onClose={onClose}
       footer={<>
         <button className="btn" onClick={onClose}>បិទ</button>
-        <button className="btn"><Icon.Print size={14} /> Print</button>
-        <button className="btn"><Icon.Send size={14} /> ផ្ញើតាម Telegram</button>
+        <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print</button>
+        <button className="btn" onClick={() => toast("បានផ្ញើវិក្កយបត្រតាម Telegram", "ok")}><Icon.Send size={14} /> ផ្ញើតាម Telegram</button>
         {inv.status !== "paid" && (
           <button className="btn btn-primary" onClick={() => { toast("ទទួលការទូទាត់ ABA Pay ជោគជ័យ", "ok"); onClose(); }}>
             <Icon.Money size={14} /> ទទួលការទូទាត់
@@ -578,4 +578,137 @@ function InvoiceModal({ id, state, currency, onClose, toast }) {
   );
 }
 
-export { PartsScreen, QuotationScreen, NewQuoteModal, InvoicesScreen, InvoiceModal };
+function NewPartModal({ onClose, setState, toast }) {
+  const [sku, setSku] = React.useState("");
+  const [name, setName] = React.useState("");
+  const [nameEn, setNameEn] = React.useState("");
+  const [category, setCategory] = React.useState("ប្រេង");
+  const [supplier, setSupplier] = React.useState("");
+  const [stock, setStock] = React.useState(0);
+  const [reorder, setReorder] = React.useState(5);
+  const [cost, setCost] = React.useState(0);
+  const [price, setPrice] = React.useState(0);
+  const [location, setLocation] = React.useState("");
+
+  function submit() {
+    if (!name.trim()) { toast("សូមបញ្ចូលឈ្មោះ Part", "error"); return; }
+    if (!sku.trim()) { toast("សូមបញ្ចូល SKU", "error"); return; }
+    const id = "P-" + String(13 + Math.floor(Math.random() * 800)).padStart(3, "0");
+    const newP = {
+      id, sku: sku.trim().toUpperCase(), name: name.trim(), nameEn: nameEn.trim() || name.trim(),
+      category, supplier: supplier.trim() || "—",
+      stock: +stock, reorder: +reorder, price: +price, cost: +cost,
+      location: location.trim().toUpperCase() || "—",
+    };
+    setState(s => ({ ...s, parts: [newP, ...s.parts] }));
+    toast(`បន្ថែម Part ${newP.name} (${newP.sku}) ជោគជ័យ`, "ok");
+    onClose();
+  }
+
+  return (
+    <Modal title="Part ថ្មី · NEW PART" onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={submit}><Icon.Plus size={14} /> បន្ថែម Part</button>
+      </>}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field"><label>SKU</label><input className="input" value={sku} onChange={e => setSku(e.target.value)} placeholder="OIL-5W30-4L" autoFocus /></div>
+        <div className="field"><label>ប្រភេទ · CATEGORY</label>
+          <select className="select" value={category} onChange={e => setCategory(e.target.value)}>
+            {["ប្រេង", "តម្រង", "ហ្វ្រាំង", "អគ្គិសនី", "ឆេះ", "កង់", "ផ្សេងៗ"].map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="field"><label>ឈ្មោះ (ខ្មែរ)</label><input className="input" value={name} onChange={e => setName(e.target.value)} /></div>
+        <div className="field"><label>ឈ្មោះ (English)</label><input className="input" value={nameEn} onChange={e => setNameEn(e.target.value)} /></div>
+        <div className="field"><label>អ្នកផ្គត់ផ្គង់</label><input className="input" value={supplier} onChange={e => setSupplier(e.target.value)} /></div>
+        <div className="field"><label>ទីតាំង</label><input className="input" value={location} onChange={e => setLocation(e.target.value)} placeholder="A-01" /></div>
+        <div className="field"><label>ស្តុក · STOCK</label><input className="input" type="number" value={stock} onChange={e => setStock(e.target.value)} /></div>
+        <div className="field"><label>Reorder Level</label><input className="input" type="number" value={reorder} onChange={e => setReorder(e.target.value)} /></div>
+        <div className="field"><label>តម្លៃដើម · COST ($)</label><input className="input" type="number" step="0.01" value={cost} onChange={e => setCost(e.target.value)} /></div>
+        <div className="field"><label>តម្លៃលក់ · PRICE ($)</label><input className="input" type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} /></div>
+      </div>
+    </Modal>
+  );
+}
+
+function NewInvoiceModal({ onClose, state, setState, toast, currency }) {
+  const firstWithVeh = state.customers.find(c => vehicles.some(v => v.owner === c.id));
+  const [customerId, setCustomerId] = React.useState((firstWithVeh && firstWithVeh.id) || (state.customers[0] && state.customers[0].id) || "CU-1001");
+  const cust = state.customers.find(c => c.id === customerId);
+  const custVehicles = vehicles.filter(v => v.owner === customerId);
+  const [vehicleId, setVehicleId] = React.useState((custVehicles[0] && custVehicles[0].id) || "");
+  const [items, setItems] = React.useState([{ desc: "សេវាកម្ម", qty: 1, price: 20 }]);
+  React.useEffect(() => {
+    const vs = vehicles.filter(v => v.owner === customerId);
+    setVehicleId(vs[0] ? vs[0].id : "");
+  }, [customerId]);
+
+  const subtotal = items.reduce((s, x) => s + x.qty * x.price, 0);
+  const tax = +(subtotal * 0.1).toFixed(2);
+  const total = +(subtotal + tax).toFixed(2);
+
+  function update(i, k, v) { setItems(items.map((x, idx) => idx === i ? { ...x, [k]: k === "desc" ? v : +v } : x)); }
+  function addItem() { setItems([...items, { desc: "", qty: 1, price: 0 }]); }
+  function remove(i) { setItems(items.filter((_, idx) => idx !== i)); }
+
+  function submit() {
+    if (!vehicleId) { toast("ជ្រើសរើសរថយន្ត", "error"); return; }
+    const id = "INV-2406-" + String(73 + Math.floor(Math.random() * 90)).padStart(3, "0");
+    const newInv = {
+      id, job: "—", customer: customerId, vehicle: vehicleId, issued: "2026-05-17",
+      subtotal, tax, total, paid: 0, status: "due", method: "—",
+    };
+    setState(s => ({ ...s, invoices: [newInv, ...s.invoices] }));
+    toast(`បង្កើត Invoice ${id} ($${total}) ជោគជ័យ`, "ok");
+    onClose();
+  }
+
+  return (
+    <Modal wide title="Invoice ថ្មី · NEW INVOICE" onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={submit}><Icon.Doc size={14} /> បង្កើត Invoice</button>
+      </>}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 18 }}>
+        <div className="field">
+          <label>អតិថិជន</label>
+          <select className="select" value={customerId} onChange={e => setCustomerId(e.target.value)}>
+            {state.customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label>រថយន្ត</label>
+          <select className="select" value={vehicleId} onChange={e => setVehicleId(e.target.value)}>
+            {custVehicles.length === 0 && <option value="">— គ្មានរថយន្ត —</option>}
+            {custVehicles.map(v => <option key={v.id} value={v.id}>{v.plate} · {vehicleLabel(v)}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="section-heading"><h2 style={{ fontSize: 14 }}>ធាតុ · LINE ITEMS</h2></div>
+      <table className="table" style={{ marginBottom: 14 }}>
+        <thead><tr><th>បរិយាយ</th><th className="num">ចំនួន</th><th className="num">តម្លៃ</th><th className="num">សរុប</th><th></th></tr></thead>
+        <tbody>
+          {items.map((x, i) => (
+            <tr key={i}>
+              <td><input className="input" value={x.desc} onChange={e => update(i, "desc", e.target.value)} style={{ padding: '6px 8px' }} /></td>
+              <td className="num"><input className="input" type="number" value={x.qty} onChange={e => update(i, "qty", e.target.value)} style={{ padding: '6px 8px', width: 70, textAlign: 'right' }} /></td>
+              <td className="num"><input className="input" type="number" step="0.01" value={x.price} onChange={e => update(i, "price", e.target.value)} style={{ padding: '6px 8px', width: 100, textAlign: 'right' }} /></td>
+              <td className="num" style={{ fontWeight: 700 }}><Money value={x.qty * x.price} currency={currency} /></td>
+              <td><button className="btn btn-sm btn-ghost" onClick={() => remove(i)}><Icon.X size={12} /></button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <button className="btn btn-sm" onClick={addItem}><Icon.Plus size={12} /> បន្ថែមធាតុ</button>
+      <div style={{ marginTop: 18, padding: 14, background: 'var(--bg-2)', borderRadius: 'var(--radius)', maxWidth: 320, marginLeft: 'auto' }}>
+        <Row label="Subtotal" value={<Money value={subtotal} currency={currency} />} />
+        <Row label="VAT 10%" value={<Money value={tax} currency={currency} />} />
+        <div style={{ borderTop: '1px solid var(--border-1)', marginTop: 8, paddingTop: 8 }}>
+          <Row label={<strong>សរុប</strong>} value={<strong className="num" style={{ fontSize: 18, color: 'var(--accent)' }}><Money value={total} currency={currency} /></strong>} />
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+export { PartsScreen, QuotationScreen, NewQuoteModal, InvoicesScreen, InvoiceModal, NewPartModal, NewInvoiceModal };

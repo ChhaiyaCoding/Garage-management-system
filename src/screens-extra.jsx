@@ -11,7 +11,7 @@ const { customers, vehicles, parts, jobs, invoices, quotations, bookings, techni
 // ════════════════════════════════════════════════════════════
 // BOOKING (Online appointments)
 // ════════════════════════════════════════════════════════════
-function BookingScreen({ state, currency }) {
+function BookingScreen({ state, currency, onAddBooking, onConvertBooking, toast }) {
   const slots = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
   const days = ["ច័ន្ទ 18", "អង្គារ 19", "ពុធ 17", "ព្រ. 20", "សុក្រ 21", "សៅរ៍ 22"];
   const todayCol = 2;
@@ -32,9 +32,9 @@ function BookingScreen({ state, currency }) {
           <div className="page-sub">កាលវិភាគការកក់ · {state.bookings.length} ការកក់ថ្ងៃនេះ · 4 Bays សកម្ម</div>
         </div>
         <div className="page-actions">
-          <button className="btn"><Icon.Cal size={14} /> Calendar View</button>
-          <button className="btn"><Icon.Tag size={14} /> Booking Link</button>
-          <button className="btn btn-primary"><Icon.Plus size={14} /> បន្ថែមការកក់</button>
+          <button className="btn" onClick={() => toast("Calendar View · ការមើលប្រតិទិន (ឆាប់ៗ)", "info")}><Icon.Cal size={14} /> Calendar View</button>
+          <button className="btn" onClick={() => { navigator.clipboard?.writeText("https://garage-os.app/book"); toast("បាន copy តំណកក់ Online", "ok"); }}><Icon.Tag size={14} /> Booking Link</button>
+          <button className="btn btn-primary" onClick={onAddBooking}><Icon.Plus size={14} /> បន្ថែមការកក់</button>
         </div>
       </div>
 
@@ -120,9 +120,9 @@ function BookingScreen({ state, currency }) {
               </div>
               <span className={"chip chip-" + (b.status === "checked-in" ? "amber" : b.status === "in-progress" ? "blue" : "gray")}>{b.status}</span>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button className="btn btn-sm"><Icon.Phone size={12} /></button>
-                <button className="btn btn-sm"><Icon.Wrench size={12} /></button>
-                <button className="btn btn-sm btn-ghost"><Icon.More size={12} /></button>
+                <button className="btn btn-sm" title="ហៅទូរស័ព្ទ" onClick={() => toast(`ហៅ ${c.name} · ${c.phone}`, "info")}><Icon.Phone size={12} /></button>
+                <button className="btn btn-sm" title="បង្កើតជា Job" onClick={() => onConvertBooking(b.id)}><Icon.Wrench size={12} /></button>
+                <button className="btn btn-sm btn-ghost" title="Check-in" onClick={() => toast(`${c.name} · Checked-in`, "ok")}><Icon.More size={12} /></button>
               </div>
             </div>
           );
@@ -287,7 +287,8 @@ const TIERS = [
   { name: "Platinum", color: "#a78bfa", min: 1000, perks: ["20% discount", "All Gold perks", "Free annual major service"] },
 ];
 
-function MembersScreen({ currency, toast }) {
+function MembersScreen({ state, currency, toast, onAddMember }) {
+  const members = state.members;
   const totalPoints = members.reduce((s, m) => s + m.points, 0);
   const totalSpent = members.reduce((s, m) => s + m.spent, 0);
   return (
@@ -298,8 +299,8 @@ function MembersScreen({ currency, toast }) {
           <div className="page-sub">សមាជិក · {members.length} នាក់សកម្ម · {totalPoints} ពិន្ទុសរុប</div>
         </div>
         <div className="page-actions">
-          <button className="btn"><Icon.Send size={14} /> Send Campaign</button>
-          <button className="btn btn-primary"><Icon.Plus size={14} /> បន្ថែមសមាជិក</button>
+          <button className="btn" onClick={() => toast(`បានផ្ញើ campaign ទៅសមាជិក ${members.length} នាក់`, "ok")}><Icon.Send size={14} /> Send Campaign</button>
+          <button className="btn btn-primary" onClick={onAddMember}><Icon.Plus size={14} /> បន្ថែមសមាជិក</button>
         </div>
       </div>
 
@@ -357,7 +358,7 @@ function MembersScreen({ currency, toast }) {
         <div style={{ padding: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ fontSize: 16, fontWeight: 700 }}>បញ្ជីសមាជិក · MEMBER LIST</div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn btn-sm"><Icon.Filter size={12} /> Filter</button>
+            <button className="btn btn-sm" onClick={() => toast("តម្រងសមាជិក (ឆាប់ៗ)", "info")}><Icon.Filter size={12} /> Filter</button>
           </div>
         </div>
         <table className="table">
@@ -415,7 +416,7 @@ function MembersScreen({ currency, toast }) {
 // ════════════════════════════════════════════════════════════
 // REPORTS
 // ════════════════════════════════════════════════════════════
-function ReportsScreen({ currency }) {
+function ReportsScreen({ state, currency, toast }) {
   const monthly = [
     { m: "ឧសភា 25", v: 12400 },
     { m: "មិថុនា", v: 14820 },
@@ -439,9 +440,9 @@ function ReportsScreen({ currency }) {
           <div className="page-sub">របាយការណ៍ · Last 12 months · Phnom Penh branch</div>
         </div>
         <div className="page-actions">
-          <button className="btn"><Icon.Cal size={14} /> Date Range</button>
-          <button className="btn"><Icon.Branch size={14} /> All Branches</button>
-          <button className="btn btn-primary"><Icon.Download size={14} /> Export PDF</button>
+          <button className="btn" onClick={() => toast("ជ្រើសរើសចន្លោះកាលបរិច្ឆេទ (ឆាប់ៗ)", "info")}><Icon.Cal size={14} /> Date Range</button>
+          <button className="btn" onClick={() => toast("តម្រងតាមសាខា (ឆាប់ៗ)", "info")}><Icon.Branch size={14} /> All Branches</button>
+          <button className="btn btn-primary" onClick={() => window.print()}><Icon.Download size={14} /> Export PDF</button>
         </div>
       </div>
 
@@ -538,7 +539,7 @@ function ReportsScreen({ currency }) {
 // ════════════════════════════════════════════════════════════
 // SETTINGS
 // ════════════════════════════════════════════════════════════
-function SettingsScreen({ tweaks, setTweak }) {
+function SettingsScreen({ state, setState, tweaks, setTweak, toast }) {
   const [tab, setTab] = React.useState("garage");
   return (
     <div className="page">
@@ -563,8 +564,8 @@ function SettingsScreen({ tweaks, setTweak }) {
       </div>
 
       {tab === "garage" && <GarageSettings />}
-      {tab === "branches" && <BranchSettings />}
-      {tab === "staff" && <StaffSettings />}
+      {tab === "branches" && <BranchSettings state={state} setState={setState} toast={toast} />}
+      {tab === "staff" && <StaffSettings state={state} setState={setState} toast={toast} />}
       {tab === "billing" && <BillingSettings />}
       {tab === "integrations" && <IntegrationSettings />}
       {tab === "loyalty" && <LoyaltySettings />}
@@ -608,12 +609,9 @@ function GarageSettings() {
   );
 }
 
-function BranchSettings() {
-  const branches = [
-    { id: "BR-01", name: "សាខាមេ · ភ្នំពេញ", addr: "St. 271, Toul Tom Pong", bays: 8, staff: 12, status: "active", main: true },
-    { id: "BR-02", name: "សាខា ខ. កែវ", addr: "St. 2004, Sen Sok", bays: 5, staff: 7, status: "active" },
-    { id: "BR-03", name: "សាខា សៀមរាប", addr: "National Rd 6, Siem Reap", bays: 4, staff: 5, status: "active" },
-  ];
+function BranchSettings({ state, setState, toast }) {
+  const [edit, setEdit] = React.useState(null); // null | "new" | branch object
+  const branches = state.branches;
   return (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
       <table className="table">
@@ -626,25 +624,57 @@ function BranchSettings() {
               <td className="num">{b.bays}</td>
               <td className="num">{b.staff}</td>
               <td><span className="chip chip-green">ACTIVE</span></td>
-              <td><button className="btn btn-sm btn-ghost"><Icon.Pen size={12} /></button></td>
+              <td><button className="btn btn-sm btn-ghost" onClick={() => setEdit(b)}><Icon.Pen size={12} /></button></td>
             </tr>
           ))}
         </tbody>
       </table>
       <div style={{ padding: 14 }}>
-        <button className="btn btn-sm"><Icon.Plus size={12} /> បន្ថែមសាខាថ្មី</button>
+        <button className="btn btn-sm" onClick={() => setEdit("new")}><Icon.Plus size={12} /> បន្ថែមសាខាថ្មី</button>
       </div>
+      {edit && <BranchModal branch={edit === "new" ? null : edit} setState={setState} toast={toast} onClose={() => setEdit(null)} />}
     </div>
   );
 }
 
-function StaffSettings() {
-  const staff = [
-    ...technicians.map(t => ({ ...t, dept: "Workshop" })),
-    { id: "S-05", name: "Chan Sophea", initials: "CS", color: "#f472b6", role: "Service Advisor", dept: "Front Desk", load: 0, capacity: 0 },
-    { id: "S-06", name: "Long Dara", initials: "LD", color: "#38bdf8", role: "Parts Manager", dept: "Inventory", load: 0, capacity: 0 },
-    { id: "S-07", name: "លោក សុខ ភារុណ", initials: "SP", color: "#22c55e", role: "Owner", dept: "Management", load: 0, capacity: 0 },
-  ];
+function BranchModal({ branch, setState, toast, onClose }) {
+  const [name, setName] = React.useState(branch ? branch.name : "");
+  const [addr, setAddr] = React.useState(branch ? branch.addr : "");
+  const [bays, setBays] = React.useState(branch ? branch.bays : 4);
+  const [staffN, setStaffN] = React.useState(branch ? branch.staff : 5);
+
+  function submit() {
+    if (!name.trim()) { toast("សូមបញ្ចូលឈ្មោះសាខា", "error"); return; }
+    if (branch) {
+      setState(s => ({ ...s, branches: s.branches.map(b => b.id === branch.id ? { ...b, name: name.trim(), addr: addr.trim(), bays: +bays, staff: +staffN } : b) }));
+      toast(`កែសាខា ${name} ជោគជ័យ`, "ok");
+    } else {
+      const id = "BR-" + String(4 + Math.floor(Math.random() * 90)).padStart(2, "0");
+      setState(s => ({ ...s, branches: [...s.branches, { id, name: name.trim(), addr: addr.trim(), bays: +bays, staff: +staffN, status: "active" }] }));
+      toast(`បន្ថែមសាខា ${name} ជោគជ័យ`, "ok");
+    }
+    onClose();
+  }
+
+  return (
+    <Modal title={branch ? "កែសាខា · EDIT BRANCH" : "សាខាថ្មី · NEW BRANCH"} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={submit}><Icon.Check size={14} /> រក្សាទុក</button>
+      </>}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>ឈ្មោះសាខា</label><input className="input" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>អាសយដ្ឋាន</label><input className="input" value={addr} onChange={e => setAddr(e.target.value)} /></div>
+        <div className="field"><label>Bays</label><input className="input" type="number" value={bays} onChange={e => setBays(e.target.value)} /></div>
+        <div className="field"><label>បុគ្គលិក</label><input className="input" type="number" value={staffN} onChange={e => setStaffN(e.target.value)} /></div>
+      </div>
+    </Modal>
+  );
+}
+
+function StaffSettings({ state, setState, toast }) {
+  const [edit, setEdit] = React.useState(null);
+  const staff = state.staff;
   return (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
       <table className="table">
@@ -667,13 +697,54 @@ function StaffSettings() {
                 {s.skills && s.skills.map(k => <span key={k} className="chip chip-gray" style={{ fontSize: 9, marginRight: 4 }}>{k}</span>)}
               </td>
               <td>{s.capacity > 0 ? <span className="num">{s.load}/{s.capacity}</span> : <span className="muted">—</span>}</td>
-              <td><button className="btn btn-sm btn-ghost"><Icon.Pen size={12} /></button></td>
+              <td><button className="btn btn-sm btn-ghost" onClick={() => setEdit(s)}><Icon.Pen size={12} /></button></td>
             </tr>
           ))}
         </tbody>
       </table>
-      <div style={{ padding: 14 }}><button className="btn btn-sm"><Icon.Plus size={12} /> បន្ថែមបុគ្គលិក</button></div>
+      <div style={{ padding: 14 }}><button className="btn btn-sm" onClick={() => setEdit("new")}><Icon.Plus size={12} /> បន្ថែមបុគ្គលិក</button></div>
+      {edit && <StaffModal staff={edit === "new" ? null : edit} setState={setState} toast={toast} onClose={() => setEdit(null)} />}
     </div>
+  );
+}
+
+function StaffModal({ staff, setState, toast, onClose }) {
+  const [name, setName] = React.useState(staff ? staff.name : "");
+  const [role, setRole] = React.useState(staff ? staff.role : "Mechanic");
+  const [dept, setDept] = React.useState(staff ? staff.dept : "Workshop");
+  const PALETTE = ["#22c55e", "#f5b400", "#38bdf8", "#a78bfa", "#f472b6", "#fb923c"];
+
+  function submit() {
+    if (!name.trim()) { toast("សូមបញ្ចូលឈ្មោះបុគ្គលិក", "error"); return; }
+    const parts = name.trim().split(/\s+/);
+    const initials = (parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
+    if (staff) {
+      setState(s => ({ ...s, staff: s.staff.map(x => x.id === staff.id ? { ...x, name: name.trim(), role, dept, initials } : x) }));
+      toast(`កែបុគ្គលិក ${name} ជោគជ័យ`, "ok");
+    } else {
+      const id = "S-" + String(8 + Math.floor(Math.random() * 90)).padStart(2, "0");
+      setState(s => ({ ...s, staff: [...s.staff, { id, name: name.trim(), initials, color: PALETTE[Math.floor(Math.random() * PALETTE.length)], role, dept, load: 0, capacity: 0 }] }));
+      toast(`បន្ថែមបុគ្គលិក ${name} ជោគជ័យ`, "ok");
+    }
+    onClose();
+  }
+
+  return (
+    <Modal title={staff ? "កែបុគ្គលិក · EDIT STAFF" : "បុគ្គលិកថ្មី · NEW STAFF"} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={submit}><Icon.Check size={14} /> រក្សាទុក</button>
+      </>}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>ឈ្មោះ</label><input className="input" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
+        <div className="field"><label>តួនាទី · ROLE</label><input className="input" value={role} onChange={e => setRole(e.target.value)} /></div>
+        <div className="field"><label>នាយកដ្ឋាន · DEPT</label>
+          <select className="select" value={dept} onChange={e => setDept(e.target.value)}>
+            {["Workshop", "Front Desk", "Inventory", "Management"].map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -751,4 +822,102 @@ function LoyaltySettings() {
   );
 }
 
-export { BookingScreen, DVIScreen, MembersScreen, ReportsScreen, SettingsScreen };
+function AddBookingModal({ onClose, state, setState, toast }) {
+  const firstWithVeh = state.customers.find(c => vehicles.some(v => v.owner === c.id));
+  const [customerId, setCustomerId] = React.useState((firstWithVeh && firstWithVeh.id) || (state.customers[0] && state.customers[0].id) || "CU-1001");
+  const custVehicles = vehicles.filter(v => v.owner === customerId);
+  const [vehicleId, setVehicleId] = React.useState((custVehicles[0] && custVehicles[0].id) || "");
+  const [service, setService] = React.useState("");
+  const [time, setTime] = React.useState("09:00");
+  const [duration, setDuration] = React.useState(1);
+  const [techId, setTechId] = React.useState((technicians[0] && technicians[0].id) || "T-01");
+  React.useEffect(() => {
+    const vs = vehicles.filter(v => v.owner === customerId);
+    setVehicleId(vs[0] ? vs[0].id : "");
+  }, [customerId]);
+
+  function submit() {
+    if (!service.trim()) { toast("សូមបញ្ចូលប្រភេទសេវា", "error"); return; }
+    if (!vehicleId) { toast("ជ្រើសរើសរថយន្ត", "error"); return; }
+    const tech = technicians.find(t => t.id === techId);
+    const id = "BK-" + String(507 + Math.floor(Math.random() * 90));
+    const newB = { id, time, duration: +duration, customer: customerId, vehicle: vehicleId, service: service.trim(), tech: tech ? tech.name : "—", status: "confirmed" };
+    setState(s => ({ ...s, bookings: [...s.bookings, newB].sort((a, b) => a.time.localeCompare(b.time)) }));
+    toast(`បន្ថែមការកក់ ${id} · ${time} ជោគជ័យ`, "ok");
+    onClose();
+  }
+
+  return (
+    <Modal title="ការកក់ថ្មី · NEW BOOKING" onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={submit}><Icon.Check size={14} /> បន្ថែមការកក់</button>
+      </>}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field">
+          <label>អតិថិជន</label>
+          <select className="select" value={customerId} onChange={e => setCustomerId(e.target.value)}>
+            {state.customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label>រថយន្ត</label>
+          <select className="select" value={vehicleId} onChange={e => setVehicleId(e.target.value)}>
+            {custVehicles.length === 0 && <option value="">— គ្មានរថយន្ត —</option>}
+            {custVehicles.map(v => <option key={v.id} value={v.id}>{v.plate} · {vehicleLabel(v)}</option>)}
+          </select>
+        </div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>សេវាកម្ម · SERVICE</label>
+          <input className="input" value={service} onChange={e => setService(e.target.value)} placeholder="ឧ. Oil change" autoFocus />
+        </div>
+        <div className="field"><label>ម៉ោង · TIME</label><input className="input" type="time" value={time} onChange={e => setTime(e.target.value)} /></div>
+        <div className="field"><label>រយៈពេល (ម៉ោង)</label><input className="input" type="number" step="0.5" value={duration} onChange={e => setDuration(e.target.value)} /></div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>ជាងជួសជុល · TECHNICIAN</label>
+          <select className="select" value={techId} onChange={e => setTechId(e.target.value)}>
+            {technicians.map(t => <option key={t.id} value={t.id}>{t.name} · {t.role}</option>)}
+          </select>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function AddMemberModal({ onClose, state, setState, toast }) {
+  const [name, setName] = React.useState("");
+  const [tier, setTier] = React.useState("Bronze");
+  const [points, setPoints] = React.useState(0);
+  const [spent, setSpent] = React.useState(0);
+
+  function submit() {
+    if (!name.trim()) { toast("សូមបញ្ចូលឈ្មោះសមាជិក", "error"); return; }
+    const id = "M-" + String(100 + Math.floor(Math.random() * 900));
+    const newM = { id, name: name.trim(), tier, points: +points, spent: +spent, joined: "2026-05-17" };
+    setState(s => ({ ...s, members: [...s.members, newM] }));
+    toast(`បន្ថែមសមាជិក ${name} (${tier}) ជោគជ័យ`, "ok");
+    onClose();
+  }
+
+  return (
+    <Modal title="សមាជិកថ្មី · NEW MEMBER" onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={submit}><Icon.Check size={14} /> បន្ថែមសមាជិក</button>
+      </>}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>ឈ្មោះ · NAME</label><input className="input" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
+        <div className="field">
+          <label>កម្រិត · TIER</label>
+          <select className="select" value={tier} onChange={e => setTier(e.target.value)}>
+            {TIERS.map(t => <option key={t.name} value={t.name}>{t.name}</option>)}
+          </select>
+        </div>
+        <div className="field"><label>ពិន្ទុ · POINTS</label><input className="input" type="number" value={points} onChange={e => setPoints(e.target.value)} /></div>
+        <div className="field"><label>ចំណាយរួម · SPENT ($)</label><input className="input" type="number" value={spent} onChange={e => setSpent(e.target.value)} /></div>
+      </div>
+    </Modal>
+  );
+}
+
+export { BookingScreen, DVIScreen, MembersScreen, ReportsScreen, SettingsScreen, AddBookingModal, AddMemberModal };

@@ -212,8 +212,9 @@ function RevenueBars({ currency }) {
 // ════════════════════════════════════════════════════════════
 // CUSTOMERS & VEHICLES
 // ════════════════════════════════════════════════════════════
-function CustomersScreen({ search, currency, onOpenCustomer, onNav }) {
+function CustomersScreen({ state, search, currency, onOpenCustomer, onNav, onAddCustomer }) {
   const [filter, setFilter] = React.useState("all");
+  const customers = state.customers;
   const filtered = customers.filter(c => {
     if (filter === "vip" && !c.tags.includes("VIP")) return false;
     if (filter === "corp" && c.type !== "corporate") return false;
@@ -235,7 +236,7 @@ function CustomersScreen({ search, currency, onOpenCustomer, onNav }) {
         <div className="page-actions">
           <button className="btn"><Icon.Download size={14} /> នាំចេញ</button>
           <button className="btn"><Icon.Up size={14} /> នាំចូល Excel</button>
-          <button className="btn btn-primary"><Icon.Plus size={14} /> បន្ថែមអតិថិជន</button>
+          <button className="btn btn-primary" onClick={onAddCustomer}><Icon.Plus size={14} /> បន្ថែមអតិថិជន</button>
         </div>
       </div>
 
@@ -383,11 +384,11 @@ function CustomersScreen({ search, currency, onOpenCustomer, onNav }) {
 }
 
 // Customer drawer
-function CustomerDrawer({ id, onClose, currency }) {
-  const c = customersById[id];
+function CustomerDrawer({ id, state, onClose, currency }) {
+  const c = (state?.customers || customers).find(x => x.id === id) || customersById[id];
   if (!c) return null;
   const cvehs = vehicles.filter(v => v.owner === id);
-  const cjobs = jobs.filter(j => j.customer === id);
+  const cjobs = (state?.jobs || jobs).filter(j => j.customer === id);
   return (
     <Drawer onClose={onClose} width={620}>
       <div style={{ padding: 24 }}>
@@ -457,4 +458,58 @@ function Stat({ label, value }) {
   );
 }
 
-export { DashboardScreen, CustomersScreen, CustomerDrawer, Stat, Money, Row };
+function AddCustomerModal({ onClose, setState, toast }) {
+  const [name, setName] = React.useState("");
+  const [phone, setPhone] = React.useState("");
+  const [address, setAddress] = React.useState("");
+  const [type, setType] = React.useState("personal");
+  const PALETTE = ["#0fbfa1", "#22c55e", "#f5b400", "#a78bfa", "#38bdf8", "#f472b6", "#fb923c"];
+
+  function submit() {
+    if (!name.trim()) { toast("សូមបញ្ចូលឈ្មោះអតិថិជន", "error"); return; }
+    const id = "CU-1" + String(9 + Math.floor(Math.random() * 900)).padStart(3, "0");
+    const parts = name.trim().split(/\s+/);
+    const initials = (parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
+    const newC = {
+      id, name: name.trim(), initials, color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
+      type, phone: phone.trim() || "—", telegram: false,
+      address: address.trim() || "—", since: "2026-05-17",
+      tags: ["NEW"], points: 0, vehicles: [], lifetime: 0, jobs: 0,
+    };
+    setState(s => ({ ...s, customers: [newC, ...s.customers] }));
+    toast(`បន្ថែមអតិថិជន ${newC.name} (${id}) ជោគជ័យ`, "ok");
+    onClose();
+  }
+
+  return (
+    <Modal title="អតិថិជនថ្មី · NEW CUSTOMER" onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={submit}>បន្ថែមអតិថិជន</button>
+      </>}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>ឈ្មោះ · NAME</label>
+          <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="ឧ. Sok Dara" autoFocus />
+        </div>
+        <div className="field">
+          <label>ទូរស័ព្ទ · PHONE</label>
+          <input className="input" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+855 ..." />
+        </div>
+        <div className="field">
+          <label>ប្រភេទ · TYPE</label>
+          <select className="select" value={type} onChange={e => setType(e.target.value)}>
+            <option value="personal">Personal</option>
+            <option value="corporate">Corporate</option>
+          </select>
+        </div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>អាសយដ្ឋាន · ADDRESS</label>
+          <input className="input" value={address} onChange={e => setAddress(e.target.value)} placeholder="ភ្នំពេញ · ខណ្ឌ..." />
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+export { DashboardScreen, CustomersScreen, CustomerDrawer, Stat, Money, Row, AddCustomerModal };
