@@ -167,6 +167,24 @@ const DVI_SECTIONS = [
 ];
 
 function DVIScreen({ currency, toast }) {
+  const [sections, setSections] = React.useState(() =>
+    DVI_SECTIONS.map(s => ({ ...s, items: s.items.map(i => ({ ...i })) }))
+  );
+
+  function setItemStatus(secId, idx, status) {
+    setSections(secs => secs.map(s => s.id !== secId ? s : {
+      ...s, items: s.items.map((it, i) => i === idx ? { ...it, status } : it),
+    }));
+  }
+
+  const allItems = sections.flatMap(s => s.items);
+  const counts = {
+    pass: allItems.filter(i => i.status === "pass").length,
+    warn: allItems.filter(i => i.status === "warn").length,
+    fail: allItems.filter(i => i.status === "fail").length,
+    pending: allItems.filter(i => !["pass", "warn", "fail"].includes(i.status)).length,
+  };
+
   return (
     <div className="page">
       <div className="page-head">
@@ -175,9 +193,9 @@ function DVIScreen({ currency, toast }) {
           <div className="page-sub">Digital Vehicle Inspection · 2KA-3917 · Lexus RX350 · JOB-2406-088</div>
         </div>
         <div className="page-actions">
-          <button className="btn"><Icon.Print size={14} /> Print Report</button>
-          <button className="btn"><Icon.Send size={14} /> ផ្ញើតាម Telegram</button>
-          <button className="btn btn-primary" onClick={() => toast("DVI report saved", "ok")}>
+          <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print Report</button>
+          <button className="btn" onClick={() => toast("បានផ្ញើរបាយការណ៍ DVI តាម Telegram", "ok")}><Icon.Send size={14} /> ផ្ញើតាម Telegram</button>
+          <button className="btn btn-primary" onClick={() => toast(`DVI បានរក្សាទុក · ${counts.pass} pass · ${counts.warn} warn · ${counts.fail} fail`, "ok")}>
             <Icon.Check size={14} /> Submit Inspection
           </button>
         </div>
@@ -211,14 +229,14 @@ function DVIScreen({ currency, toast }) {
 
       {/* Summary chips */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <SummaryChip count={14} label="PASS" color="green" />
-        <SummaryChip count={4} label="ATTENTION" color="orange" />
-        <SummaryChip count={1} label="FAIL · IMMEDIATE" color="red" />
-        <SummaryChip count={0} label="PENDING" color="gray" />
+        <SummaryChip count={counts.pass} label="PASS" color="green" />
+        <SummaryChip count={counts.warn} label="ATTENTION" color="orange" />
+        <SummaryChip count={counts.fail} label="FAIL · IMMEDIATE" color="red" />
+        <SummaryChip count={counts.pending} label="PENDING" color="gray" />
       </div>
 
       {/* Sections */}
-      {DVI_SECTIONS.map(sec => {
+      {sections.map(sec => {
         const pass = sec.items.filter(i => i.status === "pass").length;
         const warn = sec.items.filter(i => i.status === "warn").length;
         const fail = sec.items.filter(i => i.status === "fail").length;
@@ -242,9 +260,9 @@ function DVIScreen({ currency, toast }) {
                   </div>
                   <div className="num" style={{ fontSize: 13, color: 'var(--text-1)', minWidth: 50, textAlign: 'right', fontWeight: 600 }}>{item.value || "—"}</div>
                   <div style={{ display: 'flex', gap: 4 }}>
-                    <button className={"btn btn-sm" + (item.status === "pass" ? " btn-primary" : "")} style={{ padding: '4px 10px' }}>P</button>
-                    <button className={"btn btn-sm" + (item.status === "warn" ? " btn-primary" : "")} style={{ padding: '4px 10px' }}>W</button>
-                    <button className={"btn btn-sm" + (item.status === "fail" ? " btn-primary" : "")} style={{ padding: '4px 10px' }}>F</button>
+                    <button className={"btn btn-sm" + (item.status === "pass" ? " btn-primary" : "")} style={{ padding: '4px 10px' }} onClick={() => setItemStatus(sec.id, i, "pass")}>P</button>
+                    <button className={"btn btn-sm" + (item.status === "warn" ? " btn-primary" : "")} style={{ padding: '4px 10px' }} onClick={() => setItemStatus(sec.id, i, "warn")}>W</button>
+                    <button className={"btn btn-sm" + (item.status === "fail" ? " btn-primary" : "")} style={{ padding: '4px 10px' }} onClick={() => setItemStatus(sec.id, i, "fail")}>F</button>
                   </div>
                 </div>
               ))}
