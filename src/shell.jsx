@@ -1,0 +1,163 @@
+import React from 'react';
+import { Icon } from './icons';
+// ─── App Shell: Sidebar + Topbar + Toast helpers ───
+
+const NAV_CORE = [
+  { id: "dashboard", icon: "Dashboard", label: "Dashboard", labelKm: "ផ្ទាំងគ្រប់គ្រង" },
+  { id: "customers", icon: "Users", label: "Customers & Vehicles", labelKm: "អតិថិជន & រថយន្ត" },
+  { id: "jobs", icon: "Wrench", label: "Job Card", labelKm: "Job Card", badge: 8 },
+  { id: "parts", icon: "Box", label: "Parts Inventory", labelKm: "ស្តុក Parts" },
+  { id: "quotation", icon: "Calc", label: "Quotation", labelKm: "តម្លៃប៉ាន់ស្មាន" },
+  { id: "invoices", icon: "Doc", label: "Invoices", labelKm: "វិក្កយបត្រ" },
+  { id: "booking", icon: "Cal", label: "Online Booking", labelKm: "ការកក់ Online" },
+  { id: "dvi", icon: "Clip", label: "DVI Inspection", labelKm: "ត្រួតពិនិត្យ DVI" },
+];
+
+const NAV_GROW = [
+  { id: "members", icon: "Star", label: "Members", labelKm: "សមាជិក" },
+  { id: "reports", icon: "Chart", label: "Reports / BI", labelKm: "របាយការណ៍" },
+  { id: "settings", icon: "Cog", label: "Settings", labelKm: "ការកំណត់" },
+];
+
+function Sidebar({ active, onNav }) {
+  return (
+    <aside className="sidebar">
+      <div className="brand">
+        <div className="brand-logo">G</div>
+        <div className="brand-text">
+          <div className="brand-name">GARAGE OS</div>
+          <div className="brand-sub">GMS · KH EDITION</div>
+        </div>
+      </div>
+
+      <div>
+        <div className="nav-section-title">សំខាន់ · Core</div>
+        <div className="nav-list">
+          {NAV_CORE.map((item) => (
+            <div
+              key={item.id}
+              className={"nav-item" + (active === item.id ? " active" : "")}
+              onClick={() => onNav(item.id)}
+            >
+              <span className="nav-icon">{React.createElement(Icon[item.icon])}</span>
+              <span className="nav-label">{item.labelKm}</span>
+              {item.badge ? <span className="nav-meta">{item.badge}</span> : null}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="nav-section-title">លូតលាស់ · Grow</div>
+        <div className="nav-list">
+          {NAV_GROW.map((item) => (
+            <div
+              key={item.id}
+              className={"nav-item" + (active === item.id ? " active" : "")}
+              onClick={() => onNav(item.id)}
+            >
+              <span className="nav-icon">{React.createElement(Icon[item.icon])}</span>
+              <span className="nav-label">{item.labelKm}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="plan-card">
+        <div className="plan-name">CURRENT · PRO</div>
+        <div style={{ marginTop: 6, color: "var(--text-1)" }}>មានសិទ្ធិពេញ · ៣ សាខា</div>
+        <div style={{ marginTop: 8, color: "var(--text-3)", fontSize: 11 }}>v2.4.1 · 2026.05</div>
+      </div>
+    </aside>
+  );
+}
+
+function Topbar({ search, setSearch, onOpenTweaks, currency, setCurrency }) {
+  return (
+    <header className="topbar">
+      <div className="branch-pill">
+        សាខាមេ · ភ្នំពេញ <Icon.Down size={14} />
+      </div>
+      <div className="search-input">
+        <Icon.Search size={16} />
+        <input
+          placeholder="ស្វែងរក អតិថិជន · រថយន្ត · Job · Parts ..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+      <div className="topbar-actions">
+        <button className="icon-btn" title="Notifications">
+          <Icon.Bell size={16} />
+          <span className="badge">3</span>
+        </button>
+        <button className="icon-btn" onClick={onOpenTweaks} title="Tweaks">
+          <Icon.Cog size={16} />
+        </button>
+        <div className="user-chip">
+          <div className="avatar av-sm" style={{ background: "#22c55e" }}>SP</div>
+          <div>
+            <div className="name">លោក សុខ ភារុណ</div>
+            <div className="role">Owner</div>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+// Toast system
+function useToasts() {
+  const [toasts, setToasts] = React.useState([]);
+  const push = React.useCallback((msg, kind = "ok") => {
+    const id = Math.random().toString(36).slice(2);
+    setToasts((t) => [...t, { id, msg, kind }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3200);
+  }, []);
+  const view = (
+    <div className="toasts">
+      {toasts.map((t) => (
+        <div key={t.id} className={"toast " + (t.kind || "")}>{t.msg}</div>
+      ))}
+    </div>
+  );
+  return { push, view };
+}
+
+// Modal
+function Modal({ title, onClose, children, footer, wide }) {
+  React.useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" style={wide ? { maxWidth: 980 } : null} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h3 className="modal-title">{title}</h3>
+          <button className="icon-btn" onClick={onClose}><Icon.X size={16} /></button>
+        </div>
+        <div className="modal-body">{children}</div>
+        {footer ? <div className="modal-foot">{footer}</div> : null}
+      </div>
+    </div>
+  );
+}
+
+// Drawer (for job details, customer details)
+function Drawer({ onClose, children, width }) {
+  React.useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+  return (
+    <>
+      <div className="drawer-backdrop" onClick={onClose}></div>
+      <div className="drawer" style={width ? { width } : null}>{children}</div>
+    </>
+  );
+}
+
+export { Sidebar, Topbar, useToasts, Modal, Drawer, NAV_CORE, NAV_GROW };
