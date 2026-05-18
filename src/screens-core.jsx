@@ -13,6 +13,15 @@ function Money({ value, currency }) {
   return <>{moneyUSD(value)}</>;
 }
 
+function Row({ label, value }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', fontSize: 13 }}>
+      <span className="muted">{label}</span>
+      <span className="num">{value}</span>
+    </div>
+  );
+}
+
 // ════════════════════════════════════════════════════════════
 // DASHBOARD
 // ════════════════════════════════════════════════════════════
@@ -448,4 +457,4 @@ function Stat({ label, value }) {
   );
 }
 
-export { DashboardScreen, CustomersScreen, CustomerDrawer, Stat, Money };
+export { DashboardScreen, CustomersScreen, CustomerDrawer, Stat, Money, Row };

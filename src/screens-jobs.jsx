@@ -2,7 +2,7 @@ import React from 'react';
 import GARAGE from './data';
 import { Icon } from './icons';
 import { Modal, Drawer } from './shell';
-import { Money } from './screens-core';
+import { Money, Row } from './screens-core';
 // ─── Job Card Kanban + Job detail drawer + New Job modal ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -246,15 +246,6 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, currency, 
         </div>
       </div>
     </Drawer>
-  );
-}
-
-function Row({ label, value }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', fontSize: 13 }}>
-      <span className="muted">{label}</span>
-      <span className="num">{value}</span>
-    </div>
   );
 }
 
