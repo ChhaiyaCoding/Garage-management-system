@@ -16,8 +16,15 @@ const KANBAN_COLS = [
   { id: "done", title: "Done · បានបញ្ចប់", dot: "green" },
 ];
 
-function JobsScreen({ state, setState, onOpenJob, onNewJob, currency }) {
-  const { jobs: allJobs } = state;
+function JobsScreen({ state, setState, onOpenJob, onNewJob, currency, toast }) {
+  const [todayOnly, setTodayOnly] = React.useState(false);
+  const [highOnly, setHighOnly] = React.useState(false);
+  const TODAY = "2026-05-17";
+  const allJobs = state.jobs.filter(j => {
+    if (todayOnly && !((j.promised || "").startsWith(TODAY) || (j.created || "").startsWith(TODAY))) return false;
+    if (highOnly && j.priority !== "high") return false;
+    return true;
+  });
   const grouped = {};
   KANBAN_COLS.forEach(c => grouped[c.id] = []);
   allJobs.forEach(j => { if (grouped[j.status]) grouped[j.status].push(j); });
@@ -30,8 +37,8 @@ function JobsScreen({ state, setState, onOpenJob, onNewJob, currency }) {
           <div className="page-sub">សរុប {allJobs.length} Jobs · {allJobs.filter(j=>j.status!=='done').length} កំពុងបន្ត · ៦ ត្រូវបញ្ចប់ថ្ងៃនេះ</div>
         </div>
         <div className="page-actions">
-          <button className="btn"><Icon.Filter size={14} /> Filter</button>
-          <button className="btn"><Icon.Cal size={14} /> Today</button>
+          <button className={"btn" + (highOnly ? " btn-primary" : "")} onClick={() => setHighOnly(v => !v)}><Icon.Filter size={14} /> High Priority</button>
+          <button className={"btn" + (todayOnly ? " btn-primary" : "")} onClick={() => setTodayOnly(v => !v)}><Icon.Cal size={14} /> Today</button>
           <button className="btn btn-primary" onClick={onNewJob}><Icon.Plus size={14} /> Job ថ្មី</button>
         </div>
       </div>

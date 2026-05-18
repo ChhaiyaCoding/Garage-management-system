@@ -13,6 +13,25 @@ function Money({ value, currency }) {
   return <>{moneyUSD(value)}</>;
 }
 
+function exportCsv(filename, rows) {
+  if (!rows || !rows.length) return;
+  const headers = Object.keys(rows[0]);
+  const esc = (v) => {
+    const s = v == null ? "" : String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const csv = [headers.join(","), ...rows.map(r => headers.map(h => esc(r[h])).join(","))].join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function Row({ label, value }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', fontSize: 13 }}>
@@ -25,11 +44,15 @@ function Row({ label, value }) {
 // ════════════════════════════════════════════════════════════
 // DASHBOARD
 // ════════════════════════════════════════════════════════════
-function DashboardScreen({ currency, onNav }) {
-  const todayRevenue = invoices.filter(i => i.issued === "2026-05-17").reduce((s, i) => s + i.paid, 0) + 246.5;
-  const openJobs = jobs.filter(j => j.status !== "done").length;
-  const lowStock = parts.filter(p => p.stock <= p.reorder).length;
-  const todayBookings = bookings.length;
+function DashboardScreen({ state, currency, onNav, toast }) {
+  const dJobs = state?.jobs || jobs;
+  const dParts = state?.parts || parts;
+  const dInvoices = state?.invoices || invoices;
+  const dBookings = state?.bookings || bookings;
+  const todayRevenue = dInvoices.filter(i => i.issued === "2026-05-17").reduce((s, i) => s + i.paid, 0) + 246.5;
+  const openJobs = dJobs.filter(j => j.status !== "done").length;
+  const lowStock = dParts.filter(p => p.stock <= p.reorder).length;
+  const todayBookings = dBookings.length;
 
   return (
     <div className="page">
@@ -39,7 +62,7 @@ function DashboardScreen({ currency, onNav }) {
           <div className="page-sub">ថ្ងៃនេះ · ពុធ ១៧ ឧសភា ២០២៦ · សរុបសកម្មភាព ៤២ ករណី</div>
         </div>
         <div className="page-actions">
-          <button className="btn"><Icon.Download size={14} /> Export</button>
+          <button className="btn" onClick={() => { exportCsv("jobs-summary.csv", dJobs.map(j => ({ id: j.id, title: j.title, status: j.status, tech: j.tech, priority: j.priority, created: j.created, promised: j.promised }))); toast && toast(`នាំចេញ ${dJobs.length} Jobs (CSV)`, "ok"); }}><Icon.Download size={14} /> Export</button>
           <button className="btn btn-primary" onClick={() => onNav("jobs")}>
             <Icon.Plus size={14} /> បន្ថែម Job Card ថ្មី
           </button>
@@ -212,7 +235,7 @@ function RevenueBars({ currency }) {
 // ════════════════════════════════════════════════════════════
 // CUSTOMERS & VEHICLES
 // ════════════════════════════════════════════════════════════
-function CustomersScreen({ state, search, currency, onOpenCustomer, onNav, onAddCustomer }) {
+function CustomersScreen({ state, search, currency, onOpenCustomer, onNav, onAddCustomer, toast }) {
   const [filter, setFilter] = React.useState("all");
   const customers = state.customers;
   const filtered = customers.filter(c => {
@@ -234,8 +257,8 @@ function CustomersScreen({ state, search, currency, onOpenCustomer, onNav, onAdd
           <div className="page-sub">អតិថិជន & រថយន្ត · សរុប {customers.length} នាក់ · {vehicles.length} រថយន្ត</div>
         </div>
         <div className="page-actions">
-          <button className="btn"><Icon.Download size={14} /> នាំចេញ</button>
-          <button className="btn"><Icon.Up size={14} /> នាំចូល Excel</button>
+          <button className="btn" onClick={() => { exportCsv("customers.csv", customers.map(c => ({ id: c.id, name: c.name, type: c.type, phone: c.phone, address: c.address, since: c.since, points: c.points, lifetime: c.lifetime, jobs: c.jobs }))); toast && toast(`នាំចេញ ${customers.length} អតិថិជន (CSV)`, "ok"); }}><Icon.Download size={14} /> នាំចេញ</button>
+          <button className="btn" onClick={() => toast && toast("នាំចូល Excel (ឆាប់ៗ)", "info")}><Icon.Up size={14} /> នាំចូល Excel</button>
           <button className="btn btn-primary" onClick={onAddCustomer}><Icon.Plus size={14} /> បន្ថែមអតិថិជន</button>
         </div>
       </div>
@@ -276,7 +299,7 @@ function CustomersScreen({ state, search, currency, onOpenCustomer, onNav, onAdd
           </button>
         ))}
         <div style={{ flex: 1 }}></div>
-        <button className="btn btn-sm"><Icon.Filter size={12} /> Filter</button>
+        <button className="btn btn-sm" onClick={() => toast && toast("ប្រើ tab ខាងលើ (ទាំងអស់/VIP/Corporate/ថ្មី) ដើម្បីត្រង", "info")}><Icon.Filter size={12} /> Filter</button>
       </div>
 
       {/* Customer cards */}
@@ -512,4 +535,4 @@ function AddCustomerModal({ onClose, setState, toast }) {
   );
 }
 
-export { DashboardScreen, CustomersScreen, CustomerDrawer, Stat, Money, Row, AddCustomerModal };
+export { DashboardScreen, CustomersScreen, CustomerDrawer, Stat, Money, Row, AddCustomerModal, exportCsv };

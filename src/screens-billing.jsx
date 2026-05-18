@@ -2,7 +2,7 @@ import React from 'react';
 import GARAGE from './data';
 import { Icon } from './icons';
 import { Modal } from './shell';
-import { Money, Row } from './screens-core';
+import { Money, Row, exportCsv } from './screens-core';
 // ─── Parts, Quotation, Invoices screens ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -37,8 +37,8 @@ function PartsScreen({ state, currency, toast, onNewPart }) {
           <div className="page-sub">ស្តុក Parts · {allParts.length} SKUs · {suppliers.length} អ្នកផ្គត់ផ្គង់</div>
         </div>
         <div className="page-actions">
-          <button className="btn"><Icon.Download size={14} /> Export</button>
-          <button className="btn"><Icon.Tag size={14} /> Barcode</button>
+          <button className="btn" onClick={() => { exportCsv("parts.csv", allParts.map(p => ({ sku: p.sku, name: p.name, nameEn: p.nameEn, category: p.category, supplier: p.supplier, location: p.location, stock: p.stock, reorder: p.reorder, cost: p.cost, price: p.price }))); toast(`នាំចេញ ${allParts.length} Parts (CSV)`, "ok"); }}><Icon.Download size={14} /> Export</button>
+          <button className="btn" onClick={() => toast("Barcode scanner (ឆាប់ៗ)", "info")}><Icon.Tag size={14} /> Barcode</button>
           <button className="btn btn-primary" onClick={onNewPart}><Icon.Plus size={14} /> Part ថ្មី</button>
         </div>
       </div>
@@ -181,7 +181,7 @@ function QuotationScreen({ state, currency, onNewQuote, toast, onConvert, onSend
           <div className="page-sub">តម្លៃប៉ាន់ស្មាន · {allQuotes.length} ឯកសារ · Acceptance Rate {acceptRate}%</div>
         </div>
         <div className="page-actions">
-          <button className="btn"><Icon.Download size={14} /> Export</button>
+          <button className="btn" onClick={() => { exportCsv("quotations.csv", allQuotes.map(q => ({ id: q.id, customer: (customersById[q.customer] || {}).name || q.customer, vehicle: (vehiclesById[q.vehicle] || {}).plate || q.vehicle, created: q.created, valid: q.valid, items: q.items, total: q.total, status: q.status }))); toast(`នាំចេញ ${allQuotes.length} Quotations (CSV)`, "ok"); }}><Icon.Download size={14} /> Export</button>
           <button className="btn btn-primary" onClick={onNewQuote}><Icon.Plus size={14} /> Quote ថ្មី</button>
         </div>
       </div>
@@ -373,7 +373,7 @@ function NewQuoteModal({ onClose, setState, toast, currency }) {
 // ════════════════════════════════════════════════════════════
 // INVOICES
 // ════════════════════════════════════════════════════════════
-function InvoicesScreen({ state, currency, onOpenInvoice, onNewInvoice }) {
+function InvoicesScreen({ state, currency, onOpenInvoice, onNewInvoice, toast }) {
   const [tab, setTab] = React.useState("all");
   const allInv = state.invoices;
   const filtered = tab === "all" ? allInv : allInv.filter(i => i.status === tab);
@@ -389,7 +389,7 @@ function InvoicesScreen({ state, currency, onOpenInvoice, onNewInvoice }) {
           <div className="page-sub">វិក្កយបត្រ · {allInv.length} ឯកសារ · {allInv.filter(i => i.status !== "paid").length} នៅជំពាក់</div>
         </div>
         <div className="page-actions">
-          <button className="btn"><Icon.Download size={14} /> Export</button>
+          <button className="btn" onClick={() => { exportCsv("invoices.csv", allInv.map(inv => ({ id: inv.id, job: inv.job, customer: (customersById[inv.customer] || {}).name || inv.customer, vehicle: (vehiclesById[inv.vehicle] || {}).plate || inv.vehicle, issued: inv.issued, subtotal: inv.subtotal, tax: inv.tax, total: inv.total, paid: inv.paid, status: inv.status }))); toast && toast(`នាំចេញ ${allInv.length} Invoices (CSV)`, "ok"); }}><Icon.Download size={14} /> Export</button>
           <button className="btn btn-primary" onClick={onNewInvoice}><Icon.Plus size={14} /> Invoice ថ្មី</button>
         </div>
       </div>
