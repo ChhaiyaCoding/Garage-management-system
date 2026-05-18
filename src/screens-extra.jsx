@@ -5,6 +5,8 @@ import { Modal } from './shell';
 import { Money, Stat } from './screens-core';
 // ─── Booking, DVI, Members, Reports, Settings screens ───
 const G = GARAGE;
+const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
+  customersById, vehiclesById, partsById, jobsById, vehicleLabel, statusColor, statusLabel, moneyUSD, moneyKHR } = G;
 
 // ════════════════════════════════════════════════════════════
 // BOOKING (Online appointments)

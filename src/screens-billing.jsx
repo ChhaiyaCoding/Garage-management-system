@@ -5,6 +5,8 @@ import { Modal } from './shell';
 import { Money } from './screens-core';
 // ─── Parts, Quotation, Invoices screens ───
 const G = GARAGE;
+const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
+  customersById, vehiclesById, partsById, jobsById, vehicleLabel, statusColor, statusLabel, moneyUSD, moneyKHR } = G;
 
 // ════════════════════════════════════════════════════════════
 // PARTS INVENTORY

@@ -5,6 +5,8 @@ import { Modal, Drawer } from './shell';
 import { Money } from './screens-core';
 // ─── Job Card Kanban + Job detail drawer + New Job modal ───
 const G = GARAGE;
+const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
+  customersById, vehiclesById, partsById, jobsById, vehicleLabel, statusColor, statusLabel, moneyUSD, moneyKHR } = G;
 const KANBAN_COLS = [
   { id: "waiting", title: "Waiting · រង់ចាំ", dot: "gray" },
   { id: "diagnose", title: "Diagnose · ត្រួតពិនិត្យ", dot: "amber" },
