@@ -545,6 +545,7 @@ function CustomerDrawer({ id, state, setState, onClose, currency, onNewJob, onNe
   const [editVeh, setEditVeh] = React.useState(null);
   const [confirmDelVeh, setConfirmDelVeh] = React.useState(null);
   const [confirmDelCust, setConfirmDelCust] = React.useState(false);
+  const [stmtOpen, setStmtOpen] = React.useState(false);
   if (!c) return null;
   const cvehs = vehiclesByOwner(id, state);
   const cjobs = (state?.jobs || jobs).filter(j => j.customer === id);
@@ -576,9 +577,11 @@ function CustomerDrawer({ id, state, setState, onClose, currency, onNewJob, onNe
         <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
           <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => { onNewJob && onNewJob(c.id); onClose(); }}><Icon.Plus size={12} /> Job ថ្មី</button>
           <button className="btn btn-sm" onClick={() => { onNewQuote && onNewQuote(c.id); onClose(); }}><Icon.Calc size={12} /> Quote</button>
+          <button className="btn btn-sm" title="Statement" onClick={() => setStmtOpen(true)}><Icon.Doc size={12} /></button>
           <button className="btn btn-sm" onClick={() => { if (c.phone && c.phone !== "—") { window.open("tel:" + c.phone.replace(/\s/g, ""), "_self"); } else { toast && toast("គ្មានលេខទូរស័ព្ទ", "info"); } }}><Icon.Phone size={12} /></button>
           <button className="btn btn-sm" onClick={() => { if (c.telegram) { toast && toast(`បានផ្ញើសារ Telegram ទៅ ${c.name}`, "ok"); } else { toast && toast(`បានផ្ញើ SMS ទៅ ${c.phone || c.name}`, "ok"); } }}><Icon.Mail size={12} /></button>
         </div>
+        {stmtOpen && <CustomerStatementModal customer={c} state={state} currency={currency} onClose={() => setStmtOpen(false)} toast={toast} />}
 
         <div className="section-heading">
           <h2 style={{ fontSize: 14 }}>រថយន្ត · VEHICLES ({cvehs.length})</h2>
@@ -932,5 +935,230 @@ function ConfirmModal({ title, message, danger, onClose, onConfirm }) {
   );
 }
 
-export { DashboardScreen, CustomersScreen, CustomerDrawer, Stat, Money, Row, AddCustomerModal, EditCustomerModal, AddVehicleModal, EditVehicleModal, ConfirmModal, exportCsv,
+// ── Customer Statement Modal (history + PDF) ──
+function CustomerStatementModal({ customer, state, currency, onClose, toast }) {
+  const sheetRef = React.useRef(null);
+  const [downloading, setDownloading] = React.useState(false);
+  const cvehs = vehiclesByOwner(customer.id, state);
+  const cjobs = ((state && state.jobs) || jobs).filter(j => j.customer === customer.id);
+  const cinvs = ((state && state.invoices) || invoices).filter(i => i.customer === customer.id);
+  const cquotes = ((state && state.quotations) || quotations).filter(q => q.customer === customer.id);
+
+  const totalBilled = cinvs.reduce((s, i) => s + (i.total || 0), 0);
+  const totalPaid = cinvs.reduce((s, i) => s + (i.paid || 0), 0);
+  const outstanding = totalBilled - totalPaid;
+  const today = new Date().toISOString().slice(0, 10);
+
+  async function downloadPdf() {
+    if (!sheetRef.current) return;
+    setDownloading(true);
+    try {
+      const { downloadElementAsPdf } = await import('./lib/pdf');
+      const safeName = (customer.name || customer.id).replace(/[^a-zA-Z0-9-]/g, "_");
+      await downloadElementAsPdf(sheetRef.current, `Statement-${safeName}-${today}.pdf`);
+      toast(`បាន​ទាញ​យក Statement (${customer.name})`, "ok");
+    } catch (e) {
+      console.error(e);
+      toast("PDF generation failed: " + (e.message || "unknown error"), "error");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <Modal wide title={"Statement · " + customer.name} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បិទ</button>
+        <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print</button>
+        <button className="btn btn-primary" onClick={downloadPdf} disabled={downloading}><Icon.Download size={14} /> {downloading ? "កំពុង​បង្កើត..." : "ទាញ​យក PDF"}</button>
+      </>}>
+      <div ref={sheetRef} style={{ background: 'white', color: '#0a0d12', padding: 32, borderRadius: 8, fontFamily: 'var(--font-en)' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #0a0d12' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 6, background: 'var(--accent)', display: 'grid', placeItems: 'center', color: '#0b0b0b', fontWeight: 800, fontSize: 18 }}>G</div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: '0.02em' }}>GARAGE OS</div>
+                <div style={{ fontSize: 10, letterSpacing: '0.12em', color: '#666' }}>SERVICE CENTER · PHNOM PENH</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: '#666' }}>St. 271, Sangkat Toul Tom Pong<br />Phnom Penh, Cambodia · +855 23 555 100</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '0.04em', marginBottom: 4 }}>STATEMENT</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{customer.id}</div>
+            <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>As of {today}</div>
+          </div>
+        </div>
+
+        {/* Customer info */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 22 }}>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>CUSTOMER</div>
+            <div style={{ fontWeight: 700, fontSize: 16 }}>{customer.name}</div>
+            <div style={{ fontSize: 12, color: '#444' }}>{customer.address}</div>
+            <div style={{ fontSize: 12, color: '#444' }}>{customer.phone}</div>
+            <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>Customer since: {customer.since || "—"}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>SUMMARY</div>
+            <table style={{ width: '100%', fontSize: 12 }}>
+              <tbody>
+                <tr><td style={{ padding: 3, color: '#666' }}>Total Vehicles</td><td style={{ padding: 3, textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{cvehs.length}</td></tr>
+                <tr><td style={{ padding: 3, color: '#666' }}>Total Jobs</td><td style={{ padding: 3, textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{cjobs.length}</td></tr>
+                <tr><td style={{ padding: 3, color: '#666' }}>Total Billed</td><td style={{ padding: 3, textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{moneyUSD(totalBilled)}</td></tr>
+                <tr><td style={{ padding: 3, color: '#666' }}>Total Paid</td><td style={{ padding: 3, textAlign: 'right', fontFamily: 'var(--font-mono)', color: '#22a85a', fontWeight: 700 }}>{moneyUSD(totalPaid)}</td></tr>
+                <tr style={{ borderTop: '1px solid #ccc' }}>
+                  <td style={{ padding: '6px 3px 3px', fontWeight: 700 }}>Outstanding</td>
+                  <td style={{ padding: '6px 3px 3px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, color: outstanding > 0 ? '#dc2626' : '#0a0d12', fontSize: 14 }}>{moneyUSD(outstanding)}</td>
+                </tr>
+                {customer.points > 0 && <tr><td style={{ padding: 3, color: '#666' }}>Loyalty Points</td><td style={{ padding: 3, textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--accent)' }}>{customer.points}</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Vehicles */}
+        <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>VEHICLES ({cvehs.length})</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 18, fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: '#f5f5f5' }}>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>PLATE</th>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>MAKE / MODEL</th>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>VIN</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>MILEAGE</th>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>NEXT SERVICE</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cvehs.length === 0 && <tr><td colSpan={5} style={{ padding: '10px 12px', color: '#888', textAlign: 'center', fontStyle: 'italic' }}>គ្មាន​រថយន្ត</td></tr>}
+            {cvehs.map(v => (
+              <tr key={v.id} style={{ borderBottom: '1px solid #eee' }}>
+                <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{v.plate}</td>
+                <td style={{ padding: '8px 10px' }}>{vehicleLabel(v)}</td>
+                <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)', fontSize: 11, color: '#666' }}>{v.vin}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{(v.mileage || 0).toLocaleString()} km</td>
+                <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)' }}>{v.nextService || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Jobs history */}
+        <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>SERVICE HISTORY ({cjobs.length})</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 18, fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: '#f5f5f5' }}>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>DATE</th>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>JOB ID</th>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>VEHICLE</th>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>SERVICE</th>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>STATUS</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cjobs.length === 0 && <tr><td colSpan={5} style={{ padding: '10px 12px', color: '#888', textAlign: 'center', fontStyle: 'italic' }}>មិនទាន់​មាន Job ទេ</td></tr>}
+            {cjobs.map(j => {
+              const jv = lookupVehicle(j.vehicle, state) || MISSING_V;
+              return (
+                <tr key={j.id} style={{ borderBottom: '1px solid #eee' }}>
+                  <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)' }}>{(j.created || "").split(" ")[0]}</td>
+                  <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{j.id}</td>
+                  <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)' }}>{jv.plate}</td>
+                  <td style={{ padding: '8px 10px' }}>{j.title}</td>
+                  <td style={{ padding: '8px 10px', textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.08em', fontWeight: 700 }}>{j.status}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        {/* Invoices */}
+        <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>INVOICES ({cinvs.length})</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 18, fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: '#f5f5f5' }}>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>DATE</th>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>INVOICE ID</th>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>VEHICLE</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>TOTAL</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>PAID</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>BALANCE</th>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>STATUS</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cinvs.length === 0 && <tr><td colSpan={7} style={{ padding: '10px 12px', color: '#888', textAlign: 'center', fontStyle: 'italic' }}>គ្មាន Invoice</td></tr>}
+            {cinvs.map(i => {
+              const iv = lookupVehicle(i.vehicle, state) || MISSING_V;
+              const bal = (i.total || 0) - (i.paid || 0);
+              return (
+                <tr key={i.id} style={{ borderBottom: '1px solid #eee' }}>
+                  <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)' }}>{i.issued}</td>
+                  <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{i.id}</td>
+                  <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)' }}>{iv.plate}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{moneyUSD(i.total || 0)}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', color: '#22a85a' }}>{moneyUSD(i.paid || 0)}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700, color: bal > 0 ? '#dc2626' : '#0a0d12' }}>{moneyUSD(bal)}</td>
+                  <td style={{ padding: '8px 10px', textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.08em', fontWeight: 700 }}>{i.status}</td>
+                </tr>
+              );
+            })}
+            {cinvs.length > 0 && (
+              <tr style={{ borderTop: '2px solid #0a0d12', background: '#fafafa' }}>
+                <td colSpan={3} style={{ padding: '10px 10px', fontWeight: 800, letterSpacing: '0.06em' }}>TOTAL</td>
+                <td style={{ padding: '10px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800 }}>{moneyUSD(totalBilled)}</td>
+                <td style={{ padding: '10px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, color: '#22a85a' }}>{moneyUSD(totalPaid)}</td>
+                <td style={{ padding: '10px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, color: outstanding > 0 ? '#dc2626' : '#0a0d12', fontSize: 14 }}>{moneyUSD(outstanding)}</td>
+                <td></td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+
+        {/* Quotes (compact) */}
+        {cquotes.length > 0 && (
+          <>
+            <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>QUOTATIONS ({cquotes.length})</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 18, fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: '#f5f5f5' }}>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>CREATED</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>QUOTE ID</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>VALID UNTIL</th>
+                  <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>TOTAL</th>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cquotes.map(q => (
+                  <tr key={q.id} style={{ borderBottom: '1px solid #eee' }}>
+                    <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)' }}>{q.created}</td>
+                    <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{q.id}</td>
+                    <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)' }}>{q.valid}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{moneyUSD(q.total)}</td>
+                    <td style={{ padding: '8px 10px', textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.08em', fontWeight: 700 }}>{q.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
+        {/* Footer */}
+        {outstanding > 0 && (
+          <div style={{ background: '#fff3cd', border: '1px solid #ffc107', padding: 12, borderRadius: 6, marginBottom: 14, fontSize: 12, color: '#7a5a00' }}>
+            <strong>Outstanding Balance:</strong> {moneyUSD(outstanding)} · សូម​ទូទាត់​នៅ​ឱកាស​ដ៏​ឆាប់
+          </div>
+        )}
+        <div style={{ fontSize: 10, color: '#888', textAlign: 'center', letterSpacing: '0.04em', borderTop: '1px solid #eee', paddingTop: 14 }}>
+          THANK YOU · សូមអរគុណចំពោះការគាំទ្ររបស់លោកអ្នក
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+export { DashboardScreen, CustomersScreen, CustomerDrawer, Stat, Money, Row, AddCustomerModal, EditCustomerModal, AddVehicleModal, EditVehicleModal, ConfirmModal, CustomerStatementModal, exportCsv,
   lookupCustomer, lookupVehicle, vehiclesByOwner, MISSING_C, MISSING_V };
