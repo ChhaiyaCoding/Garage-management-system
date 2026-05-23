@@ -204,7 +204,7 @@ function Topbar({ search, setSearch, onOpenTweaks, currency, setCurrency, userEm
   const { canInstall, isStandalone, promptInstall } = useInstallPrompt();
   const localName = userEmail ? userEmail.split("@")[0] : "លោក សុខ ភារុណ";
   const initials = (userEmail ? userEmail.slice(0, 2) : "SP").toUpperCase();
-  const saveLabel = saveStatus === "saving" ? "កំពុងរក្សាទុក..." : saveStatus === "saved" ? "បានរក្សាទុក ✓" : saveStatus === "error" ? "បរាជ័យ ⚠" : null;
+  const saveLabel = saveStatus === "saving" ? "កំពុងរក្សាទុក..." : saveStatus === "saved" ? "បានរក្សាទុក ✓" : saveStatus === "queued" ? "រង់ចាំ online ⏳" : saveStatus === "error" ? "បរាជ័យ ⚠" : null;
   return (
     <header className="topbar">
       <div className="branch-pill">
@@ -224,7 +224,7 @@ function Topbar({ search, setSearch, onOpenTweaks, currency, setCurrency, userEm
       )}
       <div className="topbar-actions">
         {saveLabel && (
-          <span className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: saveStatus === "error" ? 'var(--danger)' : saveStatus === "saving" ? 'var(--text-2)' : 'var(--success)' }}>{saveLabel}</span>
+          <span className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: saveStatus === "error" ? 'var(--danger)' : saveStatus === "queued" ? 'var(--warn)' : saveStatus === "saving" ? 'var(--text-2)' : 'var(--success)' }}>{saveLabel}</span>
         )}
         {canInstall && !isStandalone && (
           <button className="btn btn-sm btn-primary" onClick={promptInstall} title="ដំឡើង Garage OS ​ជា App">

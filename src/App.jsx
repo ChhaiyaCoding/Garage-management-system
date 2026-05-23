@@ -2,6 +2,7 @@ import React from 'react';
 import GARAGE from './data';
 import { useTweaks, TweaksPanel, TweakSection, TweakColor, TweakRadio } from './tweaks-panel';
 import { useShortcuts, SHORTCUTS } from './lib/shortcuts';
+import { useOnline } from './lib/useOnline';
 import { Sidebar, Topbar, useToasts } from './shell';
 import { DashboardScreen, CustomersScreen, CustomerDrawer, AddCustomerModal } from './screens-core';
 import { JobsScreen, JobDrawer, NewJobModal, EditJobModal } from './screens-jobs';
@@ -91,6 +92,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
   const [addMemberOpen, setAddMemberOpen] = React.useState(false);
   const [helpOpen, setHelpOpen] = React.useState(false);
   const [saveStatus, setSaveStatus] = React.useState("idle"); // idle | saving | saved | error
+  const online = useOnline();
 
   const [state, setState] = React.useState(initialState || defaultState());
 
@@ -99,9 +101,13 @@ function App({ initialState, userId, userEmail, onSignOut }) {
   React.useEffect(() => {
     if (!userId) return;            // in-memory mode
     if (firstRender.current) { firstRender.current = false; return; }
-    setSaveStatus("saving");
-    queueSave(userId, state, (res) => setSaveStatus(res.ok ? "saved" : "error"));
-  }, [state, userId]);
+    setSaveStatus(online ? "saving" : "queued");
+    queueSave(userId, state, (res) => {
+      if (res.ok) setSaveStatus("saved");
+      else if (res.reason === 'offline') setSaveStatus("queued");
+      else setSaveStatus("error");
+    });
+  }, [state, userId, online]);
 
   function convertQuoteToJob(qId) {
     const q = state.quotations.find(x => x.id === qId);
@@ -239,6 +245,12 @@ function App({ initialState, userId, userEmail, onSignOut }) {
 
   return (
     <div className="app">
+      {!online && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 200, background: 'var(--warn)', color: '#0a0d12', padding: '6px 16px', fontSize: 12, fontWeight: 600, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, fontFamily: 'var(--font-en)', letterSpacing: '0.02em' }}>
+          <span style={{ width: 8, height: 8, borderRadius: 4, background: '#0a0d12' }}></span>
+          OFFLINE · ការផ្លាស់ប្ដូរ​នឹង​ត្រូវ​រក្សា​ទុក​ពេល​ត្រឡប់​មក online វិញ
+        </div>
+      )}
       <Sidebar active={route} onNav={setRoute} />
       <main>
         <Topbar
