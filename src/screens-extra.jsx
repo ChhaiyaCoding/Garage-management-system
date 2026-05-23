@@ -480,21 +480,94 @@ function MembersScreen({ state, setState, currency, toast, onAddMember }) {
 // ════════════════════════════════════════════════════════════
 function ReportsScreen({ state, currency, toast }) {
   const [salesOpen, setSalesOpen] = React.useState(false);
-  const monthly = [
-    { m: "ឧសភា 25", v: 12400 },
-    { m: "មិថុនា", v: 14820 },
-    { m: "កក្កដា", v: 13900 },
-    { m: "សីហា", v: 15640 },
-    { m: "កញ្ញា", v: 16200 },
-    { m: "តុលា", v: 14800 },
-    { m: "វិច្ឆិកា", v: 17320 },
-    { m: "ធ្នូ", v: 19420 },
-    { m: "មករា 26", v: 16800 },
-    { m: "កុម្ភៈ", v: 18200 },
-    { m: "មីនា", v: 21100 },
-    { m: "មេសា", v: 22850 },
-  ];
-  const max = Math.max(...monthly.map(m => m.v));
+  const [chartMetric, setChartMetric] = React.useState("revenue"); // revenue | billed | jobs | newCustomers
+
+  // ── Live aggregations from state ──
+  const allInvs = state.invoices || [];
+  const allJobs = state.jobs || [];
+  const allCustomers = state.customers || [];
+  const allParts = state.parts || [];
+
+  // Last 12 months buckets
+  const now = new Date();
+  const monthly = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    monthly.push({ key, label: d.toLocaleDateString('en-US', { month: 'short' }), year: d.getFullYear(), revenue: 0, billed: 0, jobs: 0, newCustomers: 0 });
+  }
+  const monthIdx = Object.fromEntries(monthly.map((m, i) => [m.key, i]));
+  allInvs.forEach(inv => {
+    const k = (inv.issued || "").slice(0, 7);
+    if (monthIdx[k] != null) {
+      monthly[monthIdx[k]].billed += inv.total || 0;
+      monthly[monthIdx[k]].revenue += inv.paid || 0;
+    }
+  });
+  allJobs.forEach(j => {
+    const k = (j.created || "").slice(0, 7);
+    if (monthIdx[k] != null) monthly[monthIdx[k]].jobs++;
+  });
+  allCustomers.forEach(c => {
+    const k = (c.since || "").slice(0, 7);
+    if (monthIdx[k] != null) monthly[monthIdx[k]].newCustomers++;
+  });
+  const max = Math.max(...monthly.map(m => m[chartMetric] || 0), 1);
+
+  // KPI calculations
+  const totalRevenue = monthly.reduce((s, m) => s + m.revenue, 0);
+  const totalBilled = monthly.reduce((s, m) => s + m.billed, 0);
+  const completedJobs = allJobs.filter(j => j.status === "done");
+  const avgPerJob = completedJobs.length ? totalRevenue / completedJobs.length : 0;
+  // Gross margin: revenue from parts minus cost. Parts cost is sum of (qty × part.cost) across all jobs.
+  let partsCost = 0;
+  let partsRevenue = 0;
+  let laborRevenue = 0;
+  allJobs.forEach(j => {
+    (j.partsUsed || []).forEach(p => {
+      const part = allParts.find(x => x.id === p.id);
+      if (part) partsCost += (p.qty || 0) * (part.cost || 0);
+      partsRevenue += (p.qty || 0) * (p.price || 0);
+    });
+    (j.services || []).forEach(s => { laborRevenue += s.total || 0; });
+  });
+  const grossRevenue = partsRevenue + laborRevenue;
+  const grossMargin = grossRevenue ? Math.round(((grossRevenue - partsCost) / grossRevenue) * 100) : 0;
+  // Retention: customers with ≥ 2 jobs / total customers with ≥ 1 job
+  const jobCountByCustomer = {};
+  allJobs.forEach(j => { jobCountByCustomer[j.customer] = (jobCountByCustomer[j.customer] || 0) + 1; });
+  const customersWithJobs = Object.keys(jobCountByCustomer).length;
+  const repeatCustomers = Object.values(jobCountByCustomer).filter(n => n >= 2).length;
+  const retention = customersWithJobs ? Math.round((repeatCustomers / customersWithJobs) * 100) : 0;
+
+  // Top services: aggregate from job.services by name
+  const serviceAgg = {};
+  allJobs.forEach(j => {
+    (j.services || []).forEach(s => {
+      const k = s.name || "—";
+      if (!serviceAgg[k]) serviceAgg[k] = { name: k, count: 0, revenue: 0 };
+      serviceAgg[k].count++;
+      serviceAgg[k].revenue += s.total || 0;
+    });
+  });
+  const topServices = Object.values(serviceAgg).sort((a, b) => b.revenue - a.revenue).slice(0, 8);
+
+  // Top parts: aggregate by part.id
+  const partAgg = {};
+  allJobs.forEach(j => {
+    (j.partsUsed || []).forEach(p => {
+      if (!partAgg[p.id]) partAgg[p.id] = { id: p.id, used: 0, revenue: 0 };
+      partAgg[p.id].used += p.qty || 0;
+      partAgg[p.id].revenue += (p.qty || 0) * (p.price || 0);
+    });
+  });
+  const topParts = Object.values(partAgg).map(pa => {
+    const part = allParts.find(x => x.id === pa.id);
+    return { ...pa, name: part ? part.name : pa.id };
+  }).sort((a, b) => b.revenue - a.revenue).slice(0, 6);
+
+  const metricLabel = chartMetric === "revenue" ? "ចំណូល · REVENUE" : chartMetric === "billed" ? "BILLED" : chartMetric === "jobs" ? "JOBS" : "NEW CUSTOMERS";
+  const formatBar = v => chartMetric === "revenue" || chartMetric === "billed" ? (v ? Math.round(v / 1000) + 'K' : '') : (v || '');
   return (
     <div className="page">
       <div className="page-head">
@@ -511,90 +584,125 @@ function ReportsScreen({ state, currency, toast }) {
       </div>
 
       <div className="kpi-grid">
-        <div className="kpi"><div className="kpi-label">ចំណូលឆ្នាំ</div><div className="kpi-value num"><Money value={203210} currency={currency} /></div><div className="kpi-delta">▲ 28% YoY</div></div>
-        <div className="kpi"><div className="kpi-label">Gross Margin</div><div className="kpi-value num">38<span className="kpi-unit">%</span></div><div className="kpi-delta">▲ 2.4%</div></div>
-        <div className="kpi"><div className="kpi-label">មធ្យម / Job</div><div className="kpi-value num"><Money value={142} currency={currency} /></div><div className="kpi-delta">▲ 8%</div></div>
-        <div className="kpi"><div className="kpi-label">Retention</div><div className="kpi-value num">64<span className="kpi-unit">%</span></div><div className="kpi-delta">▲ 5%</div></div>
+        <div className="kpi">
+          <div className="kpi-label">ចំណូល​ 12 ខែ · REVENUE</div>
+          <div className="kpi-value num"><Money value={totalRevenue} currency={currency} /></div>
+          <div className="kpi-delta neutral">{allInvs.length} invoices · billed {moneyUSD(totalBilled)}</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">Gross Margin</div>
+          <div className="kpi-value num">{grossMargin}<span className="kpi-unit">%</span></div>
+          <div className="kpi-delta neutral">parts + labor</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">មធ្យម / Job</div>
+          <div className="kpi-value num"><Money value={Math.round(avgPerJob)} currency={currency} /></div>
+          <div className="kpi-delta neutral">{completedJobs.length} done jobs</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">Retention</div>
+          <div className="kpi-value num">{retention}<span className="kpi-unit">%</span></div>
+          <div className="kpi-delta neutral">{repeatCustomers}/{customersWithJobs} repeat</div>
+        </div>
       </div>
 
       <div className="card">
-        <h3 className="card-title">ចំណូលប្រចាំខែ · MONTHLY REVENUE <span className="meta">USD · 12 MOS</span></h3>
+        <h3 className="card-title">
+          {metricLabel} <span className="meta">LAST 12 MONTHS</span>
+          <span style={{ flex: 1 }}></span>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[
+              { id: "revenue", label: "Revenue" },
+              { id: "billed", label: "Billed" },
+              { id: "jobs", label: "Jobs" },
+              { id: "newCustomers", label: "New Cust" },
+            ].map(t => (
+              <button key={t.id} className={"btn btn-sm" + (chartMetric === t.id ? " btn-primary" : "")} onClick={() => setChartMetric(t.id)}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </h3>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 220 }}>
-          {monthly.map((m, i) => (
-            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-              <div className="num" style={{ fontSize: 10, color: 'var(--text-2)' }}>{Math.round(m.v / 1000)}K</div>
-              <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
-                <div style={{ width: '100%', background: i === monthly.length - 1 ? 'var(--accent)' : 'var(--info)', borderRadius: '4px 4px 0 0', height: (m.v / max * 100) + "%", opacity: i === monthly.length - 1 ? 1 : 0.5 + (i / monthly.length) * 0.5 }}></div>
+          {monthly.map((m, i) => {
+            const v = m[chartMetric] || 0;
+            const last = i === monthly.length - 1;
+            return (
+              <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <div className="num" style={{ fontSize: 10, color: 'var(--text-2)' }}>{formatBar(v)}</div>
+                <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
+                  <div style={{ width: '100%', background: last ? 'var(--accent)' : 'var(--info)', borderRadius: '4px 4px 0 0', height: ((v / max) * 100) + "%", minHeight: v > 0 ? 2 : 0, opacity: last ? 1 : 0.5 + (i / monthly.length) * 0.5 }}></div>
+                </div>
+                <div className="mono" style={{ fontSize: 10, color: 'var(--text-2)', textAlign: 'center' }}>{m.label}</div>
               </div>
-              <div className="mono" style={{ fontSize: 10, color: 'var(--text-2)', textAlign: 'center' }}>{m.m}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div className="card">
           <h3 className="card-title">សេវាកម្មកំពូល · TOP SERVICES</h3>
-          <table className="table">
-            <thead><tr><th>សេវាកម្ម</th><th className="num">Jobs</th><th className="num">ចំណូល</th></tr></thead>
-            <tbody>
-              <tr><td>Oil change + filter</td><td className="num">88</td><td className="num">$3,520</td></tr>
-              <tr><td>Brake service</td><td className="num">42</td><td className="num">$4,180</td></tr>
-              <tr><td>30K/60K major service</td><td className="num">28</td><td className="num">$5,940</td></tr>
-              <tr><td>AC service</td><td className="num">34</td><td className="num">$1,820</td></tr>
-              <tr><td>Tire rotation + balance</td><td className="num">52</td><td className="num">$1,560</td></tr>
-              <tr><td>Engine diagnostics</td><td className="num">18</td><td className="num">$680</td></tr>
-            </tbody>
-          </table>
+          {topServices.length === 0 ? <div className="empty" style={{ padding: 24 }}>មិនទាន់​មាន​សេវាកម្ម​ក្នុង Jobs</div> : (
+            <table className="table">
+              <thead><tr><th>សេវាកម្ម</th><th className="num">Count</th><th className="num">ចំណូល</th></tr></thead>
+              <tbody>
+                {topServices.map((s, i) => (
+                  <tr key={i}>
+                    <td>{s.name}</td>
+                    <td className="num">{s.count}</td>
+                    <td className="num" style={{ fontWeight: 700 }}><Money value={s.revenue} currency={currency} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
         <div className="card">
           <h3 className="card-title">អតិថិជនកំពូល · TOP CUSTOMERS</h3>
-          <table className="table">
-            <thead><tr><th>អតិថិជន</th><th className="num">Jobs</th><th className="num">ចំណាយ</th></tr></thead>
-            <tbody>
-              {[...(state.customers || customers)].sort((a, b) => (b.lifetime || 0) - (a.lifetime || 0)).slice(0, 6).map(c => (
-                <tr key={c.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div className="avatar av-sm" style={{ background: c.color, color: '#0b0b0b', fontSize: 10 }}>{c.initials}</div>
-                      <span>{c.name}</span>
-                    </div>
-                  </td>
-                  <td className="num">{c.jobs}</td>
-                  <td className="num" style={{ fontWeight: 700 }}>${c.lifetime.toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {allCustomers.length === 0 ? <div className="empty" style={{ padding: 24 }}>មិនទាន់​មាន​អតិថិជន</div> : (
+            <table className="table">
+              <thead><tr><th>អតិថិជន</th><th className="num">Jobs</th><th className="num">ចំណាយ</th></tr></thead>
+              <tbody>
+                {[...allCustomers].sort((a, b) => (b.lifetime || 0) - (a.lifetime || 0)).slice(0, 6).map(c => (
+                  <tr key={c.id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div className="avatar av-sm" style={{ background: c.color || '#888', color: '#0b0b0b', fontSize: 10 }}>{c.initials || "?"}</div>
+                        <span>{c.name}</span>
+                      </div>
+                    </td>
+                    <td className="num">{c.jobs || 0}</td>
+                    <td className="num" style={{ fontWeight: 700 }}><Money value={c.lifetime || 0} currency={currency} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
       <div className="card">
         <h3 className="card-title">ការប្រើ Parts ច្រើនបំផុត · PARTS USAGE</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-          {[
-            { name: "Engine Oil 5W-30", used: 88, val: 2816 },
-            { name: "Oil Filter Toyota", used: 76, val: 646 },
-            { name: "Brake Pads Front", used: 42, val: 2016 },
-            { name: "Cabin Filter", used: 38, val: 532 },
-            { name: "Spark Plugs Iridium", used: 24, val: 864 },
-            { name: "Coolant 4L", used: 22, val: 484 },
-          ].map((p, i) => (
-            <div key={i} style={{ background: 'var(--bg-2)', padding: 14, borderRadius: 'var(--radius)' }}>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-                <div>
-                  <div className="num" style={{ fontWeight: 700, fontSize: 18 }}>{p.used}</div>
-                  <div className="mono muted" style={{ fontSize: 10 }}>UNITS</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div className="num" style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}>${p.val}</div>
-                  <div className="mono muted" style={{ fontSize: 10 }}>REVENUE</div>
+        {topParts.length === 0 ? <div className="empty" style={{ padding: 24 }}>មិនទាន់​មាន Parts ​ប្រើ​ក្នុង Jobs</div> : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            {topParts.map((p, i) => (
+              <div key={i} style={{ background: 'var(--bg-2)', padding: 14, borderRadius: 'var(--radius)' }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+                  <div>
+                    <div className="num" style={{ fontWeight: 700, fontSize: 18 }}>{p.used}</div>
+                    <div className="mono muted" style={{ fontSize: 10 }}>UNITS</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div className="num" style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}><Money value={p.revenue} currency={currency} /></div>
+                    <div className="mono muted" style={{ fontSize: 10 }}>REVENUE</div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
       {salesOpen && <SalesReportModal state={state} currency={currency} onClose={() => setSalesOpen(false)} toast={toast} />}
     </div>
