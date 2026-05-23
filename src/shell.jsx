@@ -72,7 +72,7 @@ function Sidebar({ active, onNav }) {
   );
 }
 
-function Topbar({ search, setSearch, onOpenTweaks, currency, setCurrency, userEmail, onSignOut, saveStatus }) {
+function Topbar({ search, setSearch, onOpenTweaks, currency, setCurrency, userEmail, onSignOut, saveStatus, theme, onToggleTheme }) {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const localName = userEmail ? userEmail.split("@")[0] : "លោក សុខ ភារុណ";
   const initials = (userEmail ? userEmail.slice(0, 2) : "SP").toUpperCase();
@@ -98,6 +98,11 @@ function Topbar({ search, setSearch, onOpenTweaks, currency, setCurrency, userEm
           <Icon.Bell size={16} />
           <span className="badge">3</span>
         </button>
+        {onToggleTheme && (
+          <button className="icon-btn" onClick={onToggleTheme} title={theme === "light" ? "ប្ដូរ​ទៅ Dark mode" : "ប្ដូរ​ទៅ Light mode"}>
+            {theme === "light" ? <Icon.Moon size={16} /> : <Icon.Sun size={16} />}
+          </button>
+        )}
         <button className="icon-btn" onClick={onOpenTweaks} title="Tweaks">
           <Icon.Cog size={16} />
         </button>

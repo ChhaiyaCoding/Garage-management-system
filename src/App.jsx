@@ -17,7 +17,8 @@ const TWEAK_DEFAULTS = {
   "accent": "#f5b400",
   "density": "comfortable",
   "currency": "USD",
-  "sidebar": "full"
+  "sidebar": "full",
+  "theme": "dark"
 };
 
 const ACCENT_PALETTES = {
@@ -162,7 +163,8 @@ function App({ initialState, userId, userEmail, onSignOut }) {
     root.style.setProperty("--accent-soft", p.soft);
     root.dataset.density = tweaks.density;
     root.dataset.sidebar = tweaks.sidebar;
-  }, [tweaks.accent, tweaks.density, tweaks.sidebar]);
+    root.dataset.theme = tweaks.theme || "dark";
+  }, [tweaks.accent, tweaks.density, tweaks.sidebar, tweaks.theme]);
 
   function generateInvoice(jobId) {
     const job = state.jobs.find(j => j.id === jobId);
@@ -198,6 +200,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
           onOpenTweaks={() => window.postMessage({ type: '__activate_edit_mode' }, '*')}
           currency={tweaks.currency} setCurrency={(v) => setTweak("currency", v)}
           userEmail={userEmail} onSignOut={onSignOut} saveStatus={saveStatus}
+          theme={tweaks.theme || "dark"} onToggleTheme={() => setTweak("theme", (tweaks.theme || "dark") === "dark" ? "light" : "dark")}
         />
         {route === "dashboard" && <DashboardScreen state={state} currency={tweaks.currency} onNav={setRoute} toast={toast} />}
         {route === "customers" && <CustomersScreen state={state} search={search} currency={tweaks.currency} onOpenCustomer={setCustomerOpen} onNav={setRoute} onAddCustomer={() => setAddCustomerOpen(true)} toast={toast} />}
@@ -252,6 +255,15 @@ function App({ initialState, userId, userEmail, onSignOut }) {
             options={[
               { value: "full", label: "Full" },
               { value: "icons", label: "Icons" },
+            ]}
+          />
+          <TweakRadio
+            label="Theme"
+            value={tweaks.theme || "dark"}
+            onChange={(v) => setTweak("theme", v)}
+            options={[
+              { value: "dark", label: "Dark" },
+              { value: "light", label: "Light" },
             ]}
           />
         </TweakSection>
