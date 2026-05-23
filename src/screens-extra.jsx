@@ -305,8 +305,28 @@ const TIERS = [
   { name: "Platinum", color: "#a78bfa", min: 1000, perks: ["20% discount", "All Gold perks", "Free annual major service"] },
 ];
 
-function MembersScreen({ state, currency, toast, onAddMember }) {
+function MembersScreen({ state, setState, currency, toast, onAddMember }) {
   const members = state.members;
+  function tierFromPoints(p) {
+    let best = TIERS[0].name;
+    for (const t of TIERS) if (p >= t.min) best = t.name;
+    return best;
+  }
+  function addPoints(mid, delta) {
+    setState(s => ({
+      ...s,
+      members: s.members.map(m => {
+        if (m.id !== mid) return m;
+        const newPoints = Math.max(0, (m.points || 0) + delta);
+        const newTier = tierFromPoints(newPoints);
+        if (newTier !== m.tier) {
+          toast(`${m.name} → តម្លើងជា ${newTier}!`, "ok");
+        }
+        return { ...m, points: newPoints, tier: newTier };
+      }),
+    }));
+    toast(`+${delta} ពិន្ទុ`, "ok");
+  }
   const totalPoints = members.reduce((s, m) => s + m.points, 0);
   const totalSpent = members.reduce((s, m) => s + m.spent, 0);
   return (
@@ -420,7 +440,7 @@ function MembersScreen({ state, currency, toast, onAddMember }) {
                       </>
                     ) : <div className="mono muted" style={{ fontSize: 10 }}>MAX TIER</div>}
                   </td>
-                  <td><button className="btn btn-sm" onClick={() => toast("បន្ថែម 50 ពិន្ទុ", "ok")}>+ Add Points</button></td>
+                  <td><button className="btn btn-sm" onClick={() => addPoints(m.id, 50)}>+ 50 Points</button></td>
                 </tr>
               );
             })}
@@ -581,12 +601,12 @@ function SettingsScreen({ state, setState, tweaks, setTweak, toast }) {
         ))}
       </div>
 
-      {tab === "garage" && <GarageSettings />}
+      {tab === "garage" && <GarageSettings state={state} setState={setState} toast={toast} />}
       {tab === "branches" && <BranchSettings state={state} setState={setState} toast={toast} />}
       {tab === "staff" && <StaffSettings state={state} setState={setState} toast={toast} />}
-      {tab === "billing" && <BillingSettings />}
-      {tab === "integrations" && <IntegrationSettings />}
-      {tab === "loyalty" && <LoyaltySettings />}
+      {tab === "billing" && <BillingSettings state={state} setState={setState} toast={toast} />}
+      {tab === "integrations" && <IntegrationSettings toast={toast} />}
+      {tab === "loyalty" && <LoyaltySettings state={state} setState={setState} toast={toast} />}
     </div>
   );
 }
@@ -600,29 +620,52 @@ function SettingsCard({ title, children }) {
   );
 }
 
-function GarageSettings() {
+function GarageSettings({ state, setState, toast }) {
+  const cfg = state.config || {};
+  const [name, setName] = React.useState(cfg.garageName || "");
+  const [addr, setAddr] = React.useState(cfg.garageAddr || "");
+  const [phone, setPhone] = React.useState(cfg.garagePhone || "");
+  const [tin, setTin] = React.useState(cfg.vatTin || "");
+  const [wd, setWd] = React.useState(cfg.hoursWeekday || { open: "07:30", close: "18:30" });
+  const [sat, setSat] = React.useState(cfg.hoursSat || { open: "07:30", close: "16:00" });
+  const [sun, setSun] = React.useState(cfg.hoursSun || { open: "បិទ", close: "—" });
+
+  function save() {
+    setState(s => ({ ...s, config: { ...s.config, garageName: name, garageAddr: addr, garagePhone: phone, vatTin: tin, hoursWeekday: wd, hoursSat: sat, hoursSun: sun } }));
+    toast("ការកំណត់ហ្គារ៉ាស់បានរក្សាទុក", "ok");
+  }
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-      <SettingsCard title="ព័ត៌មានហ្គារ៉ាស់ · GARAGE INFO">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div className="field"><label>ឈ្មោះហ្គារ៉ាស់</label><input className="input" defaultValue="Garage OS · Service Center" /></div>
-          <div className="field"><label>អាសយដ្ឋាន</label><input className="input" defaultValue="St. 271, Sangkat Toul Tom Pong, Phnom Penh" /></div>
-          <div className="field"><label>ទូរស័ព្ទ</label><input className="input" defaultValue="+855 23 555 100" /></div>
-          <div className="field"><label>VAT TIN</label><input className="input" defaultValue="K001-901886401" /></div>
-        </div>
-      </SettingsCard>
-      <SettingsCard title="ម៉ោងធ្វើការ · OPERATING HOURS">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {["ច័ន្ទ – សុក្រ", "សៅរ៍", "អាទិត្យ"].map((d, i) => (
-            <div key={d} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 10, alignItems: 'center' }}>
-              <div style={{ fontSize: 13 }}>{d}</div>
-              <input className="input" defaultValue={i === 2 ? "បិទ" : "07:30"} style={{ width: 100, padding: '6px 10px' }} />
-              <span className="muted">→</span>
-              <input className="input" defaultValue={i === 2 ? "—" : i === 1 ? "16:00" : "18:30"} style={{ width: 100, padding: '6px 10px' }} />
-            </div>
-          ))}
-        </div>
-      </SettingsCard>
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <SettingsCard title="ព័ត៌មានហ្គារ៉ាស់ · GARAGE INFO">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="field"><label>ឈ្មោះហ្គារ៉ាស់</label><input className="input" value={name} onChange={e => setName(e.target.value)} /></div>
+            <div className="field"><label>អាសយដ្ឋាន</label><input className="input" value={addr} onChange={e => setAddr(e.target.value)} /></div>
+            <div className="field"><label>ទូរស័ព្ទ</label><input className="input" value={phone} onChange={e => setPhone(e.target.value)} /></div>
+            <div className="field"><label>VAT TIN</label><input className="input" value={tin} onChange={e => setTin(e.target.value)} /></div>
+          </div>
+        </SettingsCard>
+        <SettingsCard title="ម៉ោងធ្វើការ · OPERATING HOURS">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              { label: "ច័ន្ទ – សុក្រ", val: wd, set: setWd },
+              { label: "សៅរ៍", val: sat, set: setSat },
+              { label: "អាទិត្យ", val: sun, set: setSun },
+            ].map(d => (
+              <div key={d.label} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 10, alignItems: 'center' }}>
+                <div style={{ fontSize: 13 }}>{d.label}</div>
+                <input className="input" value={d.val.open} onChange={e => d.set({ ...d.val, open: e.target.value })} style={{ width: 100, padding: '6px 10px' }} />
+                <span className="muted">→</span>
+                <input className="input" value={d.val.close} onChange={e => d.set({ ...d.val, close: e.target.value })} style={{ width: 100, padding: '6px 10px' }} />
+              </div>
+            ))}
+          </div>
+        </SettingsCard>
+      </div>
+      <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>
+        <button className="btn btn-primary" onClick={save}><Icon.Check size={14} /> រក្សាទុក</button>
+      </div>
     </div>
   );
 }
@@ -766,24 +809,44 @@ function StaffModal({ staff, setState, toast, onClose }) {
   );
 }
 
-function BillingSettings() {
+function BillingSettings({ state, setState, toast }) {
+  const cfg = state.config || {};
+  const [vatRate, setVatRate] = React.useState(cfg.vatRate || "10%");
+  const [tin, setTin] = React.useState(cfg.vatTin || "");
+  const [prefix, setPrefix] = React.useState(cfg.invoicePrefix || "INV-2406-");
+  const [terms, setTerms] = React.useState(cfg.paymentTerms || "Due on receipt");
+  const [footer, setFooter] = React.useState(cfg.invoiceFooter || "");
+
+  function save() {
+    setState(s => ({ ...s, config: { ...s.config, vatRate, vatTin: tin, invoicePrefix: prefix, paymentTerms: terms, invoiceFooter: footer } }));
+    toast("Tax & Invoice settings បានរក្សាទុក", "ok");
+  }
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-      <SettingsCard title="ពន្ធ · TAX">
-        <div className="field"><label>VAT Rate</label><input className="input" defaultValue="10%" /></div>
-        <div className="field" style={{ marginTop: 12 }}><label>VAT TIN</label><input className="input" defaultValue="K001-901886401" /></div>
-        <div className="field" style={{ marginTop: 12 }}><label>Currency</label><select className="select"><option>USD (Primary)</option><option>KHR</option></select></div>
-      </SettingsCard>
-      <SettingsCard title="Invoice Template">
-        <div className="field"><label>Invoice Prefix</label><input className="input" defaultValue="INV-2406-" /></div>
-        <div className="field" style={{ marginTop: 12 }}><label>Default Payment Terms</label><select className="select"><option>Due on receipt</option><option>Net 15</option><option>Net 30</option></select></div>
-        <div className="field" style={{ marginTop: 12 }}><label>Footer Note</label><textarea className="textarea" defaultValue="Thank you for your business · សូមអរគុណចំពោះការគាំទ្ររបស់លោកអ្នក"></textarea></div>
-      </SettingsCard>
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <SettingsCard title="ពន្ធ · TAX">
+          <div className="field"><label>VAT Rate</label><input className="input" value={vatRate} onChange={e => setVatRate(e.target.value)} /></div>
+          <div className="field" style={{ marginTop: 12 }}><label>VAT TIN</label><input className="input" value={tin} onChange={e => setTin(e.target.value)} /></div>
+        </SettingsCard>
+        <SettingsCard title="Invoice Template">
+          <div className="field"><label>Invoice Prefix</label><input className="input" value={prefix} onChange={e => setPrefix(e.target.value)} /></div>
+          <div className="field" style={{ marginTop: 12 }}><label>Default Payment Terms</label>
+            <select className="select" value={terms} onChange={e => setTerms(e.target.value)}>
+              <option>Due on receipt</option><option>Net 15</option><option>Net 30</option>
+            </select>
+          </div>
+          <div className="field" style={{ marginTop: 12 }}><label>Footer Note</label><textarea className="textarea" value={footer} onChange={e => setFooter(e.target.value)} /></div>
+        </SettingsCard>
+      </div>
+      <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>
+        <button className="btn btn-primary" onClick={save}><Icon.Check size={14} /> រក្សាទុក</button>
+      </div>
     </div>
   );
 }
 
-function IntegrationSettings() {
+function IntegrationSettings({ toast }) {
   const integ = [
     { name: "ABA Pay", desc: "Accept payments · QR + Bakong", icon: "Money", connected: true },
     { name: "Wing Money", desc: "Mobile wallet payments", icon: "Money", connected: true },
@@ -804,7 +867,8 @@ function IntegrationSettings() {
           </div>
           <div style={{ fontWeight: 700, fontSize: 14 }}>{it.name}</div>
           <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{it.desc}</div>
-          <button className="btn btn-sm" style={{ marginTop: 12, width: '100%', justifyContent: 'center' }}>
+          <button className="btn btn-sm" style={{ marginTop: 12, width: '100%', justifyContent: 'center' }}
+            onClick={() => toast && toast(it.connected ? `កំណត់ ${it.name} (ឆាប់ៗ)` : `ភ្ជាប់ ${it.name} (ឆាប់ៗ)`, "info")}>
             {it.connected ? "កំណត់" : "ភ្ជាប់"}
           </button>
         </div>
@@ -813,14 +877,26 @@ function IntegrationSettings() {
   );
 }
 
-function LoyaltySettings() {
+function LoyaltySettings({ state, setState, toast }) {
+  const cfg = state.config || {};
+  const [earn, setEarn] = React.useState(cfg.loyaltyEarn || "1 ពិន្ទុ / $1");
+  const [redeem, setRedeem] = React.useState(cfg.loyaltyRedeem || "100 ពិន្ទុ = $5 បញ្ចុះ");
+  const [bday, setBday] = React.useState(cfg.loyaltyBirthday || "2x ពិន្ទុក្នុងខែខួបកំណើត");
+  const [expiry, setExpiry] = React.useState(cfg.loyaltyExpiry || "24 ខែ");
+  function save() {
+    setState(s => ({ ...s, config: { ...s.config, loyaltyEarn: earn, loyaltyRedeem: redeem, loyaltyBirthday: bday, loyaltyExpiry: expiry } }));
+    toast("Loyalty rules បានរក្សាទុក", "ok");
+  }
   return (
     <SettingsCard title="Loyalty Rules">
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 18 }}>
-        <div className="field"><label>Earn Rate</label><input className="input" defaultValue="1 ពិន្ទុ / $1" /></div>
-        <div className="field"><label>Redemption</label><input className="input" defaultValue="100 ពិន្ទុ = $5 បញ្ចុះ" /></div>
-        <div className="field"><label>Birthday Bonus</label><input className="input" defaultValue="2x ពិន្ទុក្នុងខែខួបកំណើត" /></div>
-        <div className="field"><label>Expiry</label><input className="input" defaultValue="24 ខែ" /></div>
+        <div className="field"><label>Earn Rate</label><input className="input" value={earn} onChange={e => setEarn(e.target.value)} /></div>
+        <div className="field"><label>Redemption</label><input className="input" value={redeem} onChange={e => setRedeem(e.target.value)} /></div>
+        <div className="field"><label>Birthday Bonus</label><input className="input" value={bday} onChange={e => setBday(e.target.value)} /></div>
+        <div className="field"><label>Expiry</label><input className="input" value={expiry} onChange={e => setExpiry(e.target.value)} /></div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 18 }}>
+        <button className="btn btn-primary" onClick={save}><Icon.Check size={14} /> រក្សាទុក</button>
       </div>
       <div className="section-heading"><h2 style={{ fontSize: 14 }}>Tier Thresholds</h2></div>
       <table className="table">

@@ -63,6 +63,23 @@ function App() {
       { id: "S-06", name: "Long Dara", initials: "LD", color: "#38bdf8", role: "Parts Manager", dept: "Inventory", load: 0, capacity: 0 },
       { id: "S-07", name: "លោក សុខ ភារុណ", initials: "SP", color: "#22c55e", role: "Owner", dept: "Management", load: 0, capacity: 0 },
     ],
+    config: {
+      garageName: "Garage OS · Service Center",
+      garageAddr: "St. 271, Sangkat Toul Tom Pong, Phnom Penh",
+      garagePhone: "+855 23 555 100",
+      vatTin: "K001-901886401",
+      hoursWeekday: { open: "07:30", close: "18:30" },
+      hoursSat: { open: "07:30", close: "16:00" },
+      hoursSun: { open: "បិទ", close: "—" },
+      vatRate: "10%",
+      invoicePrefix: "INV-2406-",
+      paymentTerms: "Due on receipt",
+      invoiceFooter: "Thank you for your business · សូមអរគុណចំពោះការគាំទ្ររបស់លោកអ្នក",
+      loyaltyEarn: "1 ពិន្ទុ / $1",
+      loyaltyRedeem: "100 ពិន្ទុ = $5 បញ្ចុះ",
+      loyaltyBirthday: "2x ពិន្ទុក្នុងខែខួបកំណើត",
+      loyaltyExpiry: "24 ខែ",
+    },
   }));
 
   function convertQuoteToJob(qId) {
@@ -168,7 +185,7 @@ function App() {
         {route === "invoices" && <InvoicesScreen state={state} currency={tweaks.currency} onOpenInvoice={setInvoiceOpen} onNewInvoice={() => setNewInvoiceOpen(true)} toast={toast} />}
         {route === "booking" && <BookingScreen state={state} currency={tweaks.currency} onAddBooking={() => setAddBookingOpen(true)} onConvertBooking={convertBookingToJob} toast={toast} />}
         {route === "dvi" && <DVIScreen currency={tweaks.currency} toast={toast} />}
-        {route === "members" && <MembersScreen state={state} currency={tweaks.currency} toast={toast} onAddMember={() => setAddMemberOpen(true)} />}
+        {route === "members" && <MembersScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} onAddMember={() => setAddMemberOpen(true)} />}
         {route === "reports" && <ReportsScreen state={state} currency={tweaks.currency} toast={toast} />}
         {route === "settings" && <SettingsScreen state={state} setState={setState} tweaks={tweaks} setTweak={setTweak} toast={toast} />}
       </main>

@@ -206,12 +206,13 @@ function DashboardScreen({ state, currency, onNav, toast }) {
         <div className="card">
           <h3 className="card-title">
             កាលវិភាគថ្ងៃនេះ · TODAY'S SCHEDULE
-            <span className="meta">{bookings.length} BOOKINGS</span>
+            <span className="meta">{dBookings.length} BOOKINGS</span>
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {bookings.map((b) => {
-              const c = customersById[b.customer];
-              const v = vehiclesById[b.vehicle];
+            {dBookings.length === 0 && <div className="empty" style={{ padding: 16, fontSize: 12 }}>គ្មានការកក់ថ្ងៃនេះ</div>}
+            {dBookings.map((b) => {
+              const c = lookupCustomer(b.customer, state) || { name: "—", color: "#666" };
+              const v = lookupVehicle(b.vehicle, state) || { plate: "—", make: "—", model: "", year: "" };
               const st = b.status === "checked-in" ? "amber" : b.status === "in-progress" ? "blue" : "gray";
               return (
                 <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '70px 1fr auto', gap: 14, alignItems: 'center', padding: '10px 12px', background: 'var(--bg-2)', borderRadius: 'var(--radius)', border: '1px solid var(--border-0)' }}>
@@ -228,52 +229,33 @@ function DashboardScreen({ state, currency, onNav, toast }) {
         </div>
 
         {/* Job status mix */}
-        <div className="card">
-          <h3 className="card-title">ស្ថានភាព Jobs · STATUS MIX</h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-            <div className="donut" style={{ '--pct': 64 }}>
-              <div className="donut-label">
-                <div className="v">64%</div>
-                <div className="muted" style={{ fontSize: 10, fontFamily: 'var(--font-mono)', letterSpacing: '0.1em' }}>ACTIVE</div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
-              {[
-                { k: "កំពុងធ្វើ", v: 4, c: "blue" },
-                { k: "ត្រួតពិនិត្យ", v: 2, c: "amber" },
-                { k: "រង់ចាំ Parts", v: 1, c: "orange" },
-                { k: "QC", v: 1, c: "teal" },
-                { k: "បានបញ្ចប់", v: 6, c: "green" },
-              ].map(r => (
-                <div key={r.k} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                  <span className={"dot-" + r.c} style={{ width: 8, height: 8, borderRadius: 4 }}></span>
-                  <span style={{ flex: 1, color: 'var(--text-1)' }}>{r.k}</span>
-                  <span className="num" style={{ color: 'var(--text-0)', fontWeight: 600 }}>{r.v}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <JobStatusMix jobs={dJobs} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        {/* Technician load */}
+        {/* Technician load — recomputed from state.jobs */}
         <div className="card">
           <h3 className="card-title">បន្ទុកជាងជួសជុល · TECHNICIAN LOAD</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {technicians.map(t => (
-              <div key={t.id}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                  <div className="avatar av-sm" style={{ background: t.color, color: '#0b0b0b' }}>{t.initials}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{t.name}</div>
-                    <div className="muted" style={{ fontSize: 11 }}>{t.role}</div>
+            {technicians.map(t => {
+              const liveLoad = dJobs.filter(j => j.tech === t.name && j.status !== "done").length;
+              const cap = t.capacity || 4;
+              const ratio = Math.min(1, liveLoad / cap);
+              const tone = liveLoad >= cap ? "red" : ratio > 0.7 ? "orange" : "green";
+              return (
+                <div key={t.id}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                    <div className="avatar av-sm" style={{ background: t.color, color: '#0b0b0b' }}>{t.initials}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{t.name}</div>
+                      <div className="muted" style={{ fontSize: 11 }}>{t.role}</div>
+                    </div>
+                    <div className="num" style={{ fontSize: 12, color: 'var(--text-1)' }}>{liveLoad}/{cap} jobs</div>
                   </div>
-                  <div className="num" style={{ fontSize: 12, color: 'var(--text-1)' }}>{t.load}/{t.capacity} jobs</div>
+                  <div className="bar"><div className={"bar-fill " + tone} style={{ width: (ratio * 100) + "%" }}></div></div>
                 </div>
-                <div className="bar"><div className={"bar-fill " + (t.load === t.capacity ? "red" : t.load / t.capacity > 0.7 ? "orange" : "green")} style={{ width: (t.load / t.capacity * 100) + "%" }}></div></div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -302,6 +284,45 @@ function DashboardScreen({ state, currency, onNav, toast }) {
               <span className={"dot-" + (r.kind === "warn" ? "orange" : r.kind === "danger" ? "red" : "blue")} style={{ width: 8, height: 8, borderRadius: 4 }}></span>
               <div style={{ flex: 1, fontSize: 13 }}>{r.t}</div>
               <button className="btn btn-sm">{r.a}</button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function JobStatusMix({ jobs }) {
+  const map = {
+    waiting: { k: "រង់ចាំ", c: "gray" },
+    diagnose: { k: "ត្រួតពិនិត្យ", c: "amber" },
+    progress: { k: "កំពុងធ្វើ", c: "blue" },
+    parts: { k: "រង់ចាំ Parts", c: "orange" },
+    qc: { k: "QC", c: "teal" },
+    done: { k: "បានបញ្ចប់", c: "green" },
+  };
+  const counts = {};
+  Object.keys(map).forEach(k => counts[k] = 0);
+  (jobs || []).forEach(j => { if (counts.hasOwnProperty(j.status)) counts[j.status] += 1; });
+  const total = Object.values(counts).reduce((s, n) => s + n, 0);
+  const active = total - (counts.done || 0);
+  const pct = total ? Math.round((active / total) * 100) : 0;
+  return (
+    <div className="card">
+      <h3 className="card-title">ស្ថានភាព Jobs · STATUS MIX</h3>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+        <div className="donut" style={{ '--pct': pct }}>
+          <div className="donut-label">
+            <div className="v">{pct}%</div>
+            <div className="muted" style={{ fontSize: 10, fontFamily: 'var(--font-mono)', letterSpacing: '0.1em' }}>ACTIVE</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+          {Object.entries(map).filter(([k]) => k !== "waiting" || counts[k] > 0).map(([k, m]) => (
+            <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+              <span className={"dot-" + m.c} style={{ width: 8, height: 8, borderRadius: 4 }}></span>
+              <span style={{ flex: 1, color: 'var(--text-1)' }}>{m.k}</span>
+              <span className="num" style={{ color: 'var(--text-0)', fontWeight: 600 }}>{counts[k]}</span>
             </div>
           ))}
         </div>

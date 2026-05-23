@@ -412,6 +412,10 @@ function NewJobModal({ onClose, setState, toast, state, prefillCustomer }) {
 
 function EditJobModal({ id, state, setState, onClose, toast }) {
   const job = state.jobs.find(j => j.id === id);
+  const allCustomers = (state && state.customers) || customers;
+  const allVehicles = (state && state.vehicles) || vehicles;
+  const [customerId, setCustomerId] = React.useState(job ? job.customer : "");
+  const [vehicleId, setVehicleId] = React.useState(job ? job.vehicle : "");
   const [title, setTitle] = React.useState(job ? job.title : "");
   const [priority, setPriority] = React.useState(job ? job.priority : "normal");
   const [techId, setTechId] = React.useState(() => {
@@ -421,17 +425,25 @@ function EditJobModal({ id, state, setState, onClose, toast }) {
   const [status, setStatus] = React.useState(job ? job.status : "waiting");
   const [promised, setPromised] = React.useState(job && job.promised ? job.promised.split(' ')[1] || "17:00" : "17:00");
   const [notes, setNotes] = React.useState(job ? job.notes : "");
+  const custVehicles = allVehicles.filter(v => v.owner === customerId);
+  React.useEffect(() => {
+    if (!custVehicles.find(v => v.id === vehicleId)) {
+      setVehicleId(custVehicles[0] ? custVehicles[0].id : "");
+    }
+  }, [customerId]);
 
   if (!job) return null;
 
   function submit() {
     if (!title.trim()) { toast("សូមបញ្ចូលចំណងជើង", "error"); return; }
+    if (!vehicleId) { toast("ជ្រើសរើសរថយន្ត", "error"); return; }
     const tech = technicians.find(t => t.id === techId) || { name: job.tech, initials: job.techInitials, color: job.techColor };
     const datePart = (job.promised && job.promised.split(' ')[0]) || "2026-05-17";
     setState(s => ({
       ...s,
       jobs: s.jobs.map(j => j.id === id ? {
         ...j, title: title.trim(), priority, status,
+        customer: customerId, vehicle: vehicleId,
         tech: tech.name, techInitials: tech.initials, techColor: tech.color,
         promised: datePart + " " + promised, notes,
       } : j),
@@ -450,6 +462,19 @@ function EditJobModal({ id, state, setState, onClose, toast }) {
         <div className="field" style={{ gridColumn: '1 / -1' }}>
           <label>ចំណងជើង Job · TITLE</label>
           <input className="input" value={title} onChange={e => setTitle(e.target.value)} autoFocus />
+        </div>
+        <div className="field">
+          <label>អតិថិជន · CUSTOMER</label>
+          <select className="select" value={customerId} onChange={e => setCustomerId(e.target.value)}>
+            {allCustomers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label>រថយន្ត · VEHICLE</label>
+          <select className="select" value={vehicleId} onChange={e => setVehicleId(e.target.value)}>
+            {custVehicles.length === 0 && <option value="">— គ្មានរថយន្ត —</option>}
+            {custVehicles.map(v => <option key={v.id} value={v.id}>{v.plate} · {vehicleLabel(v)}</option>)}
+          </select>
         </div>
         <div className="field">
           <label>ជាងជួសជុល · TECHNICIAN</label>
