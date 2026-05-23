@@ -157,11 +157,39 @@ function DashboardScreen({ state, currency, onNav, toast }) {
   const dParts = state?.parts || parts;
   const dInvoices = state?.invoices || invoices;
   const dBookings = state?.bookings || bookings;
+  const dCustomers = state?.customers || [];
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayRevenue = dInvoices.filter(i => i.issued === todayStr).reduce((s, i) => s + i.paid, 0);
   const openJobs = dJobs.filter(j => j.status !== "done").length;
   const lowStock = dParts.filter(p => p.stock <= p.reorder).length;
   const todayBookings = dBookings.length;
+
+  // ── Live aggregations for the chart row ──
+  // 7-day revenue trend
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    days.push({ key, label: d.toLocaleDateString('en-US', { weekday: 'short' }), revenue: 0, jobs: 0 });
+  }
+  const dayIdx = Object.fromEntries(days.map((d, i) => [d.key, i]));
+  dInvoices.forEach(inv => {
+    if (dayIdx[inv.issued] != null) days[dayIdx[inv.issued]].revenue += inv.paid || 0;
+  });
+  dJobs.forEach(j => {
+    const k = (j.created || "").slice(0, 10);
+    if (dayIdx[k] != null) days[dayIdx[k]].jobs++;
+  });
+  const maxRev = Math.max(...days.map(d => d.revenue), 1);
+  const weekRevenue = days.reduce((s, d) => s + d.revenue, 0);
+  const weekJobs = days.reduce((s, d) => s + d.jobs, 0);
+  const yesterdayRev = days[5] ? days[5].revenue : 0;
+  const dayDelta = yesterdayRev ? Math.round(((days[6].revenue - yesterdayRev) / yesterdayRev) * 100) : 0;
+
+  // Outstanding A/R
+  const outstanding = dInvoices.reduce((s, i) => s + ((i.total || 0) - (i.paid || 0)), 0);
+  const overdueCount = dInvoices.filter(i => i.status === "overdue").length;
 
   return (
     <div className="page">
@@ -183,23 +211,50 @@ function DashboardScreen({ state, currency, onNav, toast }) {
         <div className="kpi">
           <div className="kpi-label"><span className="dot-blue" style={{ width: 6, height: 6, borderRadius: 3 }}></span> ចំណូលថ្ងៃនេះ · TODAY</div>
           <div className="kpi-value"><Money value={todayRevenue} currency={currency} /></div>
-          <div className="kpi-delta">▲ 18% · vs ម្សិលមិញ</div>
+          <div className={"kpi-delta" + (dayDelta < 0 ? " down" : dayDelta === 0 ? " neutral" : "")}>{dayDelta >= 0 ? "▲" : "▼"} {Math.abs(dayDelta)}% · vs ម្សិលមិញ</div>
         </div>
         <div className="kpi">
           <div className="kpi-label"><span className="dot-amber" style={{ width: 6, height: 6, borderRadius: 3 }}></span> Jobs · បើកចំហ</div>
-          <div className="kpi-value">{openJobs}<span className="kpi-unit"> / 14</span></div>
-          <div className="kpi-delta neutral">6 ត្រូវបញ្ចប់ថ្ងៃនេះ</div>
+          <div className="kpi-value">{openJobs}<span className="kpi-unit"> / {dJobs.length}</span></div>
+          <div className="kpi-delta neutral">{weekJobs} jobs ​សប្ដាហ៍​នេះ</div>
         </div>
         <div className="kpi">
           <div className="kpi-label"><span className="dot-red" style={{ width: 6, height: 6, borderRadius: 3 }}></span> Low Stock</div>
           <div className="kpi-value">{lowStock}</div>
-          <div className="kpi-delta down">ត្រូវការបញ្ជាទិញ</div>
+          <div className={"kpi-delta " + (lowStock > 0 ? "down" : "neutral")}>{lowStock > 0 ? "ត្រូវការបញ្ជាទិញ" : "ស្តុក​គ្រប់​គ្រាន់"}</div>
         </div>
         <div className="kpi">
-          <div className="kpi-label"><span className="dot-teal" style={{ width: 6, height: 6, borderRadius: 3 }}></span> ការកក់ថ្ងៃនេះ</div>
-          <div className="kpi-value">{todayBookings}</div>
-          <div className="kpi-delta">▲ 2 ការកក់ថ្មី</div>
+          <div className="kpi-label"><span className="dot-teal" style={{ width: 6, height: 6, borderRadius: 3 }}></span> Outstanding A/R</div>
+          <div className="kpi-value"><Money value={outstanding} currency={currency} /></div>
+          <div className={"kpi-delta " + (overdueCount > 0 ? "down" : "neutral")}>{overdueCount} overdue · {todayBookings} ​​​ការកក់​ថ្ងៃនេះ</div>
         </div>
+      </div>
+
+      {/* 7-day revenue chart */}
+      <div className="card">
+        <h3 className="card-title">
+          ចំណូល​ 7 ​ថ្ងៃ​ចុង​ក្រោយ · 7-DAY REVENUE
+          <span className="meta">សរុប {moneyUSD(weekRevenue)}</span>
+        </h3>
+        {weekRevenue === 0 ? (
+          <div className="empty" style={{ padding: 28 }}>មិន​ទាន់​មាន​ការ​បង់​ប្រាក់​ក្នុង​ 7 ​ថ្ងៃ​ចុង​ក្រោយ</div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 140 }}>
+            {days.map((d, i) => {
+              const h = (d.revenue / maxRev) * 100;
+              const today = i === days.length - 1;
+              return (
+                <div key={d.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <div className="num" style={{ fontSize: 10, color: 'var(--text-2)' }}>{d.revenue ? '$' + Math.round(d.revenue) : ''}</div>
+                  <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
+                    <div style={{ width: '100%', background: today ? 'var(--accent)' : 'var(--info)', borderRadius: '4px 4px 0 0', height: h + "%", minHeight: d.revenue > 0 ? 2 : 0, opacity: today ? 1 : 0.5 + (i / days.length) * 0.5 }}></div>
+                  </div>
+                  <div className="mono" style={{ fontSize: 10, color: 'var(--text-2)' }}>{d.label}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
