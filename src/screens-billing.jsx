@@ -11,10 +11,16 @@ const { customers, vehicles, parts, jobs, invoices, quotations, bookings, techni
 // ════════════════════════════════════════════════════════════
 // PARTS INVENTORY
 // ════════════════════════════════════════════════════════════
-function PartsScreen({ state, currency, toast, onNewPart }) {
+function PartsScreen({ state, setState, currency, toast, onNewPart }) {
   const [tab, setTab] = React.useState("all");
   const [search, setSearch] = React.useState("");
   const allParts = state.parts;
+  function reorderPart(p) {
+    if (!setState) { toast(`Reorder request sent to ${p.supplier}`, "info"); return; }
+    const qty = Math.max(10, (p.reorder || 5) * 2);
+    setState(s => ({ ...s, parts: s.parts.map(x => x.id === p.id ? { ...x, stock: (x.stock || 0) + qty } : x) }));
+    toast(`បញ្ជា​ទិញ ${qty} × ${p.name} ពី ${p.supplier} · ស្តុក​ឡើង​វិញ`, "ok");
+  }
   const filtered = allParts.filter(p => {
     if (tab === "low" && p.stock > p.reorder) return false;
     if (tab === "out" && p.stock > 0) return false;
@@ -128,8 +134,8 @@ function PartsScreen({ state, currency, toast, onNewPart }) {
                   <td className="num muted">${p.cost.toFixed(2)}</td>
                   <td className="num" style={{ fontWeight: 700 }}>${p.price.toFixed(2)}</td>
                   <td>
-                    <button className="btn btn-sm btn-ghost" onClick={() => toast("Reorder request sent to " + p.supplier, "info")}>
-                      <Icon.More size={14} />
+                    <button className="btn btn-sm btn-ghost" title="Reorder · បញ្ជា​ទិញ​ស្តុក" onClick={() => reorderPart(p)}>
+                      <Icon.Plus size={14} />
                     </button>
                   </td>
                 </tr>

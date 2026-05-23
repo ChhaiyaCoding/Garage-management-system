@@ -127,13 +127,14 @@ function App({ initialState, userId, userEmail, onSignOut }) {
   function viewQuote(qId) {
     const q = state.quotations.find(x => x.id === qId);
     if (!q) return;
-    const c = G.customersById[q.customer];
+    const c = state.customers.find(x => x.id === q.customer) || G.customersById[q.customer];
     toast(`${q.id} · ${c ? c.name : q.customer} · ${q.items} ធាតុ · $${q.total} · ${q.status.toUpperCase()}`, "info");
   }
 
   function convertBookingToJob(bId) {
     const b = state.bookings.find(x => x.id === bId);
     if (!b) return;
+    if (b.status === "in-progress") { toast(`ការកក់ ${bId} មាន Job រួចហើយ`, "info"); return; }
     const newId = "JOB-2406-" + String(89 + Math.floor(Math.random() * 30)).padStart(3, "0");
     const newJob = {
       id: newId, title: b.service, vehicle: b.vehicle, customer: b.customer,
@@ -142,7 +143,11 @@ function App({ initialState, userId, userEmail, onSignOut }) {
       created: "2026-05-17 " + new Date().toTimeString().slice(0, 5),
       promised: "2026-05-17 " + b.time, services: [], partsUsed: [], notes: `បង្កើតពីការកក់ ${b.id}`,
     };
-    setState(s => ({ ...s, jobs: [newJob, ...s.jobs] }));
+    setState(s => ({
+      ...s,
+      jobs: [newJob, ...s.jobs],
+      bookings: s.bookings.map(x => x.id === bId ? { ...x, status: "in-progress" } : x),
+    }));
     toast(`ការកក់ ${bId} → Job ${newId}`, "ok");
     setRoute("jobs");
   }
@@ -198,7 +203,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
         {route === "dashboard" && <DashboardScreen state={state} currency={tweaks.currency} onNav={setRoute} toast={toast} />}
         {route === "customers" && <CustomersScreen state={state} search={search} currency={tweaks.currency} onOpenCustomer={setCustomerOpen} onNav={setRoute} onAddCustomer={() => setAddCustomerOpen(true)} toast={toast} />}
         {route === "jobs" && <JobsScreen state={state} setState={setState} onOpenJob={setJobOpen} onNewJob={() => setNewJobOpen(true)} currency={tweaks.currency} />}
-        {route === "parts" && <PartsScreen state={state} currency={tweaks.currency} toast={toast} onNewPart={() => setNewPartOpen(true)} />}
+        {route === "parts" && <PartsScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} onNewPart={() => setNewPartOpen(true)} />}
         {route === "quotation" && <QuotationScreen state={state} currency={tweaks.currency} onNewQuote={() => setNewQuoteOpen(true)} toast={toast} onConvert={convertQuoteToJob} onSend={sendQuote} onView={viewQuote} />}
         {route === "invoices" && <InvoicesScreen state={state} currency={tweaks.currency} onOpenInvoice={setInvoiceOpen} onNewInvoice={() => setNewInvoiceOpen(true)} toast={toast} />}
         {route === "booking" && <BookingScreen state={state} setState={setState} currency={tweaks.currency} onAddBooking={() => setAddBookingOpen(true)} onConvertBooking={convertBookingToJob} toast={toast} />}

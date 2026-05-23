@@ -534,7 +534,7 @@ function ReportsScreen({ state, currency, toast }) {
           <table className="table">
             <thead><tr><th>អតិថិជន</th><th className="num">Jobs</th><th className="num">ចំណាយ</th></tr></thead>
             <tbody>
-              {customers.sort((a, b) => b.lifetime - a.lifetime).slice(0, 6).map(c => (
+              {[...(state.customers || customers)].sort((a, b) => (b.lifetime || 0) - (a.lifetime || 0)).slice(0, 6).map(c => (
                 <tr key={c.id}>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
