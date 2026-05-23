@@ -1,6 +1,7 @@
 import React from 'react';
 import GARAGE from './data';
 import { useTweaks, TweaksPanel, TweakSection, TweakColor, TweakRadio } from './tweaks-panel';
+import { useShortcuts, SHORTCUTS } from './lib/shortcuts';
 import { Sidebar, Topbar, useToasts } from './shell';
 import { DashboardScreen, CustomersScreen, CustomerDrawer, AddCustomerModal } from './screens-core';
 import { JobsScreen, JobDrawer, NewJobModal, EditJobModal } from './screens-jobs';
@@ -88,6 +89,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
   const [addBookingOpen, setAddBookingOpen] = React.useState(false);
   const [addCustomerOpen, setAddCustomerOpen] = React.useState(false);
   const [addMemberOpen, setAddMemberOpen] = React.useState(false);
+  const [helpOpen, setHelpOpen] = React.useState(false);
   const [saveStatus, setSaveStatus] = React.useState("idle"); // idle | saving | saved | error
 
   const [state, setState] = React.useState(initialState || defaultState());
@@ -184,6 +186,31 @@ function App({ initialState, userId, userEmail, onSignOut }) {
     root.dataset.theme = effectiveTheme;
   }, [tweaks.accent, tweaks.density, tweaks.sidebar, effectiveTheme]);
 
+  // Context-aware "new" action — what does pressing N create on each screen?
+  function newForCurrentRoute() {
+    switch (route) {
+      case "customers": setAddCustomerOpen(true); break;
+      case "jobs": setNewJobOpen(true); break;
+      case "parts": setNewPartOpen(true); break;
+      case "quotation": setNewQuoteOpen(true); break;
+      case "invoices": setNewInvoiceOpen(true); break;
+      case "booking": setAddBookingOpen(true); break;
+      case "members": setAddMemberOpen(true); break;
+      default: setNewJobOpen(true); break; // sensible default
+    }
+  }
+
+  useShortcuts({
+    onSearch: () => {
+      const i = document.querySelector('.search-input input');
+      if (i) { i.focus(); i.select(); }
+    },
+    onHelp: () => setHelpOpen(true),
+    onNav: (r) => setRoute(r),
+    onNew: newForCurrentRoute,
+    onToggleTheme: () => setTweak("theme", effectiveTheme === "dark" ? "light" : "dark"),
+  });
+
   function generateInvoice(jobId) {
     const job = state.jobs.find(j => j.id === jobId);
     if (!job) return;
@@ -247,6 +274,8 @@ function App({ initialState, userId, userEmail, onSignOut }) {
         {route === "reports" && <ReportsScreen state={state} currency={tweaks.currency} toast={toast} />}
         {route === "settings" && <SettingsScreen state={state} setState={setState} tweaks={tweaks} setTweak={setTweak} toast={toast} />}
       </main>
+
+      {helpOpen && <ShortcutsModal onClose={() => setHelpOpen(false)} />}
 
       {customerOpen && <CustomerDrawer id={customerOpen} state={state} setState={setState} onClose={() => setCustomerOpen(null)} currency={tweaks.currency} toast={toast}
         onNewJob={(cid) => { setNewJobPrefill(cid); setNewJobOpen(true); }}
@@ -316,6 +345,45 @@ function App({ initialState, userId, userEmail, onSignOut }) {
       </TweaksPanel>
 
       {toastView}
+    </div>
+  );
+}
+
+// ─── Shortcuts cheatsheet modal ───
+function ShortcutsModal({ onClose }) {
+  React.useEffect(() => {
+    const h = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h3 className="modal-title">Keyboard Shortcuts</h3>
+          <button className="icon-btn" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {SHORTCUTS.map((group) => (
+            <div key={group.group}>
+              <div className="mono muted" style={{ fontSize: 10, letterSpacing: '0.14em', marginBottom: 8 }}>{group.group}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {group.items.map((s, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: 'var(--bg-2)', borderRadius: 6 }}>
+                    <div style={{ fontSize: 13 }}>{s.desc}</div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {s.keys.map((k, j) => (
+                        <kbd key={j} style={{ fontFamily: 'var(--font-mono)', fontSize: 11, padding: '2px 7px', background: 'var(--bg-3)', border: '1px solid var(--border-1)', borderRadius: 4, minWidth: 22, textAlign: 'center', fontWeight: 600 }}>{k}</kbd>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="mono muted" style={{ fontSize: 10, textAlign: 'center', paddingTop: 8 }}>⌘ = Cmd (Mac) ឬ Ctrl (PC)</div>
+        </div>
+      </div>
     </div>
   );
 }
