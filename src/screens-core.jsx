@@ -541,6 +541,10 @@ function CustomersScreen({ state, search, currency, onOpenCustomer, onNav, onAdd
 function CustomerDrawer({ id, state, setState, onClose, currency, onNewJob, onNewQuote, toast }) {
   const c = lookupCustomer(id, state);
   const [editing, setEditing] = React.useState(false);
+  const [addVehOpen, setAddVehOpen] = React.useState(false);
+  const [editVeh, setEditVeh] = React.useState(null);
+  const [confirmDelVeh, setConfirmDelVeh] = React.useState(null);
+  const [confirmDelCust, setConfirmDelCust] = React.useState(false);
   if (!c) return null;
   const cvehs = vehiclesByOwner(id, state);
   const cjobs = (state?.jobs || jobs).filter(j => j.customer === id);
@@ -557,6 +561,7 @@ function CustomerDrawer({ id, state, setState, onClose, currency, onNewJob, onNe
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             {setState && <button className="icon-btn" title="កែប្រែ" onClick={() => setEditing(true)}><Icon.Pen size={14} /></button>}
+            {setState && <button className="icon-btn" title="លុបអតិថិជន" onClick={() => setConfirmDelCust(true)}><Icon.Trash size={14} /></button>}
             <button className="icon-btn" onClick={onClose}><Icon.X size={16} /></button>
           </div>
         </div>
@@ -575,19 +580,33 @@ function CustomerDrawer({ id, state, setState, onClose, currency, onNewJob, onNe
           <button className="btn btn-sm" onClick={() => { if (c.telegram) { toast && toast(`បានផ្ញើសារ Telegram ទៅ ${c.name}`, "ok"); } else { toast && toast(`បានផ្ញើ SMS ទៅ ${c.phone || c.name}`, "ok"); } }}><Icon.Mail size={12} /></button>
         </div>
 
-        <div className="section-heading"><h2 style={{ fontSize: 14 }}>រថយន្ត · VEHICLES ({cvehs.length})</h2></div>
+        <div className="section-heading">
+          <h2 style={{ fontSize: 14 }}>រថយន្ត · VEHICLES ({cvehs.length})</h2>
+          {setState && <button className="btn btn-sm" onClick={() => setAddVehOpen(true)}><Icon.Plus size={12} /> បន្ថែម​រថយន្ត</button>}
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 22 }}>
+          {cvehs.length === 0 && <div className="empty" style={{ padding: 14, fontSize: 12 }}>មិនទាន់មានរថយន្ត​នៅឡើយ</div>}
           {cvehs.map(v => (
             <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'var(--bg-2)', borderRadius: 'var(--radius)' }}>
               <div style={{ background: 'var(--bg-3)', padding: '6px 10px', borderRadius: 6, fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 13 }}>{v.plate}</div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 13 }}>{vehicleLabel(v)}</div>
-                <div className="muted" style={{ fontSize: 11 }}>{v.mileage.toLocaleString()} km · Next: {v.nextService}</div>
+                <div className="muted" style={{ fontSize: 11 }}>{(v.mileage || 0).toLocaleString()} km · Next: {v.nextService || "—"}</div>
               </div>
-              <span className={"chip chip-" + (v.status === "due" ? "orange" : v.status === "overdue" ? "red" : "green")}>{v.status}</span>
+              <span className={"chip chip-" + (v.status === "due" ? "orange" : v.status === "overdue" ? "red" : "green")}>{v.status || "ok"}</span>
+              {setState && (
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button className="btn btn-sm btn-ghost" title="កែ​រថយន្ត" onClick={() => setEditVeh(v)}><Icon.Pen size={12} /></button>
+                  <button className="btn btn-sm btn-ghost" title="លុប" onClick={() => setConfirmDelVeh(v)}><Icon.X size={12} /></button>
+                </div>
+              )}
             </div>
           ))}
         </div>
+        {addVehOpen && <AddVehicleModal customerId={c.id} setState={setState} onClose={() => setAddVehOpen(false)} toast={toast} />}
+        {editVeh && <EditVehicleModal vehicle={editVeh} setState={setState} onClose={() => setEditVeh(null)} toast={toast} />}
+        {confirmDelVeh && <ConfirmModal title="លុបរថយន្ត?" message={`លុប ${confirmDelVeh.plate} · ${vehicleLabel(confirmDelVeh)} ឬ​ទេ?`} onClose={() => setConfirmDelVeh(null)} onConfirm={() => { setState(s => ({ ...s, vehicles: s.vehicles.filter(x => x.id !== confirmDelVeh.id) })); toast(`លុប ${confirmDelVeh.plate} ជោគជ័យ`, "ok"); setConfirmDelVeh(null); }} />}
+        {confirmDelCust && <ConfirmModal title="លុបអតិថិជន?" message={`លុប ${c.name} និង​រថយន្ត ${cvehs.length} គ្រឿង? Jobs/Invoices/Quotes នឹង​នៅ​ដដែល​តែ​អត់​មាន​អ្នកជា​​ម្ចាស់។`} danger onClose={() => setConfirmDelCust(false)} onConfirm={() => { setState(s => ({ ...s, customers: s.customers.filter(x => x.id !== c.id), vehicles: (s.vehicles || []).filter(v => v.owner !== c.id) })); toast(`លុប ${c.name} ជោគជ័យ`, "ok"); setConfirmDelCust(false); onClose(); }} />}
 
         <div className="section-heading"><h2 style={{ fontSize: 14 }}>ប្រវត្តិសេវាកម្ម · HISTORY</h2></div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -795,5 +814,123 @@ function EditCustomerModal({ customer, state, setState, onClose, toast }) {
   );
 }
 
-export { DashboardScreen, CustomersScreen, CustomerDrawer, Stat, Money, Row, AddCustomerModal, EditCustomerModal, exportCsv,
+// ── Add Vehicle Modal (to existing customer) ──
+function AddVehicleModal({ customerId, setState, onClose, toast }) {
+  const [plate, setPlate] = React.useState("");
+  const [make, setMake] = React.useState("Toyota");
+  const [model, setModel] = React.useState("");
+  const [year, setYear] = React.useState(2020);
+  const [color, setColor] = React.useState("");
+  const [vin, setVin] = React.useState("");
+  const [mileage, setMileage] = React.useState(0);
+
+  function save() {
+    if (!plate.trim()) { toast("បំពេញ​ស្លាក​លេខ", "error"); return; }
+    const vid = "VE-" + String(2014 + Math.floor(Math.random() * 8000));
+    const v = {
+      id: vid, owner: customerId, plate: plate.trim().toUpperCase(),
+      make: make.trim() || "—", model: model.trim() || "—",
+      year: +year || 2020, color: color.trim() || "—", vin: vin.trim() || "—",
+      mileage: +mileage || 0, nextService: "—", status: "ok",
+    };
+    setState(s => ({
+      ...s,
+      vehicles: [v, ...(s.vehicles || [])],
+      customers: s.customers.map(c => c.id === customerId ? { ...c, vehicles: [...(c.vehicles || []), vid] } : c),
+    }));
+    toast(`បន្ថែម ${v.plate} ជោគជ័យ`, "ok");
+    onClose();
+  }
+
+  return (
+    <Modal title="រថយន្ត​ថ្មី · NEW VEHICLE" onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={save}><Icon.Plus size={14} /> បន្ថែម​រថយន្ត</button>
+      </>}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field"><label>ស្លាក​លេខ · PLATE</label><input className="input" value={plate} onChange={e => setPlate(e.target.value)} placeholder="2AB-1234" autoFocus /></div>
+        <div className="field"><label>ឆ្នាំ</label><input className="input" type="number" value={year} onChange={e => setYear(e.target.value)} /></div>
+        <div className="field"><label>ម៉ាក · MAKE</label><input className="input" value={make} onChange={e => setMake(e.target.value)} /></div>
+        <div className="field"><label>ម៉ូដែល · MODEL</label><input className="input" value={model} onChange={e => setModel(e.target.value)} placeholder="Camry" /></div>
+        <div className="field"><label>ពណ៌ · COLOR</label><input className="input" value={color} onChange={e => setColor(e.target.value)} placeholder="ស / Black" /></div>
+        <div className="field"><label>គីឡូម៉ែត្រ · MILEAGE</label><input className="input" type="number" value={mileage} onChange={e => setMileage(e.target.value)} /></div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>VIN</label><input className="input" value={vin} onChange={e => setVin(e.target.value)} placeholder="17 តួ" /></div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Edit Vehicle Modal ──
+function EditVehicleModal({ vehicle, setState, onClose, toast }) {
+  const [plate, setPlate] = React.useState(vehicle.plate || "");
+  const [make, setMake] = React.useState(vehicle.make === "—" ? "" : (vehicle.make || ""));
+  const [model, setModel] = React.useState(vehicle.model === "—" ? "" : (vehicle.model || ""));
+  const [year, setYear] = React.useState(vehicle.year || 2020);
+  const [color, setColor] = React.useState(vehicle.color === "—" ? "" : (vehicle.color || ""));
+  const [vin, setVin] = React.useState(vehicle.vin === "—" ? "" : (vehicle.vin || ""));
+  const [mileage, setMileage] = React.useState(vehicle.mileage || 0);
+  const [status, setStatus] = React.useState(vehicle.status || "ok");
+
+  function save() {
+    if (!plate.trim()) { toast("បំពេញ​ស្លាក​លេខ", "error"); return; }
+    setState(s => ({
+      ...s,
+      vehicles: s.vehicles.map(v => v.id === vehicle.id ? {
+        ...v,
+        plate: plate.trim().toUpperCase(),
+        make: make.trim() || "—",
+        model: model.trim() || "—",
+        year: +year || 2020,
+        color: color.trim() || "—",
+        vin: vin.trim() || "—",
+        mileage: +mileage || 0,
+        status,
+      } : v),
+    }));
+    toast(`រក្សាទុក ${plate} ជោគជ័យ`, "ok");
+    onClose();
+  }
+
+  return (
+    <Modal title={"កែ​រថយន្ត · " + vehicle.plate} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={save}><Icon.Check size={14} /> រក្សាទុក</button>
+      </>}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field"><label>ស្លាក​លេខ · PLATE</label><input className="input" value={plate} onChange={e => setPlate(e.target.value)} autoFocus /></div>
+        <div className="field"><label>ឆ្នាំ</label><input className="input" type="number" value={year} onChange={e => setYear(e.target.value)} /></div>
+        <div className="field"><label>ម៉ាក · MAKE</label><input className="input" value={make} onChange={e => setMake(e.target.value)} /></div>
+        <div className="field"><label>ម៉ូដែល · MODEL</label><input className="input" value={model} onChange={e => setModel(e.target.value)} /></div>
+        <div className="field"><label>ពណ៌ · COLOR</label><input className="input" value={color} onChange={e => setColor(e.target.value)} /></div>
+        <div className="field"><label>គីឡូម៉ែត្រ · MILEAGE</label><input className="input" type="number" value={mileage} onChange={e => setMileage(e.target.value)} /></div>
+        <div className="field"><label>VIN</label><input className="input" value={vin} onChange={e => setVin(e.target.value)} /></div>
+        <div className="field"><label>ស្ថានភាព · STATUS</label>
+          <select className="select" value={status} onChange={e => setStatus(e.target.value)}>
+            <option value="ok">OK</option>
+            <option value="due">Due Soon</option>
+            <option value="overdue">Overdue</option>
+          </select>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Confirm Modal (generic) ──
+function ConfirmModal({ title, message, danger, onClose, onConfirm }) {
+  return (
+    <Modal title={title} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className={"btn " + (danger ? "btn-danger" : "btn-primary")} onClick={onConfirm}><Icon.Check size={14} /> បញ្ជាក់</button>
+      </>}>
+      <div style={{ fontSize: 14, lineHeight: 1.6, padding: '4px 0' }}>{message}</div>
+      {danger && <div style={{ marginTop: 12, padding: 10, background: 'rgba(239,68,68,0.12)', borderLeft: '3px solid var(--danger)', borderRadius: 4, fontSize: 12, color: 'var(--danger)' }}>⚠️ សកម្មភាពនេះ​មិន​អាច​ត្រឡប់​ក្រោយ​បានទេ</div>}
+    </Modal>
+  );
+}
+
+export { DashboardScreen, CustomersScreen, CustomerDrawer, Stat, Money, Row, AddCustomerModal, EditCustomerModal, AddVehicleModal, EditVehicleModal, ConfirmModal, exportCsv,
   lookupCustomer, lookupVehicle, vehiclesByOwner, MISSING_C, MISSING_V };
