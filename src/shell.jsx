@@ -2,15 +2,37 @@ import React from 'react';
 import { Icon } from './icons';
 import { useInstallPrompt } from './lib/installPrompt';
 import { searchAll, TYPE_LABELS } from './lib/search';
+import { loadRecents, saveRecent, clearRecents } from './lib/recents';
 
 // ── Global Search dropdown ──
 function GlobalSearch({ state, onNavigate }) {
   const [q, setQ] = React.useState("");
   const [open, setOpen] = React.useState(false);
   const [active, setActive] = React.useState(0);
+  const [recents, setRecents] = React.useState(() => loadRecents());
   const inputRef = React.useRef(null);
 
-  const results = React.useMemo(() => state ? searchAll(state, q, 24) : [], [state, q]);
+  const liveResults = React.useMemo(() => state ? searchAll(state, q, 24) : [], [state, q]);
+  // When query is empty, surface recents instead. Re-validate against state
+  // so deleted entities don't appear as stale picks.
+  const recentResults = React.useMemo(() => {
+    if (!state) return [];
+    return recents.filter(r => {
+      const list = state[
+        r.type === "customer" ? "customers" :
+        r.type === "vehicle" ? "vehicles" :
+        r.type === "job" ? "jobs" :
+        r.type === "part" ? "parts" :
+        r.type === "invoice" ? "invoices" :
+        r.type === "quote" ? "quotations" :
+        r.type === "booking" ? "bookings" :
+        r.type === "member" ? "members" : null
+      ] || [];
+      return list.some(x => x.id === r.id);
+    });
+  }, [recents, state]);
+  const results = q.trim() ? liveResults : recentResults;
+  const showingRecents = !q.trim() && recentResults.length > 0;
 
   // Keyboard shortcut: Cmd/Ctrl + K
   React.useEffect(() => {
@@ -30,8 +52,13 @@ function GlobalSearch({ state, onNavigate }) {
 
   function go(r) {
     onNavigate && onNavigate(r);
+    setRecents(saveRecent(r));
     setOpen(false);
     setQ("");
+  }
+  function onClearRecents(e) {
+    e.stopPropagation();
+    setRecents(clearRecents());
   }
 
   function onKeyDown(e) {
@@ -56,11 +83,17 @@ function GlobalSearch({ state, onNavigate }) {
         {q && <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)', paddingRight: 6 }}>{results.length}</span>}
       </div>
 
-      {open && q && (
+      {open && (q || showingRecents) && (
         <>
           <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }}></div>
           <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 6, background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 10, padding: 6, maxHeight: 480, overflowY: 'auto', zIndex: 50, boxShadow: 'var(--shadow-lg)' }}>
-            {results.length === 0 && (
+            {showingRecents && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 10px 6px' }}>
+                <div className="mono" style={{ fontSize: 9, letterSpacing: '0.14em', color: 'var(--text-3)' }}>RECENT</div>
+                <button className="btn btn-sm btn-ghost" style={{ fontSize: 10, padding: '2px 8px' }} onClick={onClearRecents}>Clear</button>
+              </div>
+            )}
+            {q && results.length === 0 && (
               <div className="empty" style={{ padding: 18, fontSize: 12 }}>គ្មាន​លទ្ធផល​ "{q}"</div>
             )}
             {results.map((r, i) => {
