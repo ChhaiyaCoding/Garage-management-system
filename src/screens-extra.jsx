@@ -479,6 +479,7 @@ function MembersScreen({ state, setState, currency, toast, onAddMember }) {
 // REPORTS
 // ════════════════════════════════════════════════════════════
 function ReportsScreen({ state, currency, toast }) {
+  const [salesOpen, setSalesOpen] = React.useState(false);
   const monthly = [
     { m: "ឧសភា 25", v: 12400 },
     { m: "មិថុនា", v: 14820 },
@@ -504,7 +505,8 @@ function ReportsScreen({ state, currency, toast }) {
         <div className="page-actions">
           <button className="btn" onClick={() => toast("ជ្រើសរើសចន្លោះកាលបរិច្ឆេទ (ឆាប់ៗ)", "info")}><Icon.Cal size={14} /> Date Range</button>
           <button className="btn" onClick={() => toast("តម្រងតាមសាខា (ឆាប់ៗ)", "info")}><Icon.Branch size={14} /> All Branches</button>
-          <button className="btn btn-primary" onClick={() => window.print()}><Icon.Download size={14} /> Export PDF</button>
+          <button className="btn btn-primary" onClick={() => setSalesOpen(true)}><Icon.Doc size={14} /> Sales Report</button>
+          <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print</button>
         </div>
       </div>
 
@@ -594,7 +596,257 @@ function ReportsScreen({ state, currency, toast }) {
           ))}
         </div>
       </div>
+      {salesOpen && <SalesReportModal state={state} currency={currency} onClose={() => setSalesOpen(false)} toast={toast} />}
     </div>
+  );
+}
+
+// ── Sales Report Modal (real aggregates from state) ──
+function SalesReportModal({ state, currency, onClose, toast }) {
+  const sheetRef = React.useRef(null);
+  const [downloading, setDownloading] = React.useState(false);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const allInvs = state.invoices || [];
+  const allJobs = state.jobs || [];
+  const allCustomers = state.customers || [];
+
+  // Build last 12 months buckets keyed YYYY-MM
+  const now = new Date();
+  const monthBuckets = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    monthBuckets.push({ key, label: d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }), revenue: 0, billed: 0, invoices: 0, jobs: 0, newCustomers: 0 });
+  }
+  const idx = Object.fromEntries(monthBuckets.map((m, i) => [m.key, i]));
+
+  allInvs.forEach(inv => {
+    const k = (inv.issued || "").slice(0, 7);
+    if (idx[k] != null) {
+      monthBuckets[idx[k]].billed += inv.total || 0;
+      monthBuckets[idx[k]].revenue += inv.paid || 0;
+      monthBuckets[idx[k]].invoices++;
+    }
+  });
+  allJobs.forEach(j => {
+    const k = (j.created || "").slice(0, 7);
+    if (idx[k] != null) monthBuckets[idx[k]].jobs++;
+  });
+  allCustomers.forEach(c => {
+    const k = (c.since || "").slice(0, 7);
+    if (idx[k] != null) monthBuckets[idx[k]].newCustomers++;
+  });
+
+  const totalRevenue = monthBuckets.reduce((s, m) => s + m.revenue, 0);
+  const totalBilled = monthBuckets.reduce((s, m) => s + m.billed, 0);
+  const totalJobs = monthBuckets.reduce((s, m) => s + m.jobs, 0);
+  const totalNewCust = monthBuckets.reduce((s, m) => s + m.newCustomers, 0);
+  const outstanding = allInvs.reduce((s, i) => s + ((i.total || 0) - (i.paid || 0)), 0);
+  const maxRev = Math.max(...monthBuckets.map(m => m.revenue), 1);
+
+  const thisMonth = monthBuckets[monthBuckets.length - 1];
+  const lastMonth = monthBuckets[monthBuckets.length - 2] || { revenue: 0 };
+  const momChange = lastMonth.revenue ? Math.round(((thisMonth.revenue - lastMonth.revenue) / lastMonth.revenue) * 100) : 0;
+
+  // Top customers
+  const topCustomers = [...allCustomers].sort((a, b) => (b.lifetime || 0) - (a.lifetime || 0)).slice(0, 8);
+  // Status mix
+  const statusMix = {};
+  allJobs.forEach(j => { statusMix[j.status] = (statusMix[j.status] || 0) + 1; });
+
+  async function downloadPdf() {
+    if (!sheetRef.current) return;
+    setDownloading(true);
+    try {
+      const { downloadElementAsPdf } = await import('./lib/pdf');
+      await downloadElementAsPdf(sheetRef.current, `Sales-Report-${today}.pdf`);
+      toast("បាន​ទាញ​យក Sales Report", "ok");
+    } catch (e) {
+      console.error(e);
+      toast("PDF generation failed: " + (e.message || "unknown error"), "error");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <Modal wide title="Monthly Sales Report" onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បិទ</button>
+        <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print</button>
+        <button className="btn btn-primary" onClick={downloadPdf} disabled={downloading}><Icon.Download size={14} /> {downloading ? "កំពុង​បង្កើត..." : "ទាញ​យក PDF"}</button>
+      </>}>
+      <div ref={sheetRef} style={{ background: 'white', color: '#0a0d12', padding: 32, borderRadius: 8, fontFamily: 'var(--font-en)' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #0a0d12' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 6, background: 'var(--accent)', display: 'grid', placeItems: 'center', color: '#0b0b0b', fontWeight: 800, fontSize: 18 }}>G</div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: '0.02em' }}>GARAGE OS</div>
+                <div style={{ fontSize: 10, letterSpacing: '0.12em', color: '#666' }}>SERVICE CENTER · PHNOM PENH</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: '#666' }}>St. 271, Sangkat Toul Tom Pong<br />Phnom Penh, Cambodia · +855 23 555 100</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '0.04em', marginBottom: 4 }}>SALES REPORT</div>
+            <div style={{ fontSize: 11, color: '#666' }}>Last 12 months · As of {today}</div>
+          </div>
+        </div>
+
+        {/* KPIs */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 24 }}>
+          <div style={{ background: '#f5f5f5', padding: 12, borderRadius: 6 }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.12em', color: '#888' }}>REVENUE (PAID)</div>
+            <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'var(--font-mono)' }}>{moneyUSD(totalRevenue)}</div>
+            <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>12-mo</div>
+          </div>
+          <div style={{ background: '#f5f5f5', padding: 12, borderRadius: 6 }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.12em', color: '#888' }}>BILLED</div>
+            <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'var(--font-mono)' }}>{moneyUSD(totalBilled)}</div>
+            <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>{allInvs.length} invoices</div>
+          </div>
+          <div style={{ background: outstanding > 0 ? '#fef3c7' : '#f5f5f5', padding: 12, borderRadius: 6 }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.12em', color: outstanding > 0 ? '#7a5a00' : '#888' }}>OUTSTANDING</div>
+            <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'var(--font-mono)', color: outstanding > 0 ? '#d97706' : '#0a0d12' }}>{moneyUSD(outstanding)}</div>
+            <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>receivables</div>
+          </div>
+          <div style={{ background: '#f5f5f5', padding: 12, borderRadius: 6 }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.12em', color: '#888' }}>JOBS</div>
+            <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'var(--font-mono)' }}>{totalJobs}</div>
+            <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>12-mo</div>
+          </div>
+          <div style={{ background: '#f5f5f5', padding: 12, borderRadius: 6 }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.12em', color: '#888' }}>NEW CUSTOMERS</div>
+            <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'var(--font-mono)' }}>{totalNewCust}</div>
+            <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>12-mo</div>
+          </div>
+        </div>
+
+        {/* This month vs last month */}
+        <div style={{ background: '#f5f5f5', padding: '12px 16px', borderRadius: 6, marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: '0.12em', color: '#888' }}>THIS MONTH ({thisMonth.label})</div>
+            <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'var(--font-mono)' }}>{moneyUSD(thisMonth.revenue)}</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.12em', color: '#888' }}>VS LAST MONTH</div>
+            <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'var(--font-mono)', color: momChange >= 0 ? '#22a85a' : '#dc2626' }}>
+              {momChange >= 0 ? '▲' : '▼'} {Math.abs(momChange)}%
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.12em', color: '#888' }}>LAST MONTH ({lastMonth.label || "—"})</div>
+            <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#666' }}>{moneyUSD(lastMonth.revenue || 0)}</div>
+          </div>
+        </div>
+
+        {/* Monthly revenue chart (bar) */}
+        <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>MONTHLY REVENUE · LAST 12 MONTHS</div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 140, padding: '8px 0 0', borderBottom: '1px solid #ddd', marginBottom: 20 }}>
+          {monthBuckets.map((m, i) => {
+            const h = maxRev ? (m.revenue / maxRev) * 100 : 0;
+            const last = i === monthBuckets.length - 1;
+            return (
+              <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <div style={{ fontSize: 9, color: '#666', fontFamily: 'var(--font-mono)' }}>{m.revenue ? Math.round(m.revenue / 1000) + 'K' : ''}</div>
+                <div style={{ width: '100%', height: 80, display: 'flex', alignItems: 'flex-end' }}>
+                  <div style={{ width: '100%', background: last ? 'var(--accent)' : '#94a3b8', height: h + '%', borderRadius: '3px 3px 0 0', minHeight: m.revenue > 0 ? 2 : 0 }}></div>
+                </div>
+                <div style={{ fontSize: 9, color: '#666', fontFamily: 'var(--font-mono)', textAlign: 'center' }}>{m.label}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Monthly breakdown table */}
+        <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>MONTHLY BREAKDOWN</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20, fontSize: 11 }}>
+          <thead>
+            <tr style={{ background: '#f5f5f5' }}>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>MONTH</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>INVOICES</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>JOBS</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>NEW CUST</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>BILLED</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>REVENUE</th>
+            </tr>
+          </thead>
+          <tbody>
+            {monthBuckets.map(m => (
+              <tr key={m.key} style={{ borderBottom: '1px solid #eee' }}>
+                <td style={{ padding: '6px 10px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{m.label}</td>
+                <td style={{ padding: '6px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{m.invoices || "—"}</td>
+                <td style={{ padding: '6px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{m.jobs || "—"}</td>
+                <td style={{ padding: '6px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{m.newCustomers || "—"}</td>
+                <td style={{ padding: '6px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{m.billed ? moneyUSD(m.billed) : "—"}</td>
+                <td style={{ padding: '6px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{m.revenue ? moneyUSD(m.revenue) : "—"}</td>
+              </tr>
+            ))}
+            <tr style={{ borderTop: '2px solid #0a0d12', background: '#fafafa' }}>
+              <td style={{ padding: '10px 10px', fontWeight: 800, letterSpacing: '0.06em' }}>TOTAL</td>
+              <td style={{ padding: '10px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800 }}>{allInvs.length}</td>
+              <td style={{ padding: '10px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800 }}>{totalJobs}</td>
+              <td style={{ padding: '10px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800 }}>{totalNewCust}</td>
+              <td style={{ padding: '10px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800 }}>{moneyUSD(totalBilled)}</td>
+              <td style={{ padding: '10px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 13 }}>{moneyUSD(totalRevenue)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* Two columns: Top customers & Job status mix */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 20, marginBottom: 18 }}>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>TOP CUSTOMERS · BY LIFETIME</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <thead>
+                <tr style={{ background: '#f5f5f5' }}>
+                  <th style={{ textAlign: 'left', padding: '6px 10px', fontSize: 9, letterSpacing: '0.14em', color: '#666' }}>CUSTOMER</th>
+                  <th style={{ textAlign: 'right', padding: '6px 10px', fontSize: 9, letterSpacing: '0.14em', color: '#666' }}>JOBS</th>
+                  <th style={{ textAlign: 'right', padding: '6px 10px', fontSize: 9, letterSpacing: '0.14em', color: '#666' }}>LIFETIME</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topCustomers.map((c, i) => (
+                  <tr key={c.id} style={{ borderBottom: '1px solid #eee' }}>
+                    <td style={{ padding: '6px 10px' }}><span style={{ color: '#888', marginRight: 6, fontFamily: 'var(--font-mono)' }}>{i + 1}.</span>{c.name}</td>
+                    <td style={{ padding: '6px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{c.jobs || 0}</td>
+                    <td style={{ padding: '6px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{moneyUSD(c.lifetime || 0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>JOB STATUS MIX</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <thead>
+                <tr style={{ background: '#f5f5f5' }}>
+                  <th style={{ textAlign: 'left', padding: '6px 10px', fontSize: 9, letterSpacing: '0.14em', color: '#666' }}>STATUS</th>
+                  <th style={{ textAlign: 'right', padding: '6px 10px', fontSize: 9, letterSpacing: '0.14em', color: '#666' }}>COUNT</th>
+                  <th style={{ textAlign: 'right', padding: '6px 10px', fontSize: 9, letterSpacing: '0.14em', color: '#666' }}>%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(statusMix).sort((a, b) => b[1] - a[1]).map(([s, n]) => (
+                  <tr key={s} style={{ borderBottom: '1px solid #eee' }}>
+                    <td style={{ padding: '6px 10px', textTransform: 'uppercase', fontWeight: 600, fontSize: 10, letterSpacing: '0.06em' }}>{s}</td>
+                    <td style={{ padding: '6px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{n}</td>
+                    <td style={{ padding: '6px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', color: '#666' }}>{allJobs.length ? Math.round((n / allJobs.length) * 100) : 0}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style={{ fontSize: 10, color: '#888', textAlign: 'center', letterSpacing: '0.04em', borderTop: '1px solid #eee', paddingTop: 14 }}>
+          Generated by Garage OS · {today}
+        </div>
+      </div>
+    </Modal>
   );
 }
 
