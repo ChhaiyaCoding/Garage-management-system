@@ -2,7 +2,7 @@ import React from 'react';
 import GARAGE from './data';
 import { Icon } from './icons';
 import { Modal } from './shell';
-import { Money, Stat, lookupCustomer, lookupVehicle, MISSING_C, MISSING_V } from './screens-core';
+import { Money, Stat, lookupCustomer, lookupVehicle, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
 // ─── Booking, DVI, Members, Reports, Settings screens ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -315,6 +315,8 @@ const TIERS = [
 
 function MembersScreen({ state, setState, currency, toast, onAddMember }) {
   const members = state.members;
+  const [editMem, setEditMem] = React.useState(null);
+  const [delMem, setDelMem] = React.useState(null);
   function tierFromPoints(p) {
     let best = TIERS[0].name;
     for (const t of TIERS) if (p >= t.min) best = t.name;
@@ -448,13 +450,21 @@ function MembersScreen({ state, setState, currency, toast, onAddMember }) {
                       </>
                     ) : <div className="mono muted" style={{ fontSize: 10 }}>MAX TIER</div>}
                   </td>
-                  <td><button className="btn btn-sm" onClick={() => addPoints(m.id, 50)}>+ 50 Points</button></td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-sm" onClick={() => addPoints(m.id, 50)}>+ 50 pts</button>
+                      <button className="btn btn-sm btn-ghost" title="កែ" onClick={() => setEditMem(m)}><Icon.Pen size={12} /></button>
+                      <button className="btn btn-sm btn-ghost" title="លុប" onClick={() => setDelMem(m)}><Icon.X size={12} /></button>
+                    </div>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+      {editMem && <EditMemberModal member={editMem} setState={setState} onClose={() => setEditMem(null)} toast={toast} />}
+      {delMem && <ConfirmModal title="លុបសមាជិក?" message={`លុប ${delMem.name} (${delMem.tier}) ឬ​ទេ?`} danger onClose={() => setDelMem(null)} onConfirm={() => { setState(s => ({ ...s, members: s.members.filter(x => x.id !== delMem.id) })); toast(`លុប ${delMem.name} ជោគជ័យ`, "ok"); setDelMem(null); }} />}
     </div>
   );
 }
@@ -1023,4 +1033,44 @@ function AddMemberModal({ onClose, state, setState, toast }) {
   );
 }
 
-export { BookingScreen, DVIScreen, MembersScreen, ReportsScreen, SettingsScreen, AddBookingModal, AddMemberModal };
+// ── Edit Member Modal ──
+function EditMemberModal({ member, setState, onClose, toast }) {
+  const [name, setName] = React.useState(member.name || "");
+  const [tier, setTier] = React.useState(member.tier || "Bronze");
+  const [points, setPoints] = React.useState(member.points || 0);
+  const [spent, setSpent] = React.useState(member.spent || 0);
+
+  function save() {
+    if (!name.trim()) { toast("បំពេញឈ្មោះ", "error"); return; }
+    setState(s => ({
+      ...s,
+      members: s.members.map(m => m.id === member.id ? {
+        ...m, name: name.trim(), tier, points: +points || 0, spent: +spent || 0,
+      } : m),
+    }));
+    toast(`រក្សាទុក ${name} ជោគជ័យ`, "ok");
+    onClose();
+  }
+
+  return (
+    <Modal title={"កែសមាជិក · " + member.id} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={save}><Icon.Check size={14} /> រក្សាទុក</button>
+      </>}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>ឈ្មោះ · NAME</label><input className="input" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
+        <div className="field">
+          <label>កម្រិត · TIER</label>
+          <select className="select" value={tier} onChange={e => setTier(e.target.value)}>
+            {TIERS.map(t => <option key={t.name} value={t.name}>{t.name}</option>)}
+          </select>
+        </div>
+        <div className="field"><label>ពិន្ទុ · POINTS</label><input className="input" type="number" value={points} onChange={e => setPoints(e.target.value)} /></div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>ចំណាយរួម · SPENT ($)</label><input className="input" type="number" value={spent} onChange={e => setSpent(e.target.value)} /></div>
+      </div>
+    </Modal>
+  );
+}
+
+export { BookingScreen, DVIScreen, MembersScreen, ReportsScreen, SettingsScreen, AddBookingModal, AddMemberModal, EditMemberModal };

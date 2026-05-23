@@ -2,7 +2,7 @@ import React from 'react';
 import GARAGE from './data';
 import { Icon } from './icons';
 import { Modal, Drawer } from './shell';
-import { Money, Row, lookupCustomer, lookupVehicle, vehiclesByOwner, MISSING_C, MISSING_V } from './screens-core';
+import { Money, Row, lookupCustomer, lookupVehicle, vehiclesByOwner, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
 // ─── Job Card Kanban + Job detail drawer + New Job modal ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -92,6 +92,7 @@ function JobCard({ job, state, onOpen }) {
 
 function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, currency, toast }) {
   const job = state.jobs.find(j => j.id === id);
+  const [delConfirm, setDelConfirm] = React.useState(false);
   if (!job) return null;
   const v = lookupVehicle(job.vehicle, state) || MISSING_V;
   const c = lookupCustomer(job.customer, state) || MISSING_C;
@@ -123,7 +124,10 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
             <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>{job.title}</div>
             <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>បង្កើត {job.created} · សន្យាបញ្ចប់ {job.promised}</div>
           </div>
-          <button className="icon-btn" onClick={onClose}><Icon.X size={16} /></button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="icon-btn" title="លុប Job" onClick={() => setDelConfirm(true)}><Icon.Trash size={14} /></button>
+            <button className="icon-btn" onClick={onClose}><Icon.X size={16} /></button>
+          </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
@@ -265,6 +269,7 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
           )}
         </div>
       </div>
+      {delConfirm && <ConfirmModal title="លុប Job?" message={`លុប ${job.id} · ${job.title} ឬ​ទេ?`} danger onClose={() => setDelConfirm(false)} onConfirm={() => { setState(s => ({ ...s, jobs: s.jobs.filter(j => j.id !== job.id) })); toast(`លុប ${job.id} ជោគជ័យ`, "ok"); setDelConfirm(false); onClose(); }} />}
     </Drawer>
   );
 }

@@ -2,7 +2,7 @@ import React from 'react';
 import GARAGE from './data';
 import { Icon } from './icons';
 import { Modal } from './shell';
-import { Money, Row, exportCsv, lookupCustomer, lookupVehicle, MISSING_C, MISSING_V } from './screens-core';
+import { Money, Row, exportCsv, lookupCustomer, lookupVehicle, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
 // ─── Parts, Quotation, Invoices screens ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -14,6 +14,8 @@ const { customers, vehicles, parts, jobs, invoices, quotations, bookings, techni
 function PartsScreen({ state, setState, currency, toast, onNewPart }) {
   const [tab, setTab] = React.useState("all");
   const [search, setSearch] = React.useState("");
+  const [editPart, setEditPart] = React.useState(null);
+  const [delPart, setDelPart] = React.useState(null);
   const allParts = state.parts;
   function reorderPart(p) {
     if (!setState) { toast(`Reorder request sent to ${p.supplier}`, "info"); return; }
@@ -134,9 +136,17 @@ function PartsScreen({ state, setState, currency, toast, onNewPart }) {
                   <td className="num muted">${p.cost.toFixed(2)}</td>
                   <td className="num" style={{ fontWeight: 700 }}>${p.price.toFixed(2)}</td>
                   <td>
-                    <button className="btn btn-sm btn-ghost" title="Reorder · បញ្ជា​ទិញ​ស្តុក" onClick={() => reorderPart(p)}>
-                      <Icon.Plus size={14} />
-                    </button>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-sm btn-ghost" title="Reorder · បញ្ជា​ទិញ​ស្តុក" onClick={() => reorderPart(p)}>
+                        <Icon.Plus size={14} />
+                      </button>
+                      <button className="btn btn-sm btn-ghost" title="កែ" onClick={() => setEditPart(p)}>
+                        <Icon.Pen size={14} />
+                      </button>
+                      <button className="btn btn-sm btn-ghost" title="លុប" onClick={() => setDelPart(p)}>
+                        <Icon.X size={14} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -160,7 +170,71 @@ function PartsScreen({ state, setState, currency, toast, onNewPart }) {
           );
         })}
       </div>
+      {editPart && <EditPartModal part={editPart} setState={setState} onClose={() => setEditPart(null)} toast={toast} />}
+      {delPart && <ConfirmModal title="លុប Part?" message={`លុប ${delPart.name} (${delPart.sku}) ឬ​ទេ?`} danger onClose={() => setDelPart(null)} onConfirm={() => { setState(s => ({ ...s, parts: s.parts.filter(x => x.id !== delPart.id) })); toast(`លុប ${delPart.name} ជោគជ័យ`, "ok"); setDelPart(null); }} />}
     </div>
+  );
+}
+
+// ── Edit Part Modal ──
+function EditPartModal({ part, setState, onClose, toast }) {
+  const [sku, setSku] = React.useState(part.sku || "");
+  const [name, setName] = React.useState(part.name || "");
+  const [nameEn, setNameEn] = React.useState(part.nameEn || "");
+  const [category, setCategory] = React.useState(part.category || "ប្រេង");
+  const [supplier, setSupplier] = React.useState(part.supplier === "—" ? "" : (part.supplier || ""));
+  const [stock, setStock] = React.useState(part.stock || 0);
+  const [reorder, setReorder] = React.useState(part.reorder || 5);
+  const [cost, setCost] = React.useState(part.cost || 0);
+  const [price, setPrice] = React.useState(part.price || 0);
+  const [location, setLocation] = React.useState(part.location === "—" ? "" : (part.location || ""));
+
+  function save() {
+    if (!name.trim()) { toast("បំពេញឈ្មោះ", "error"); return; }
+    if (!sku.trim()) { toast("បំពេញ SKU", "error"); return; }
+    setState(s => ({
+      ...s,
+      parts: s.parts.map(p => p.id === part.id ? {
+        ...p,
+        sku: sku.trim().toUpperCase(),
+        name: name.trim(),
+        nameEn: nameEn.trim() || name.trim(),
+        category,
+        supplier: supplier.trim() || "—",
+        stock: +stock || 0,
+        reorder: +reorder || 0,
+        cost: +cost || 0,
+        price: +price || 0,
+        location: location.trim().toUpperCase() || "—",
+      } : p),
+    }));
+    toast(`រក្សាទុក ${name} ជោគជ័យ`, "ok");
+    onClose();
+  }
+
+  return (
+    <Modal title={"កែ Part · " + part.sku} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={save}><Icon.Check size={14} /> រក្សាទុក</button>
+      </>}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field"><label>SKU</label><input className="input" value={sku} onChange={e => setSku(e.target.value)} autoFocus /></div>
+        <div className="field"><label>ប្រភេទ · CATEGORY</label>
+          <select className="select" value={category} onChange={e => setCategory(e.target.value)}>
+            {["ប្រេង", "តម្រង", "ហ្វ្រាំង", "អគ្គិសនី", "ឆេះ", "កង់", "ផ្សេងៗ"].map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="field"><label>ឈ្មោះ (ខ្មែរ)</label><input className="input" value={name} onChange={e => setName(e.target.value)} /></div>
+        <div className="field"><label>ឈ្មោះ (English)</label><input className="input" value={nameEn} onChange={e => setNameEn(e.target.value)} /></div>
+        <div className="field"><label>អ្នកផ្គត់ផ្គង់</label><input className="input" value={supplier} onChange={e => setSupplier(e.target.value)} /></div>
+        <div className="field"><label>ទីតាំង</label><input className="input" value={location} onChange={e => setLocation(e.target.value)} placeholder="A-01" /></div>
+        <div className="field"><label>ស្តុក · STOCK</label><input className="input" type="number" value={stock} onChange={e => setStock(e.target.value)} /></div>
+        <div className="field"><label>Reorder Level</label><input className="input" type="number" value={reorder} onChange={e => setReorder(e.target.value)} /></div>
+        <div className="field"><label>តម្លៃដើម · COST ($)</label><input className="input" type="number" step="0.01" value={cost} onChange={e => setCost(e.target.value)} /></div>
+        <div className="field"><label>តម្លៃលក់ · PRICE ($)</label><input className="input" type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} /></div>
+      </div>
+    </Modal>
   );
 }
 
