@@ -696,14 +696,14 @@ function ReportsScreen({ state, currency, toast }) {
           </div>
         </h3>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 220 }}>
-          {monthly.map((m, i) => {
+          {buckets.map((m, i) => {
             const v = m[chartMetric] || 0;
-            const last = i === monthly.length - 1;
+            const last = i === buckets.length - 1;
             return (
               <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                 <div className="num" style={{ fontSize: 10, color: 'var(--text-2)' }}>{formatBar(v)}</div>
                 <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
-                  <div style={{ width: '100%', background: last ? 'var(--accent)' : 'var(--info)', borderRadius: '4px 4px 0 0', height: ((v / max) * 100) + "%", minHeight: v > 0 ? 2 : 0, opacity: last ? 1 : 0.5 + (i / monthly.length) * 0.5 }}></div>
+                  <div style={{ width: '100%', background: last ? 'var(--accent)' : 'var(--info)', borderRadius: '4px 4px 0 0', height: ((v / max) * 100) + "%", minHeight: v > 0 ? 2 : 0, opacity: last ? 1 : 0.5 + (i / buckets.length) * 0.5 }}></div>
                 </div>
                 <div className="mono" style={{ fontSize: 10, color: 'var(--text-2)', textAlign: 'center' }}>{m.label}</div>
               </div>
