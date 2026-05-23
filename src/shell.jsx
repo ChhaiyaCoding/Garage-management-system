@@ -72,7 +72,11 @@ function Sidebar({ active, onNav }) {
   );
 }
 
-function Topbar({ search, setSearch, onOpenTweaks, currency, setCurrency }) {
+function Topbar({ search, setSearch, onOpenTweaks, currency, setCurrency, userEmail, onSignOut, saveStatus }) {
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const localName = userEmail ? userEmail.split("@")[0] : "លោក សុខ ភារុណ";
+  const initials = (userEmail ? userEmail.slice(0, 2) : "SP").toUpperCase();
+  const saveLabel = saveStatus === "saving" ? "កំពុងរក្សាទុក..." : saveStatus === "saved" ? "បានរក្សាទុក ✓" : saveStatus === "error" ? "បរាជ័យ ⚠" : null;
   return (
     <header className="topbar">
       <div className="branch-pill">
@@ -87,6 +91,9 @@ function Topbar({ search, setSearch, onOpenTweaks, currency, setCurrency }) {
         />
       </div>
       <div className="topbar-actions">
+        {saveLabel && (
+          <span className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: saveStatus === "error" ? 'var(--danger)' : saveStatus === "saving" ? 'var(--text-2)' : 'var(--success)' }}>{saveLabel}</span>
+        )}
         <button className="icon-btn" title="Notifications">
           <Icon.Bell size={16} />
           <span className="badge">3</span>
@@ -94,12 +101,20 @@ function Topbar({ search, setSearch, onOpenTweaks, currency, setCurrency }) {
         <button className="icon-btn" onClick={onOpenTweaks} title="Tweaks">
           <Icon.Cog size={16} />
         </button>
-        <div className="user-chip">
-          <div className="avatar av-sm" style={{ background: "#22c55e" }}>SP</div>
+        <div className="user-chip" style={{ position: 'relative', cursor: onSignOut ? 'pointer' : 'default' }} onClick={() => onSignOut && setMenuOpen(v => !v)}>
+          <div className="avatar av-sm" style={{ background: "#22c55e" }}>{initials}</div>
           <div>
-            <div className="name">លោក សុខ ភារុណ</div>
-            <div className="role">Owner</div>
+            <div className="name">{localName}</div>
+            <div className="role">{userEmail ? "Signed in" : "Owner"}</div>
           </div>
+          {onSignOut && menuOpen && (
+            <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 8, padding: 6, minWidth: 180, zIndex: 100, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+              <div style={{ padding: '8px 10px', fontSize: 11, color: 'var(--text-2)', borderBottom: '1px solid var(--border-0)', fontFamily: 'var(--font-mono)' }}>{userEmail}</div>
+              <button className="btn btn-sm" style={{ width: '100%', justifyContent: 'flex-start', marginTop: 6, background: 'transparent', border: 'none' }} onClick={() => { setMenuOpen(false); onSignOut(); }}>
+                <Icon.X size={12} /> Sign Out
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

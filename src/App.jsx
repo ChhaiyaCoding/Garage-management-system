@@ -6,6 +6,9 @@ import { DashboardScreen, CustomersScreen, CustomerDrawer, AddCustomerModal } fr
 import { JobsScreen, JobDrawer, NewJobModal, EditJobModal } from './screens-jobs';
 import { PartsScreen, QuotationScreen, NewQuoteModal, InvoicesScreen, InvoiceModal, NewPartModal, NewInvoiceModal } from './screens-billing';
 import { BookingScreen, DVIScreen, MembersScreen, ReportsScreen, SettingsScreen, AddBookingModal, AddMemberModal } from './screens-extra';
+import { LoginScreen, LoadingScreen } from './screens-auth';
+import { supabase, isConfigured } from './lib/supabase';
+import { loadWorkspace, queueSave, flushSave } from './lib/storage';
 import './styles.css';
 
 const G = GARAGE;
@@ -24,26 +27,8 @@ const ACCENT_PALETTES = {
   "#a78bfa": { c: "#a78bfa", hi: "#c4b5fd", dim: "#4c1d95", soft: "rgba(167, 139, 250, 0.12)" },
 };
 
-function App() {
-  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  const tweaks = t || TWEAK_DEFAULTS;
-  const [route, setRoute] = React.useState("dashboard");
-  const [search, setSearch] = React.useState("");
-  const [customerOpen, setCustomerOpen] = React.useState(null);
-  const [jobOpen, setJobOpen] = React.useState(null);
-  const [invoiceOpen, setInvoiceOpen] = React.useState(null);
-  const [newJobOpen, setNewJobOpen] = React.useState(false);
-  const [newJobPrefill, setNewJobPrefill] = React.useState("");
-  const [newQuoteOpen, setNewQuoteOpen] = React.useState(false);
-  const [newQuotePrefill, setNewQuotePrefill] = React.useState("");
-  const [editJobOpen, setEditJobOpen] = React.useState(null);
-  const [newPartOpen, setNewPartOpen] = React.useState(false);
-  const [newInvoiceOpen, setNewInvoiceOpen] = React.useState(false);
-  const [addBookingOpen, setAddBookingOpen] = React.useState(false);
-  const [addCustomerOpen, setAddCustomerOpen] = React.useState(false);
-  const [addMemberOpen, setAddMemberOpen] = React.useState(false);
-
-  const [state, setState] = React.useState(() => ({
+function defaultState() {
+  return {
     jobs: G.jobs.slice(),
     parts: G.parts.slice(),
     invoices: G.invoices.slice(),
@@ -80,7 +65,39 @@ function App() {
       loyaltyBirthday: "2x ពិន្ទុក្នុងខែខួបកំណើត",
       loyaltyExpiry: "24 ខែ",
     },
-  }));
+  };
+}
+
+function App({ initialState, userId, userEmail, onSignOut }) {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const tweaks = t || TWEAK_DEFAULTS;
+  const [route, setRoute] = React.useState("dashboard");
+  const [search, setSearch] = React.useState("");
+  const [customerOpen, setCustomerOpen] = React.useState(null);
+  const [jobOpen, setJobOpen] = React.useState(null);
+  const [invoiceOpen, setInvoiceOpen] = React.useState(null);
+  const [newJobOpen, setNewJobOpen] = React.useState(false);
+  const [newJobPrefill, setNewJobPrefill] = React.useState("");
+  const [newQuoteOpen, setNewQuoteOpen] = React.useState(false);
+  const [newQuotePrefill, setNewQuotePrefill] = React.useState("");
+  const [editJobOpen, setEditJobOpen] = React.useState(null);
+  const [newPartOpen, setNewPartOpen] = React.useState(false);
+  const [newInvoiceOpen, setNewInvoiceOpen] = React.useState(false);
+  const [addBookingOpen, setAddBookingOpen] = React.useState(false);
+  const [addCustomerOpen, setAddCustomerOpen] = React.useState(false);
+  const [addMemberOpen, setAddMemberOpen] = React.useState(false);
+  const [saveStatus, setSaveStatus] = React.useState("idle"); // idle | saving | saved | error
+
+  const [state, setState] = React.useState(initialState || defaultState());
+
+  // ─── Persistence: debounced save to Supabase on state change ───
+  const firstRender = React.useRef(true);
+  React.useEffect(() => {
+    if (!userId) return;            // in-memory mode
+    if (firstRender.current) { firstRender.current = false; return; }
+    setSaveStatus("saving");
+    queueSave(userId, state, (res) => setSaveStatus(res.ok ? "saved" : "error"));
+  }, [state, userId]);
 
   function convertQuoteToJob(qId) {
     const q = state.quotations.find(x => x.id === qId);
@@ -176,6 +193,7 @@ function App() {
           search={search} setSearch={setSearch}
           onOpenTweaks={() => window.postMessage({ type: '__activate_edit_mode' }, '*')}
           currency={tweaks.currency} setCurrency={(v) => setTweak("currency", v)}
+          userEmail={userEmail} onSignOut={onSignOut} saveStatus={saveStatus}
         />
         {route === "dashboard" && <DashboardScreen state={state} currency={tweaks.currency} onNav={setRoute} toast={toast} />}
         {route === "customers" && <CustomersScreen state={state} search={search} currency={tweaks.currency} onOpenCustomer={setCustomerOpen} onNav={setRoute} onAddCustomer={() => setAddCustomerOpen(true)} toast={toast} />}
@@ -251,4 +269,54 @@ function App() {
   );
 }
 
-export default App;
+// ─── AuthGate: handles Supabase auth + workspace loading ───
+function AuthGate() {
+  const [phase, setPhase] = React.useState(isConfigured ? "checking" : "memory");
+  const [session, setSession] = React.useState(null);
+  const [initial, setInitial] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!isConfigured) return;
+    // Initial check
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        setSession(data.session);
+        loadOrSeed(data.session.user.id);
+      } else {
+        setPhase("login");
+      }
+    });
+    // Listen for sign-in/out
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+      if (s) {
+        setSession(s);
+        loadOrSeed(s.user.id);
+      } else {
+        setSession(null);
+        setInitial(null);
+        setPhase("login");
+      }
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  async function loadOrSeed(userId) {
+    setPhase("loading");
+    const remote = await loadWorkspace(userId);
+    setInitial(remote || defaultState());
+    setPhase("ready");
+  }
+
+  async function handleSignOut() {
+    await flushSave();
+    await supabase.auth.signOut();
+  }
+
+  if (phase === "memory") return <App initialState={defaultState()} userId={null} userEmail={null} onSignOut={null} />;
+  if (phase === "checking") return <LoadingScreen message="GARAGE OS · ផ្ទៀងផ្ទាត់ Session" />;
+  if (phase === "login") return <LoginScreen onSignedIn={(s) => { setSession(s); loadOrSeed(s.user.id); }} />;
+  if (phase === "loading") return <LoadingScreen message="GARAGE OS · ផ្ទុកទិន្នន័យ..." />;
+  return <App initialState={initial} userId={session.user.id} userEmail={session.user.email} onSignOut={handleSignOut} />;
+}
+
+export default AuthGate;
