@@ -1,5 +1,6 @@
 import React from 'react';
 import { Icon } from './icons';
+import { useInstallPrompt } from './lib/installPrompt';
 // ─── App Shell: Sidebar + Topbar + Toast helpers ───
 
 const NAV_CORE = [
@@ -74,6 +75,7 @@ function Sidebar({ active, onNav }) {
 
 function Topbar({ search, setSearch, onOpenTweaks, currency, setCurrency, userEmail, onSignOut, saveStatus, theme, onToggleTheme }) {
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const { canInstall, isStandalone, promptInstall } = useInstallPrompt();
   const localName = userEmail ? userEmail.split("@")[0] : "លោក សុខ ភារុណ";
   const initials = (userEmail ? userEmail.slice(0, 2) : "SP").toUpperCase();
   const saveLabel = saveStatus === "saving" ? "កំពុងរក្សាទុក..." : saveStatus === "saved" ? "បានរក្សាទុក ✓" : saveStatus === "error" ? "បរាជ័យ ⚠" : null;
@@ -93,6 +95,11 @@ function Topbar({ search, setSearch, onOpenTweaks, currency, setCurrency, userEm
       <div className="topbar-actions">
         {saveLabel && (
           <span className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: saveStatus === "error" ? 'var(--danger)' : saveStatus === "saving" ? 'var(--text-2)' : 'var(--success)' }}>{saveLabel}</span>
+        )}
+        {canInstall && !isStandalone && (
+          <button className="btn btn-sm btn-primary" onClick={promptInstall} title="ដំឡើង Garage OS ​ជា App">
+            <Icon.Down size={14} /> ដំឡើង​ជា App
+          </button>
         )}
         <button className="icon-btn" title="Notifications">
           <Icon.Bell size={16} />
