@@ -241,7 +241,8 @@ function EditPartModal({ part, setState, onClose, toast }) {
 // ════════════════════════════════════════════════════════════
 // QUOTATION
 // ════════════════════════════════════════════════════════════
-function QuotationScreen({ state, currency, onNewQuote, toast, onConvert, onSend, onView }) {
+function QuotationScreen({ state, setState, currency, onNewQuote, toast, onConvert, onSend, onView }) {
+  const [delQuote, setDelQuote] = React.useState(null);
   const [tab, setTab] = React.useState("all");
   const allQuotes = state.quotations;
   const filtered = tab === "all" ? allQuotes : allQuotes.filter(q => q.status === tab);
@@ -343,6 +344,7 @@ function QuotationScreen({ state, currency, onNewQuote, toast, onConvert, onSend
                       <button className="btn btn-sm btn-ghost" title="View" onClick={() => onView(q.id)}><Icon.Doc size={12} /></button>
                       <button className="btn btn-sm btn-ghost" title="Send" onClick={() => onSend(q.id)}><Icon.Send size={12} /></button>
                       {q.status === "accepted" && <button className="btn btn-sm btn-ghost" title="Convert to Job" onClick={() => onConvert(q.id)}><Icon.Wrench size={12} /></button>}
+                      {setState && <button className="btn btn-sm btn-ghost" title="លុប" onClick={() => setDelQuote(q)}><Icon.X size={12} /></button>}
                     </div>
                   </td>
                 </tr>
@@ -351,6 +353,7 @@ function QuotationScreen({ state, currency, onNewQuote, toast, onConvert, onSend
           </tbody>
         </table>
       </div>
+      {delQuote && <ConfirmModal title="លុប Quote?" message={`លុប ${delQuote.id} (តម្លៃ $${delQuote.total}) ឬ​ទេ?`} danger onClose={() => setDelQuote(null)} onConfirm={() => { setState(s => ({ ...s, quotations: s.quotations.filter(x => x.id !== delQuote.id) })); toast(`លុប ${delQuote.id} ជោគជ័យ`, "ok"); setDelQuote(null); }} />}
     </div>
   );
 }
@@ -459,7 +462,8 @@ function NewQuoteModal({ onClose, setState, toast, currency, state, prefillCusto
 // ════════════════════════════════════════════════════════════
 // INVOICES
 // ════════════════════════════════════════════════════════════
-function InvoicesScreen({ state, currency, onOpenInvoice, onNewInvoice, toast }) {
+function InvoicesScreen({ state, setState, currency, onOpenInvoice, onNewInvoice, toast }) {
+  const [delInv, setDelInv] = React.useState(null);
   const [tab, setTab] = React.useState("all");
   const allInv = state.invoices;
   const filtered = tab === "all" ? allInv : allInv.filter(i => i.status === tab);
@@ -554,13 +558,19 @@ function InvoicesScreen({ state, currency, onOpenInvoice, onNewInvoice, toast })
                   <td className="num"><Money value={inv.paid} currency={currency} /></td>
                   <td className="muted">{inv.method}</td>
                   <td><span className={"chip chip-" + stCls}>{inv.status.toUpperCase()}</span></td>
-                  <td><button className="btn btn-sm btn-ghost" onClick={e => { e.stopPropagation(); window.print(); }}><Icon.Print size={12} /></button></td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-sm btn-ghost" title="Print" onClick={e => { e.stopPropagation(); window.print(); }}><Icon.Print size={12} /></button>
+                      {setState && <button className="btn btn-sm btn-ghost" title="លុប" onClick={e => { e.stopPropagation(); setDelInv(inv); }}><Icon.X size={12} /></button>}
+                    </div>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+      {delInv && <ConfirmModal title="លុប Invoice?" message={`លុប ${delInv.id} (សរុប $${delInv.total}) ឬ​ទេ?`} danger onClose={() => setDelInv(null)} onConfirm={() => { setState(s => ({ ...s, invoices: s.invoices.filter(x => x.id !== delInv.id) })); toast(`លុប ${delInv.id} ជោគជ័យ`, "ok"); setDelInv(null); }} />}
     </div>
   );
 }

@@ -12,6 +12,8 @@ const { customers, vehicles, parts, jobs, invoices, quotations, bookings, techni
 // BOOKING (Online appointments)
 // ════════════════════════════════════════════════════════════
 function BookingScreen({ state, setState, currency, onAddBooking, onConvertBooking, toast }) {
+  const [editBk, setEditBk] = React.useState(null);
+  const [delBk, setDelBk] = React.useState(null);
   function checkIn(bId) {
     if (!setState) return;
     setState(s => ({ ...s, bookings: s.bookings.map(b => b.id === bId ? { ...b, status: "checked-in" } : b) }));
@@ -131,11 +133,15 @@ function BookingScreen({ state, setState, currency, onAddBooking, onConvertBooki
                 <button className="btn btn-sm" title="ហៅទូរស័ព្ទ" onClick={() => callPhone(c.phone)}><Icon.Phone size={12} /></button>
                 <button className="btn btn-sm" title="បង្កើតជា Job" onClick={() => onConvertBooking(b.id)}><Icon.Wrench size={12} /></button>
                 <button className={"btn btn-sm" + (b.status === "checked-in" ? " btn-primary" : " btn-ghost")} title="Check-in" onClick={() => { checkIn(b.id); toast(`${c.name} · Checked-in ✓`, "ok"); }} disabled={b.status === "checked-in"}><Icon.Check size={12} /></button>
+                {setState && <button className="btn btn-sm btn-ghost" title="កែ" onClick={() => setEditBk(b)}><Icon.Pen size={12} /></button>}
+                {setState && <button className="btn btn-sm btn-ghost" title="លុប" onClick={() => setDelBk(b)}><Icon.X size={12} /></button>}
               </div>
             </div>
           );
         })}
       </div>
+      {editBk && <EditBookingModal booking={editBk} state={state} setState={setState} onClose={() => setEditBk(null)} toast={toast} />}
+      {delBk && <ConfirmModal title="លុបការកក់?" message={`លុប ${delBk.id} · ${delBk.time} · ${delBk.service} ឬ​ទេ?`} danger onClose={() => setDelBk(null)} onConfirm={() => { setState(s => ({ ...s, bookings: s.bookings.filter(x => x.id !== delBk.id) })); toast(`លុប ${delBk.id} ជោគជ័យ`, "ok"); setDelBk(null); }} />}
     </div>
   );
 }
@@ -1028,6 +1034,88 @@ function AddMemberModal({ onClose, state, setState, toast }) {
         </div>
         <div className="field"><label>ពិន្ទុ · POINTS</label><input className="input" type="number" value={points} onChange={e => setPoints(e.target.value)} /></div>
         <div className="field"><label>ចំណាយរួម · SPENT ($)</label><input className="input" type="number" value={spent} onChange={e => setSpent(e.target.value)} /></div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Edit Booking Modal ──
+function EditBookingModal({ booking, state, setState, onClose, toast }) {
+  const allVehicles = (state && state.vehicles) || vehicles;
+  const [customerId, setCustomerId] = React.useState(booking.customer);
+  const custVehicles = allVehicles.filter(v => v.owner === customerId);
+  const [vehicleId, setVehicleId] = React.useState(booking.vehicle);
+  const [service, setService] = React.useState(booking.service || "");
+  const [time, setTime] = React.useState(booking.time || "09:00");
+  const [duration, setDuration] = React.useState(booking.duration || 1);
+  const [techId, setTechId] = React.useState(() => {
+    const t = technicians.find(t => t.name === booking.tech);
+    return t ? t.id : technicians[0].id;
+  });
+  const [status, setStatus] = React.useState(booking.status || "confirmed");
+
+  React.useEffect(() => {
+    const vs = allVehicles.filter(v => v.owner === customerId);
+    if (!vs.find(v => v.id === vehicleId)) setVehicleId(vs[0] ? vs[0].id : "");
+  }, [customerId, allVehicles.length]);
+
+  function save() {
+    if (!service.trim()) { toast("បំពេញសេវាកម្ម", "error"); return; }
+    if (!vehicleId) { toast("ជ្រើសរើសរថយន្ត", "error"); return; }
+    const tech = technicians.find(t => t.id === techId);
+    setState(s => ({
+      ...s,
+      bookings: s.bookings.map(b => b.id === booking.id ? {
+        ...b, customer: customerId, vehicle: vehicleId, service: service.trim(),
+        time, duration: +duration, tech: tech ? tech.name : b.tech, status,
+      } : b).sort((a, b) => a.time.localeCompare(b.time)),
+    }));
+    toast(`រក្សាទុក​ការកក់ ${booking.id} ជោគជ័យ`, "ok");
+    onClose();
+  }
+
+  return (
+    <Modal title={"កែការកក់ · " + booking.id} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={save}><Icon.Check size={14} /> រក្សាទុក</button>
+      </>}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field">
+          <label>អតិថិជន</label>
+          <select className="select" value={customerId} onChange={e => setCustomerId(e.target.value)}>
+            {state.customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label>រថយន្ត</label>
+          <select className="select" value={vehicleId} onChange={e => setVehicleId(e.target.value)}>
+            {custVehicles.length === 0 && <option value="">— គ្មានរថយន្ត —</option>}
+            {custVehicles.map(v => <option key={v.id} value={v.id}>{v.plate} · {vehicleLabel(v)}</option>)}
+          </select>
+        </div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>សេវាកម្ម · SERVICE</label>
+          <input className="input" value={service} onChange={e => setService(e.target.value)} autoFocus />
+        </div>
+        <div className="field"><label>ម៉ោង · TIME</label><input className="input" type="time" value={time} onChange={e => setTime(e.target.value)} /></div>
+        <div className="field"><label>រយៈពេល (ម៉ោង)</label><input className="input" type="number" step="0.5" value={duration} onChange={e => setDuration(e.target.value)} /></div>
+        <div className="field">
+          <label>ជាងជួសជុល</label>
+          <select className="select" value={techId} onChange={e => setTechId(e.target.value)}>
+            {technicians.map(t => <option key={t.id} value={t.id}>{t.name} · {t.role}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label>ស្ថានភាព</label>
+          <select className="select" value={status} onChange={e => setStatus(e.target.value)}>
+            <option value="confirmed">Confirmed</option>
+            <option value="checked-in">Checked-in</option>
+            <option value="in-progress">In Progress</option>
+            <option value="done">Done</option>
+            <option value="no-show">No Show</option>
+          </select>
+        </div>
       </div>
     </Modal>
   );
