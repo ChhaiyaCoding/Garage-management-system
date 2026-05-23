@@ -18,7 +18,7 @@ const TWEAK_DEFAULTS = {
   "density": "comfortable",
   "currency": "USD",
   "sidebar": "full",
-  "theme": "dark"
+  "theme": "auto"
 };
 
 const ACCENT_PALETTES = {
@@ -154,6 +154,24 @@ function App({ initialState, userId, userEmail, onSignOut }) {
 
   const { push: toast, view: toastView } = useToasts();
 
+  // OS-preferred theme (for "auto" mode)
+  const [osTheme, setOsTheme] = React.useState(() =>
+    typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"
+  );
+  React.useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(prefers-color-scheme: light)");
+    const handler = e => setOsTheme(e.matches ? "light" : "dark");
+    if (mq.addEventListener) mq.addEventListener("change", handler);
+    else mq.addListener(handler);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", handler);
+      else mq.removeListener(handler);
+    };
+  }, []);
+
+  const effectiveTheme = (tweaks.theme || "auto") === "auto" ? osTheme : tweaks.theme;
+
   React.useEffect(() => {
     const root = document.documentElement;
     const p = ACCENT_PALETTES[tweaks.accent] || ACCENT_PALETTES["#f5b400"];
@@ -163,8 +181,8 @@ function App({ initialState, userId, userEmail, onSignOut }) {
     root.style.setProperty("--accent-soft", p.soft);
     root.dataset.density = tweaks.density;
     root.dataset.sidebar = tweaks.sidebar;
-    root.dataset.theme = tweaks.theme || "dark";
-  }, [tweaks.accent, tweaks.density, tweaks.sidebar, tweaks.theme]);
+    root.dataset.theme = effectiveTheme;
+  }, [tweaks.accent, tweaks.density, tweaks.sidebar, effectiveTheme]);
 
   function generateInvoice(jobId) {
     const job = state.jobs.find(j => j.id === jobId);
@@ -200,7 +218,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
           onOpenTweaks={() => window.postMessage({ type: '__activate_edit_mode' }, '*')}
           currency={tweaks.currency} setCurrency={(v) => setTweak("currency", v)}
           userEmail={userEmail} onSignOut={onSignOut} saveStatus={saveStatus}
-          theme={tweaks.theme || "dark"} onToggleTheme={() => setTweak("theme", (tweaks.theme || "dark") === "dark" ? "light" : "dark")}
+          theme={effectiveTheme} onToggleTheme={() => setTweak("theme", effectiveTheme === "dark" ? "light" : "dark")}
         />
         {route === "dashboard" && <DashboardScreen state={state} currency={tweaks.currency} onNav={setRoute} toast={toast} />}
         {route === "customers" && <CustomersScreen state={state} search={search} currency={tweaks.currency} onOpenCustomer={setCustomerOpen} onNav={setRoute} onAddCustomer={() => setAddCustomerOpen(true)} toast={toast} />}
@@ -259,9 +277,10 @@ function App({ initialState, userId, userEmail, onSignOut }) {
           />
           <TweakRadio
             label="Theme"
-            value={tweaks.theme || "dark"}
+            value={tweaks.theme || "auto"}
             onChange={(v) => setTweak("theme", v)}
             options={[
+              { value: "auto", label: "Auto" },
               { value: "dark", label: "Dark" },
               { value: "light", label: "Light" },
             ]}
