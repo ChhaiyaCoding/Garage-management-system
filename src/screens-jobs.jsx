@@ -110,6 +110,9 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
   function removePart(idx) {
     setState(s => ({ ...s, jobs: s.jobs.map(j => j.id === id ? { ...j, partsUsed: j.partsUsed.filter((_, i) => i !== idx) } : j) }));
   }
+  function removeService(idx) {
+    setState(s => ({ ...s, jobs: s.jobs.map(j => j.id === id ? { ...j, services: j.services.filter((_, i) => i !== idx) } : j) }));
+  }
 
   return (
     <Drawer onClose={onClose} width={680}>
@@ -177,22 +180,32 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
         </div>
 
         {/* Services */}
-        <div className="section-heading"><h2 style={{ fontSize: 14 }}>សេវាកម្ម · SERVICES</h2></div>
-        <table className="table" style={{ marginBottom: 18 }}>
-          <thead>
-            <tr><th>បរិយាយ</th><th className="num">ម៉ោង</th><th className="num">តម្លៃ</th><th className="num">សរុប</th></tr>
-          </thead>
-          <tbody>
-            {job.services.map((s, i) => (
-              <tr key={i}>
-                <td>{s.name}</td>
-                <td className="num">{s.hours}</td>
-                <td className="num"><Money value={s.rate} currency={currency} /></td>
-                <td className="num" style={{ fontWeight: 700 }}><Money value={s.total} currency={currency} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="section-heading">
+          <h2 style={{ fontSize: 14 }}>សេវាកម្ម · SERVICES</h2>
+          <span className="sub">{job.services.length} ធាតុ</span>
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          {job.services.length === 0 && <div className="empty" style={{ padding: 16, fontSize: 12 }}>មិនទាន់មាន​សេវាកម្ម</div>}
+          {job.services.length > 0 && (
+            <table className="table">
+              <thead>
+                <tr><th>បរិយាយ</th><th className="num">ម៉ោង</th><th className="num">តម្លៃ</th><th className="num">សរុប</th><th></th></tr>
+              </thead>
+              <tbody>
+                {job.services.map((s, i) => (
+                  <tr key={i}>
+                    <td>{s.name}</td>
+                    <td className="num">{s.hours}</td>
+                    <td className="num"><Money value={s.rate} currency={currency} /></td>
+                    <td className="num" style={{ fontWeight: 700 }}><Money value={s.total} currency={currency} /></td>
+                    <td><button className="btn btn-sm btn-ghost" onClick={() => removeService(i)}><Icon.X size={12} /></button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <AddServiceRow jobId={id} setState={setState} toast={toast} />
+        </div>
 
         {/* Parts */}
         <div className="section-heading">
@@ -308,6 +321,64 @@ function AddPartRow({ jobId, state, setState, toast }) {
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
         <button className="btn btn-sm btn-ghost" onClick={() => { setOpen(false); setQuery(""); }}>បោះបង់</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Add Service Row ──
+function AddServiceRow({ jobId, setState, toast }) {
+  const [open, setOpen] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [hours, setHours] = React.useState(1);
+  const [rate, setRate] = React.useState(15);
+
+  const PRESETS = [
+    { name: "Oil change + filter", hours: 0.5, rate: 20 },
+    { name: "Brake service · front", hours: 1.5, rate: 25 },
+    { name: "Tire rotation", hours: 0.5, rate: 15 },
+    { name: "Engine diagnostics", hours: 1, rate: 30 },
+    { name: "AC service", hours: 1, rate: 25 },
+    { name: "Major service 30K/60K", hours: 3, rate: 25 },
+  ];
+
+  function addService() {
+    if (!name.trim()) { toast("បំពេញឈ្មោះសេវាកម្ម", "error"); return; }
+    const total = +(hours * rate).toFixed(2);
+    const svc = { name: name.trim(), hours: +hours, rate: +rate, total };
+    setState(s => ({ ...s, jobs: s.jobs.map(j => j.id === jobId ? { ...j, services: [...j.services, svc] } : j) }));
+    toast(`+ ${svc.name} · $${total}`, "ok");
+    setOpen(false); setName(""); setHours(1); setRate(15);
+  }
+  function pickPreset(p) {
+    setName(p.name); setHours(p.hours); setRate(p.rate);
+  }
+
+  if (!open) return (
+    <button className="btn btn-sm" style={{ marginTop: 6 }} onClick={() => setOpen(true)}>
+      <Icon.Plus size={12} /> បន្ថែម​សេវាកម្ម
+    </button>
+  );
+  return (
+    <div style={{ background: 'var(--bg-2)', borderRadius: 'var(--radius)', padding: 12, marginTop: 6 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+        {PRESETS.map((p, i) => (
+          <button key={i} className="btn btn-sm btn-ghost" style={{ fontSize: 11 }} onClick={() => pickPreset(p)}>
+            {p.name}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 100px', gap: 8 }}>
+        <input className="input" placeholder="បរិយាយសេវាកម្ម..." value={name} onChange={e => setName(e.target.value)} autoFocus />
+        <input className="input" type="number" step="0.5" value={hours} onChange={e => setHours(e.target.value)} placeholder="hrs" title="ម៉ោង" />
+        <input className="input" type="number" step="0.01" value={rate} onChange={e => setRate(e.target.value)} placeholder="$/hr" title="តម្លៃ​ក្នុង​មួយ​ម៉ោង" />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+        <span className="mono muted" style={{ fontSize: 11 }}>សរុប: ${(hours * rate).toFixed(2)}</span>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button className="btn btn-sm btn-ghost" onClick={() => { setOpen(false); setName(""); }}>បោះបង់</button>
+          <button className="btn btn-sm btn-primary" onClick={addService}><Icon.Plus size={12} /> បន្ថែម</button>
+        </div>
       </div>
     </div>
   );

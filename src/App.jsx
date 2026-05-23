@@ -216,7 +216,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
         {route === "settings" && <SettingsScreen state={state} setState={setState} tweaks={tweaks} setTweak={setTweak} toast={toast} />}
       </main>
 
-      {customerOpen && <CustomerDrawer id={customerOpen} state={state} onClose={() => setCustomerOpen(null)} currency={tweaks.currency} toast={toast}
+      {customerOpen && <CustomerDrawer id={customerOpen} state={state} setState={setState} onClose={() => setCustomerOpen(null)} currency={tweaks.currency} toast={toast}
         onNewJob={(cid) => { setNewJobPrefill(cid); setNewJobOpen(true); }}
         onNewQuote={(cid) => { setNewQuotePrefill(cid); setNewQuoteOpen(true); }}
       />}

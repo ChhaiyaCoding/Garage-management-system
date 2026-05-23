@@ -538,8 +538,9 @@ function CustomersScreen({ state, search, currency, onOpenCustomer, onNav, onAdd
 }
 
 // Customer drawer
-function CustomerDrawer({ id, state, onClose, currency, onNewJob, onNewQuote, toast }) {
+function CustomerDrawer({ id, state, setState, onClose, currency, onNewJob, onNewQuote, toast }) {
   const c = lookupCustomer(id, state);
+  const [editing, setEditing] = React.useState(false);
   if (!c) return null;
   const cvehs = vehiclesByOwner(id, state);
   const cjobs = (state?.jobs || jobs).filter(j => j.customer === id);
@@ -554,8 +555,12 @@ function CustomerDrawer({ id, state, onClose, currency, onNewJob, onNewQuote, to
               <div className="muted" style={{ fontSize: 13 }}>{c.id} · {c.phone}</div>
             </div>
           </div>
-          <button className="icon-btn" onClick={onClose}><Icon.X size={16} /></button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {setState && <button className="icon-btn" title="កែប្រែ" onClick={() => setEditing(true)}><Icon.Pen size={14} /></button>}
+            <button className="icon-btn" onClick={onClose}><Icon.X size={16} /></button>
+          </div>
         </div>
+        {editing && <EditCustomerModal customer={c} state={state} setState={setState} onClose={() => setEditing(false)} toast={toast} />}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 18 }}>
           <Stat label="JOBS" value={c.jobs} />
@@ -725,5 +730,70 @@ function AddCustomerModal({ onClose, setState, toast }) {
   );
 }
 
-export { DashboardScreen, CustomersScreen, CustomerDrawer, Stat, Money, Row, AddCustomerModal, exportCsv,
+// ── Edit Customer Modal ──
+function EditCustomerModal({ customer, state, setState, onClose, toast }) {
+  const [name, setName] = React.useState(customer.name || "");
+  const [phone, setPhone] = React.useState(customer.phone === "—" ? "" : (customer.phone || ""));
+  const [address, setAddress] = React.useState(customer.address === "—" ? "" : (customer.address || ""));
+  const [type, setType] = React.useState(customer.type || "personal");
+  const [telegram, setTelegram] = React.useState(!!customer.telegram);
+
+  function save() {
+    if (!name.trim()) { toast("សូមបញ្ចូលឈ្មោះ", "error"); return; }
+    const parts = name.trim().split(/\s+/);
+    const initials = (parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
+    setState(s => ({
+      ...s,
+      customers: s.customers.map(c => c.id === customer.id ? {
+        ...c,
+        name: name.trim(),
+        initials,
+        phone: phone.trim() || "—",
+        address: address.trim() || "—",
+        type,
+        telegram,
+      } : c),
+    }));
+    toast(`រក្សាទុក ${name} ជោគជ័យ`, "ok");
+    onClose();
+  }
+
+  return (
+    <Modal title={"កែប្រែ · " + customer.id} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={save}><Icon.Check size={14} /> រក្សាទុក</button>
+      </>}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>ឈ្មោះ · NAME</label>
+          <input className="input" value={name} onChange={e => setName(e.target.value)} autoFocus />
+        </div>
+        <div className="field">
+          <label>ទូរស័ព្ទ · PHONE</label>
+          <input className="input" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+855 ..." />
+        </div>
+        <div className="field">
+          <label>ប្រភេទ · TYPE</label>
+          <select className="select" value={type} onChange={e => setType(e.target.value)}>
+            <option value="personal">Personal</option>
+            <option value="corporate">Corporate</option>
+          </select>
+        </div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>អាសយដ្ឋាន · ADDRESS</label>
+          <AddressPicker value={address} onChange={setAddress} />
+        </div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <input type="checkbox" checked={telegram} onChange={e => setTelegram(e.target.checked)} />
+            មាន Telegram
+          </label>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+export { DashboardScreen, CustomersScreen, CustomerDrawer, Stat, Money, Row, AddCustomerModal, EditCustomerModal, exportCsv,
   lookupCustomer, lookupVehicle, vehiclesByOwner, MISSING_C, MISSING_V };
