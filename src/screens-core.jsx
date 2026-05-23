@@ -13,6 +13,95 @@ function Money({ value, currency }) {
   return <>{moneyUSD(value)}</>;
 }
 
+// ─── Cambodia address picker (Province → District → Commune → Village) ───
+let _addrCache = null;
+function loadAddressData() {
+  if (_addrCache) return _addrCache;
+  const base = (import.meta.env && import.meta.env.BASE_URL) || "/";
+  _addrCache = Promise.all([
+    fetch(base + "data/provinces.json").then(r => r.json()),
+    fetch(base + "data/districts.json").then(r => r.json()),
+    fetch(base + "data/communes.json").then(r => r.json()),
+    fetch(base + "data/villages.json").then(r => r.json()),
+  ]).then(([provinces, districts, communes, villages]) => ({ provinces, districts, communes, villages }))
+    .catch(() => ({ provinces: [], districts: [], communes: [], villages: [] }));
+  return _addrCache;
+}
+
+function AddressPicker({ value, onChange }) {
+  const [data, setData] = React.useState(null);
+  const [prov, setProv] = React.useState("");
+  const [dist, setDist] = React.useState("");
+  const [comm, setComm] = React.useState("");
+  const [vill, setVill] = React.useState("");
+
+  React.useEffect(() => { loadAddressData().then(setData); }, []);
+
+  function compose(p, d, c, v, src) {
+    if (!src) return "";
+    const parts = [];
+    const vObj = v && src.villages.find(x => String(x.id) === String(v));
+    const cObj = c && src.communes.find(x => String(x.id) === String(c));
+    const dObj = d && src.districts.find(x => String(x.id) === String(d));
+    const pObj = p && src.provinces.find(x => String(x.id) === String(p));
+    if (vObj) parts.push("ភូមិ " + vObj.name_km);
+    if (cObj) parts.push("ឃុំ/សង្កាត់ " + cObj.name_km);
+    if (dObj) parts.push("ស្រុក/ខណ្ឌ " + dObj.name_km);
+    if (pObj) parts.push("ខេត្ត/រាជធានី " + pObj.name_km);
+    return parts.join(" · ");
+  }
+  function emit(p, d, c, v) { onChange && onChange(compose(p, d, c, v, data)); }
+  function onProv(v) { setProv(v); setDist(""); setComm(""); setVill(""); emit(v, "", "", ""); }
+  function onDist(v) { setDist(v); setComm(""); setVill(""); emit(prov, v, "", ""); }
+  function onComm(v) { setComm(v); setVill(""); emit(prov, dist, v, ""); }
+  function onVill(v) { setVill(v); emit(prov, dist, comm, v); }
+
+  if (!data) return <div className="muted" style={{ fontSize: 12 }}>កំពុងផ្ទុកទិន្នន័យអាសយដ្ឋាន...</div>;
+
+  const dists = prov ? data.districts.filter(d => String(d.province_id) === String(prov)) : [];
+  const comms = dist ? data.communes.filter(c => String(c.district_id) === String(dist)) : [];
+  const vills = comm ? data.villages.filter(v => String(v.commune_id) === String(comm)) : [];
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <div className="field">
+        <label>ខេត្ត/រាជធានី · PROVINCE</label>
+        <select className="select" value={prov} onChange={e => onProv(e.target.value)}>
+          <option value="">— ជ្រើសរើស —</option>
+          {data.provinces.map(p => <option key={p.id} value={p.id}>{p.name_km}</option>)}
+        </select>
+      </div>
+      <div className="field">
+        <label>ស្រុក/ខណ្ឌ · DISTRICT</label>
+        <select className="select" value={dist} onChange={e => onDist(e.target.value)} disabled={!prov}>
+          <option value="">— ជ្រើសរើស —</option>
+          {dists.map(d => <option key={d.id} value={d.id}>{d.name_km}</option>)}
+        </select>
+      </div>
+      <div className="field">
+        <label>ឃុំ/សង្កាត់ · COMMUNE</label>
+        <select className="select" value={comm} onChange={e => onComm(e.target.value)} disabled={!dist}>
+          <option value="">— ជ្រើសរើស —</option>
+          {comms.map(c => <option key={c.id} value={c.id}>{c.name_km}</option>)}
+        </select>
+      </div>
+      <div className="field">
+        <label>ភូមិ · VILLAGE</label>
+        <select className="select" value={vill} onChange={e => onVill(e.target.value)} disabled={!comm}>
+          <option value="">— ជ្រើសរើស —</option>
+          {vills.map(v => <option key={v.id} value={v.id}>{v.name_km}</option>)}
+        </select>
+      </div>
+      {value && (
+        <div style={{ gridColumn: '1 / -1', padding: 10, background: 'var(--bg-2)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--text-1)' }}>
+          <span className="mono muted" style={{ fontSize: 10, letterSpacing: '0.12em', marginRight: 8 }}>អាសយដ្ឋាន</span>
+          {value}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function exportCsv(filename, rows) {
   if (!rows || !rows.length) return;
   const headers = Object.keys(rows[0]);
@@ -528,7 +617,7 @@ function AddCustomerModal({ onClose, setState, toast }) {
         </div>
         <div className="field" style={{ gridColumn: '1 / -1' }}>
           <label>អាសយដ្ឋាន · ADDRESS</label>
-          <input className="input" value={address} onChange={e => setAddress(e.target.value)} placeholder="ភ្នំពេញ · ខណ្ឌ..." />
+          <AddressPicker value={address} onChange={setAddress} />
         </div>
       </div>
     </Modal>
