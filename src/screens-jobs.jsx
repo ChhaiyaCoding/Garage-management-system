@@ -93,6 +93,7 @@ function JobCard({ job, state, onOpen }) {
 function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, currency, toast }) {
   const job = state.jobs.find(j => j.id === id);
   const [delConfirm, setDelConfirm] = React.useState(false);
+  const [printOpen, setPrintOpen] = React.useState(false);
   if (!job) return null;
   const v = lookupVehicle(job.vehicle, state) || MISSING_V;
   const c = lookupCustomer(job.customer, state) || MISSING_C;
@@ -255,7 +256,7 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print Job</button>
+          <button className="btn" onClick={() => setPrintOpen(true)}><Icon.Print size={14} /> Print / PDF</button>
           <button className="btn" onClick={() => onEdit(job.id)}><Icon.Pen size={14} /> Edit</button>
           <div style={{ flex: 1 }}></div>
           {job.status === "done" ? (
@@ -270,7 +271,200 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
         </div>
       </div>
       {delConfirm && <ConfirmModal title="លុប Job?" message={`លុប ${job.id} · ${job.title} ឬ​ទេ?`} danger onClose={() => setDelConfirm(false)} onConfirm={() => { setState(s => ({ ...s, jobs: s.jobs.filter(j => j.id !== job.id) })); toast(`លុប ${job.id} ជោគជ័យ`, "ok"); setDelConfirm(false); onClose(); }} />}
+      {printOpen && <JobPrintModal job={job} state={state} currency={currency} onClose={() => setPrintOpen(false)} toast={toast} />}
     </Drawer>
+  );
+}
+
+// ── Job Print Modal (receipt-style + PDF) ──
+function JobPrintModal({ job, state, currency, onClose, toast }) {
+  const sheetRef = React.useRef(null);
+  const [downloading, setDownloading] = React.useState(false);
+  const v = lookupVehicle(job.vehicle, state) || MISSING_V;
+  const c = lookupCustomer(job.customer, state) || MISSING_C;
+
+  const partsTotal = job.partsUsed.reduce((s, p) => s + p.qty * p.price, 0);
+  const laborTotal = job.services.reduce((s, x) => s + x.total, 0);
+  const subtotal = partsTotal + laborTotal;
+  const tax = +(subtotal * 0.1).toFixed(2);
+  const total = +(subtotal + tax).toFixed(2);
+
+  async function downloadPdf() {
+    if (!sheetRef.current) return;
+    setDownloading(true);
+    try {
+      const { downloadElementAsPdf } = await import('./lib/pdf');
+      await downloadElementAsPdf(sheetRef.current, `${job.id}.pdf`);
+      toast(`បាន​ទាញ​យក ${job.id}.pdf`, "ok");
+    } catch (e) {
+      console.error(e);
+      toast("PDF generation failed: " + (e.message || "unknown error"), "error");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <Modal wide title={"Job Card · " + job.id} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បិទ</button>
+        <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print</button>
+        <button className="btn btn-primary" onClick={downloadPdf} disabled={downloading}><Icon.Download size={14} /> {downloading ? "កំពុង​បង្កើត..." : "ទាញ​យក PDF"}</button>
+      </>}>
+      <div ref={sheetRef} style={{ background: 'white', color: '#0a0d12', padding: 32, borderRadius: 8, fontFamily: 'var(--font-en)' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #0a0d12' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 6, background: 'var(--accent)', display: 'grid', placeItems: 'center', color: '#0b0b0b', fontWeight: 800, fontSize: 18 }}>G</div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: '0.02em' }}>GARAGE OS</div>
+                <div style={{ fontSize: 10, letterSpacing: '0.12em', color: '#666' }}>SERVICE CENTER · PHNOM PENH</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: '#666' }}>St. 271, Sangkat Toul Tom Pong<br />Phnom Penh, Cambodia · +855 23 555 100</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '0.04em', marginBottom: 4 }}>JOB CARD</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{job.id}</div>
+            <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>Status: <strong>{(job.status || "—").toUpperCase()}</strong></div>
+            {job.priority === "high" && <div style={{ fontSize: 11, color: '#dc2626', marginTop: 2, fontWeight: 700 }}>★ HIGH PRIORITY</div>}
+          </div>
+        </div>
+
+        {/* Title + Dates */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>{job.title}</div>
+          <div style={{ display: 'flex', gap: 24, fontSize: 12, color: '#666' }}>
+            <div><strong style={{ color: '#444' }}>Created:</strong> {job.created}</div>
+            <div><strong style={{ color: '#444' }}>Promised:</strong> {job.promised}</div>
+          </div>
+        </div>
+
+        {/* Customer + Vehicle */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>CUSTOMER</div>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>{c.name}</div>
+            <div style={{ fontSize: 12, color: '#444' }}>{c.address}</div>
+            <div style={{ fontSize: 12, color: '#444' }}>{c.phone}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>VEHICLE</div>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>{v.plate} · {vehicleLabel(v)}</div>
+            <div style={{ fontSize: 12, color: '#444' }}>VIN: {v.vin}</div>
+            <div style={{ fontSize: 12, color: '#444' }}>Mileage: {(v.mileage || 0).toLocaleString()} km</div>
+          </div>
+        </div>
+
+        {/* Assigned Tech */}
+        <div style={{ background: '#f5f5f5', padding: '10px 14px', borderRadius: 6, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888' }}>ASSIGNED TECH</div>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>{job.tech}</div>
+        </div>
+
+        {/* Services */}
+        <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>SERVICES · LABOR</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 18, fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: '#f5f5f5' }}>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>DESCRIPTION</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>HRS</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>RATE</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>AMOUNT</th>
+            </tr>
+          </thead>
+          <tbody>
+            {job.services.length === 0 && (
+              <tr style={{ borderBottom: '1px solid #eee' }}>
+                <td colSpan={4} style={{ padding: '10px 12px', color: '#888', textAlign: 'center', fontStyle: 'italic' }}>មិនទាន់មាន​សេវាកម្ម</td>
+              </tr>
+            )}
+            {job.services.map((s, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
+                <td style={{ padding: '8px 10px' }}>{s.name}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{s.hours}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{moneyUSD(s.rate)}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{moneyUSD(s.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Parts */}
+        <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>PARTS USED</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 18, fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: '#f5f5f5' }}>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>SKU</th>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>NAME</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>QTY</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>PRICE</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>AMOUNT</th>
+            </tr>
+          </thead>
+          <tbody>
+            {job.partsUsed.length === 0 && (
+              <tr style={{ borderBottom: '1px solid #eee' }}>
+                <td colSpan={5} style={{ padding: '10px 12px', color: '#888', textAlign: 'center', fontStyle: 'italic' }}>មិនទាន់មាន Parts ប្រើ</td>
+              </tr>
+            )}
+            {job.partsUsed.map((p, i) => {
+              const part = (state.parts || parts).find(x => x.id === p.id) || partsById[p.id] || { sku: p.id, name: "(unknown)" };
+              return (
+                <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
+                  <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{part.sku}</td>
+                  <td style={{ padding: '8px 10px' }}>{part.name}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{p.qty}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{moneyUSD(p.price)}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{moneyUSD(p.qty * p.price)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        {/* Totals */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+          <table style={{ minWidth: 280, fontSize: 12 }}>
+            <tbody>
+              <tr><td style={{ padding: 4, color: '#666' }}>Labor</td><td style={{ padding: 4, textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{moneyUSD(laborTotal)}</td></tr>
+              <tr><td style={{ padding: 4, color: '#666' }}>Parts</td><td style={{ padding: 4, textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{moneyUSD(partsTotal)}</td></tr>
+              <tr><td style={{ padding: 4, color: '#666' }}>Subtotal</td><td style={{ padding: 4, textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{moneyUSD(subtotal)}</td></tr>
+              <tr><td style={{ padding: 4, color: '#666' }}>VAT 10%</td><td style={{ padding: 4, textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{moneyUSD(tax)}</td></tr>
+              <tr style={{ borderTop: '2px solid #0a0d12' }}>
+                <td style={{ padding: '8px 4px 4px', fontWeight: 800 }}>TOTAL</td>
+                <td style={{ padding: '8px 4px 4px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 16 }}>{moneyUSD(total)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Notes */}
+        {job.notes && (
+          <div style={{ borderTop: '1px solid #eee', paddingTop: 14, marginBottom: 18 }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>NOTES</div>
+            <div style={{ fontSize: 12, color: '#444', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{job.notes}</div>
+          </div>
+        )}
+
+        {/* Signature */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 32, paddingTop: 18, borderTop: '1px solid #eee' }}>
+          <div>
+            <div style={{ borderBottom: '1px solid #0a0d12', height: 40, marginBottom: 4 }}></div>
+            <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888' }}>CUSTOMER SIGNATURE</div>
+          </div>
+          <div>
+            <div style={{ borderBottom: '1px solid #0a0d12', height: 40, marginBottom: 4 }}></div>
+            <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888' }}>TECHNICIAN SIGNATURE</div>
+          </div>
+        </div>
+
+        <div style={{ fontSize: 10, color: '#888', textAlign: 'center', letterSpacing: '0.04em', marginTop: 18 }}>
+          THANK YOU · សូមអរគុណចំពោះការគាំទ្ររបស់លោកអ្នក
+        </div>
+      </div>
+    </Modal>
   );
 }
 
