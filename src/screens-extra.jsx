@@ -168,7 +168,7 @@ function BookingScreen({ state, setState, currency, onAddBooking, onConvertBooki
           return (
             <div key={b.id} className="card" style={{ display: 'grid', gridTemplateColumns: '100px 1fr auto auto', gap: 18, alignItems: 'center', padding: 16 }}>
               <div>
-                <div className="num" style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent)' }}>{b.time}</div>
+                <div className="num" style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent-text)' }}>{b.time}</div>
                 <div className="muted" style={{ fontSize: 11 }}>{b.duration}h</div>
               </div>
               <div>
@@ -500,7 +500,7 @@ function MembersScreen({ state, setState, currency, toast, onAddMember }) {
                   </td>
                   <td><span className="chip" style={{ background: tier.color + "22", color: tier.color, border: `1px solid ${tier.color}40` }}>{m.tier.toUpperCase()}</span></td>
                   <td className="mono">{m.joined}</td>
-                  <td className="num" style={{ fontWeight: 700, color: 'var(--accent)' }}>{m.points}</td>
+                  <td className="num" style={{ fontWeight: 700, color: 'var(--accent-text)' }}>{m.points}</td>
                   <td className="num"><Money value={m.spent} currency={currency} /></td>
                   <td style={{ minWidth: 160 }}>
                     {next ? (
@@ -767,7 +767,7 @@ function ReportsScreen({ state, currency, toast }) {
                     <div className="mono muted" style={{ fontSize: 10 }}>UNITS</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div className="num" style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}><Money value={p.revenue} currency={currency} /></div>
+                    <div className="num" style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent-text)' }}><Money value={p.revenue} currency={currency} /></div>
                     <div className="mono muted" style={{ fontSize: 10 }}>REVENUE</div>
                   </div>
                 </div>
@@ -1316,7 +1316,7 @@ function IntegrationSettings({ toast }) {
       {integ.map(it => (
         <div key={it.name} className="card" style={{ padding: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <div style={{ width: 36, height: 36, background: 'var(--bg-3)', borderRadius: 8, display: 'grid', placeItems: 'center', color: 'var(--accent)' }}>
+            <div style={{ width: 36, height: 36, background: 'var(--bg-3)', borderRadius: 8, display: 'grid', placeItems: 'center', color: 'var(--accent-text)' }}>
               {React.createElement(Icon[it.icon])}
             </div>
             {it.connected ? <span className="chip chip-green">CONNECTED</span> : <span className="chip chip-gray">OFF</span>}

@@ -121,7 +121,7 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
       <div style={{ padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
           <div>
-            <div className="mono" style={{ fontSize: 12, color: 'var(--accent)', letterSpacing: '0.1em' }}>{job.id}</div>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--accent-text)', letterSpacing: '0.1em' }}>{job.id}</div>
             <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>{job.title}</div>
             <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>បង្កើត {job.created} · សន្យាបញ្ចប់ {job.promised}</div>
           </div>
@@ -250,7 +250,7 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
           <Row label="Parts" value={<Money value={partsTotal} currency={currency} />} />
           <Row label="VAT 10%" value={<Money value={tax} currency={currency} />} />
           <div style={{ borderTop: '1px solid var(--border-1)', marginTop: 10, paddingTop: 10 }}>
-            <Row label={<strong>សរុប</strong>} value={<strong className="num" style={{ fontSize: 18, color: 'var(--accent)' }}><Money value={total} currency={currency} /></strong>} />
+            <Row label={<strong>សរុប</strong>} value={<strong className="num" style={{ fontSize: 18, color: 'var(--accent-text)' }}><Money value={total} currency={currency} /></strong>} />
           </div>
         </div>
 
@@ -513,7 +513,7 @@ function AddPartRow({ jobId, state, setState, toast }) {
             <span className={"chip " + (p.stock <= p.reorder ? "chip-red" : "chip-green")} style={{ fontSize: 9, padding: '1px 6px' }}>
               {p.stock}
             </span>
-            <span className="num" style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>${p.price}</span>
+            <span className="num" style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-text)' }}>${p.price}</span>
           </button>
         ))}
         {filtered.length === 0 && <div className="empty" style={{ padding: 12, fontSize: 12 }}>គ្មានលទ្ធផល</div>}

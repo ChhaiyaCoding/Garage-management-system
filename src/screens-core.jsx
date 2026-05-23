@@ -272,7 +272,7 @@ function DashboardScreen({ state, currency, onNav, toast }) {
               const st = b.status === "checked-in" ? "amber" : b.status === "in-progress" ? "blue" : "gray";
               return (
                 <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '70px 1fr auto', gap: 14, alignItems: 'center', padding: '10px 12px', background: 'var(--bg-2)', borderRadius: 'var(--radius)', border: '1px solid var(--border-0)' }}>
-                  <div style={{ fontFamily: 'var(--font-num)', fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}>{b.time}</div>
+                  <div style={{ fontFamily: 'var(--font-num)', fontWeight: 700, fontSize: 18, color: 'var(--accent-text)' }}>{b.time}</div>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{b.service} · <span className="mono" style={{ color: 'var(--text-2)' }}>{v.plate}</span></div>
                     <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 2 }}>{c.name} · {vehicleLabel(v)} · Tech: {b.tech}</div>
@@ -673,7 +673,7 @@ function CustomerDrawer({ id, state, setState, onClose, currency, onNewJob, onNe
             const jv = lookupVehicle(j.vehicle, state) || MISSING_V;
             return (
               <div key={j.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'var(--bg-2)', borderRadius: 'var(--radius)' }}>
-                <div className="mono" style={{ fontSize: 11, color: 'var(--accent)' }}>{j.id}</div>
+                <div className="mono" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{j.id}</div>
                 <div style={{ flex: 1, fontSize: 13 }}>
                   <div style={{ fontWeight: 600 }}>{j.title}</div>
                   <div className="muted" style={{ fontSize: 11 }}>{jv.plate} · {j.created.split(" ")[0]}</div>
@@ -1068,7 +1068,7 @@ function CustomerStatementModal({ customer, state, currency, onClose, toast }) {
                   <td style={{ padding: '6px 3px 3px', fontWeight: 700 }}>Outstanding</td>
                   <td style={{ padding: '6px 3px 3px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, color: outstanding > 0 ? '#dc2626' : '#0a0d12', fontSize: 14 }}>{moneyUSD(outstanding)}</td>
                 </tr>
-                {customer.points > 0 && <tr><td style={{ padding: 3, color: '#666' }}>Loyalty Points</td><td style={{ padding: 3, textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--accent)' }}>{customer.points}</td></tr>}
+                {customer.points > 0 && <tr><td style={{ padding: 3, color: '#666' }}>Loyalty Points</td><td style={{ padding: 3, textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--accent-text)' }}>{customer.points}</td></tr>}
               </tbody>
             </table>
           </div>

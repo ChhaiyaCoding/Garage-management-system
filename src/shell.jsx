@@ -106,7 +106,7 @@ function GlobalSearch({ state, onNavigate }) {
                   onMouseEnter={() => setActive(i)}
                   style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 6, cursor: 'pointer', background: isActive ? 'var(--bg-2)' : 'transparent' }}
                 >
-                  <div style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--bg-2)', display: 'grid', placeItems: 'center', color: 'var(--accent)', flexShrink: 0 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--bg-2)', display: 'grid', placeItems: 'center', color: 'var(--accent-text)', flexShrink: 0 }}>
                     {r.color && r.initials ? (
                       <div style={{ width: 22, height: 22, borderRadius: 4, background: r.color, color: '#0b0b0b', display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 700 }}>{r.initials}</div>
                     ) : (

@@ -513,7 +513,7 @@ function QuotationScreen({ state, setState, currency, onNewQuote, toast, onConve
               const stCls = q.status === "accepted" ? "green" : q.status === "rejected" ? "red" : q.status === "sent" ? "blue" : "gray";
               return (
                 <tr key={q.id}>
-                  <td className="mono" style={{ color: 'var(--accent)', fontWeight: 700 }}>{q.id}</td>
+                  <td className="mono" style={{ color: 'var(--accent-text)', fontWeight: 700 }}>{q.id}</td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div className="avatar av-sm" style={{ background: c.color, color: '#0b0b0b', fontSize: 10 }}>{c.initials}</div>
@@ -642,7 +642,7 @@ function NewQuoteModal({ onClose, setState, toast, currency, state, prefillCusto
         <Row label="Subtotal" value={<Money value={subtotal} currency={currency} />} />
         <Row label="VAT 10%" value={<Money value={tax} currency={currency} />} />
         <div style={{ borderTop: '1px solid var(--border-1)', marginTop: 8, paddingTop: 8 }}>
-          <Row label={<strong>សរុប</strong>} value={<strong className="num" style={{ fontSize: 18, color: 'var(--accent)' }}><Money value={total} currency={currency} /></strong>} />
+          <Row label={<strong>សរុប</strong>} value={<strong className="num" style={{ fontSize: 18, color: 'var(--accent-text)' }}><Money value={total} currency={currency} /></strong>} />
         </div>
       </div>
     </Modal>
@@ -734,7 +734,7 @@ function InvoicesScreen({ state, setState, currency, onOpenInvoice, onNewInvoice
               const stCls = inv.status === "paid" ? "green" : inv.status === "partial" ? "amber" : inv.status === "overdue" ? "red" : "blue";
               return (
                 <tr key={inv.id} onClick={() => onOpenInvoice(inv.id)} style={{ cursor: 'pointer' }}>
-                  <td className="mono" style={{ color: 'var(--accent)', fontWeight: 700 }}>{inv.id}</td>
+                  <td className="mono" style={{ color: 'var(--accent-text)', fontWeight: 700 }}>{inv.id}</td>
                   <td className="mono muted">{inv.job}</td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1143,7 +1143,7 @@ function NewInvoiceModal({ onClose, state, setState, toast, currency }) {
         <Row label="Subtotal" value={<Money value={subtotal} currency={currency} />} />
         <Row label="VAT 10%" value={<Money value={tax} currency={currency} />} />
         <div style={{ borderTop: '1px solid var(--border-1)', marginTop: 8, paddingTop: 8 }}>
-          <Row label={<strong>សរុប</strong>} value={<strong className="num" style={{ fontSize: 18, color: 'var(--accent)' }}><Money value={total} currency={currency} /></strong>} />
+          <Row label={<strong>សរុប</strong>} value={<strong className="num" style={{ fontSize: 18, color: 'var(--accent-text)' }}><Money value={total} currency={currency} /></strong>} />
         </div>
       </div>
     </Modal>

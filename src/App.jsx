@@ -196,6 +196,9 @@ function App({ initialState, userId, userEmail, onSignOut }) {
     root.style.setProperty("--accent-hi", p.hi);
     root.style.setProperty("--accent-dim", p.dim);
     root.style.setProperty("--accent-soft", p.soft);
+    // --accent-text: brand color stays for surfaces, darker variant for text
+    // readability on light backgrounds. Dark mode uses the bright accent.
+    root.style.setProperty("--accent-text", effectiveTheme === "light" ? p.dim : p.c);
     root.dataset.density = tweaks.density;
     root.dataset.sidebar = tweaks.sidebar;
     root.dataset.theme = effectiveTheme;

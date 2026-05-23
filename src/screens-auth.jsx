@@ -90,9 +90,9 @@ function LoginScreen({ onSignedIn }) {
 
         <div style={{ textAlign: 'center', marginTop: 18, fontSize: 13, color: 'var(--text-2)' }}>
           {mode === "signin" ? (
-            <>មិនទាន់មានគណនី? <a href="#" onClick={(e) => { e.preventDefault(); setMode("signup"); setMsg(null); }} style={{ color: 'var(--accent)', fontWeight: 600 }}>បង្កើតគណនី</a></>
+            <>មិនទាន់មានគណនី? <a href="#" onClick={(e) => { e.preventDefault(); setMode("signup"); setMsg(null); }} style={{ color: 'var(--accent-text)', fontWeight: 600 }}>បង្កើតគណនី</a></>
           ) : (
-            <>មានគណនីរួចហើយ? <a href="#" onClick={(e) => { e.preventDefault(); setMode("signin"); setMsg(null); }} style={{ color: 'var(--accent)', fontWeight: 600 }}>Sign In វិញ</a></>
+            <>មានគណនីរួចហើយ? <a href="#" onClick={(e) => { e.preventDefault(); setMode("signin"); setMsg(null); }} style={{ color: 'var(--accent-text)', fontWeight: 600 }}>Sign In វិញ</a></>
           )}
         </div>
 
