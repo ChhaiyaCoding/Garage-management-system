@@ -157,7 +157,8 @@ function DashboardScreen({ state, currency, onNav, toast }) {
   const dParts = state?.parts || parts;
   const dInvoices = state?.invoices || invoices;
   const dBookings = state?.bookings || bookings;
-  const todayRevenue = dInvoices.filter(i => i.issued === "2026-05-17").reduce((s, i) => s + i.paid, 0) + 246.5;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayRevenue = dInvoices.filter(i => i.issued === todayStr).reduce((s, i) => s + i.paid, 0);
   const openJobs = dJobs.filter(j => j.status !== "done").length;
   const lowStock = dParts.filter(p => p.stock <= p.reorder).length;
   const todayBookings = dBookings.length;
@@ -648,7 +649,7 @@ function AddCustomerModal({ onClose, setState, toast }) {
     const newC = {
       id: cid, name: name.trim(), initials, color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
       type, phone: phone.trim() || "—", telegram: false,
-      address: address.trim() || "—", since: "2026-05-17",
+      address: address.trim() || "—", since: new Date().toISOString().slice(0, 10),
       tags: ["NEW"], points: 0,
       vehicles: newVeh ? [newVeh.id] : [],
       lifetime: 0, jobs: 0,

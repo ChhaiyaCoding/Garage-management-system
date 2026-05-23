@@ -313,7 +313,7 @@ function NewQuoteModal({ onClose, setState, toast, currency, state, prefillCusto
       ...s,
       quotations: [{
         id, customer: customerId, vehicle: vehicleId,
-        created: "2026-05-17", valid: "2026-05-31",
+        created: new Date().toISOString().slice(0, 10), valid: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
         total, items: items.length, status: status || "draft"
       }, ...s.quotations],
     }));
@@ -675,7 +675,7 @@ function NewInvoiceModal({ onClose, state, setState, toast, currency }) {
     if (!vehicleId) { toast("ជ្រើសរើសរថយន្ត", "error"); return; }
     const id = "INV-2406-" + String(73 + Math.floor(Math.random() * 90)).padStart(3, "0");
     const newInv = {
-      id, job: "—", customer: customerId, vehicle: vehicleId, issued: "2026-05-17",
+      id, job: "—", customer: customerId, vehicle: vehicleId, issued: new Date().toISOString().slice(0, 10),
       subtotal, tax, total, paid: 0, status: "due", method: "—",
     };
     setState(s => ({ ...s, invoices: [newInv, ...s.invoices] }));

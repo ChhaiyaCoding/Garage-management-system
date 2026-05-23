@@ -102,13 +102,15 @@ function App({ initialState, userId, userEmail, onSignOut }) {
   function convertQuoteToJob(qId) {
     const q = state.quotations.find(x => x.id === qId);
     if (!q) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     const newId = "JOB-2406-" + String(89 + Math.floor(Math.random() * 30)).padStart(3, "0");
     const newJob = {
       id: newId, title: `ពី Quote ${q.id}`, vehicle: q.vehicle, customer: q.customer,
       tech: "Sok Pheap", techInitials: "SP", techColor: "#22c55e",
       status: "waiting", priority: "normal",
-      created: "2026-05-17 " + new Date().toTimeString().slice(0, 5),
-      promised: "2026-05-18 17:00", services: [], partsUsed: [], notes: `បង្កើតពី Quote ${q.id} · សរុប $${q.total}`,
+      created: today + " " + new Date().toTimeString().slice(0, 5),
+      promised: tomorrow + " 17:00", services: [], partsUsed: [], notes: `បង្កើតពី Quote ${q.id} · សរុប $${q.total}`,
     };
     setState(s => ({
       ...s,
@@ -135,13 +137,14 @@ function App({ initialState, userId, userEmail, onSignOut }) {
     const b = state.bookings.find(x => x.id === bId);
     if (!b) return;
     if (b.status === "in-progress") { toast(`ការកក់ ${bId} មាន Job រួចហើយ`, "info"); return; }
+    const today = new Date().toISOString().slice(0, 10);
     const newId = "JOB-2406-" + String(89 + Math.floor(Math.random() * 30)).padStart(3, "0");
     const newJob = {
       id: newId, title: b.service, vehicle: b.vehicle, customer: b.customer,
       tech: b.tech, techInitials: b.tech.split(' ').map(w => w[0]).join('').slice(0, 2), techColor: "#22c55e",
       status: "waiting", priority: "normal",
-      created: "2026-05-17 " + new Date().toTimeString().slice(0, 5),
-      promised: "2026-05-17 " + b.time, services: [], partsUsed: [], notes: `បង្កើតពីការកក់ ${b.id}`,
+      created: today + " " + new Date().toTimeString().slice(0, 5),
+      promised: today + " " + b.time, services: [], partsUsed: [], notes: `បង្កើតពីការកក់ ${b.id}`,
     };
     setState(s => ({
       ...s,
@@ -176,7 +179,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
     const newInv = {
       id: "INV-2406-" + String(73 + Math.floor(Math.random() * 30)).padStart(3, "0"),
       job: jobId, customer: job.customer, vehicle: job.vehicle,
-      issued: "2026-05-17",
+      issued: new Date().toISOString().slice(0, 10),
       subtotal, tax, total, paid: 0,
       status: "due", method: "—",
     };

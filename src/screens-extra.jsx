@@ -359,7 +359,7 @@ function MembersScreen({ state, setState, currency, toast, onAddMember }) {
         <div className="kpi">
           <div className="kpi-label">ពិន្ទុបច្ចុប្បន្ន</div>
           <div className="kpi-value num">{totalPoints.toLocaleString()}</div>
-          <div className="kpi-delta neutral">មធ្យម {Math.round(totalPoints / members.length)}/នាក់</div>
+          <div className="kpi-delta neutral">មធ្យម {members.length ? Math.round(totalPoints / members.length) : 0}/នាក់</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">ចំណាយរួម</div>
@@ -996,7 +996,7 @@ function AddMemberModal({ onClose, state, setState, toast }) {
   function submit() {
     if (!name.trim()) { toast("សូមបញ្ចូលឈ្មោះសមាជិក", "error"); return; }
     const id = "M-" + String(100 + Math.floor(Math.random() * 900));
-    const newM = { id, name: name.trim(), tier, points: +points, spent: +spent, joined: "2026-05-17" };
+    const newM = { id, name: name.trim(), tier, points: +points, spent: +spent, joined: new Date().toISOString().slice(0, 10) };
     setState(s => ({ ...s, members: [...s.members, newM] }));
     toast(`បន្ថែមសមាជិក ${name} (${tier}) ជោគជ័យ`, "ok");
     onClose();

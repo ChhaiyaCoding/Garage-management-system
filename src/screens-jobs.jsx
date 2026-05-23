@@ -19,7 +19,7 @@ const KANBAN_COLS = [
 function JobsScreen({ state, setState, onOpenJob, onNewJob, currency, toast }) {
   const [todayOnly, setTodayOnly] = React.useState(false);
   const [highOnly, setHighOnly] = React.useState(false);
-  const TODAY = "2026-05-17";
+  const TODAY = new Date().toISOString().slice(0, 10);
   const allJobs = state.jobs.filter(j => {
     if (todayOnly && !((j.promised || "").startsWith(TODAY) || (j.created || "").startsWith(TODAY))) return false;
     if (highOnly && j.priority !== "high") return false;
@@ -339,6 +339,7 @@ function NewJobModal({ onClose, setState, toast, state, prefillCustomer }) {
     if (!title.trim()) { toast("សូមបញ្ចូលចំណងជើង", "error"); return; }
     if (!vehicleId) { toast("ជ្រើសរើសរថយន្ត", "error"); return; }
     const tech = technicians.find(t => t.id === techId);
+    const today = new Date().toISOString().slice(0, 10);
     const newId = "JOB-2406-" + String(89 + Math.floor(Math.random() * 30)).padStart(3, "0");
     const newJob = {
       id: newId,
@@ -350,8 +351,8 @@ function NewJobModal({ onClose, setState, toast, state, prefillCustomer }) {
       techColor: tech.color,
       status: "waiting",
       priority,
-      created: "2026-05-17 " + new Date().toTimeString().slice(0, 5),
-      promised: "2026-05-17 " + promised,
+      created: today + " " + new Date().toTimeString().slice(0, 5),
+      promised: today + " " + promised,
       services: [],
       partsUsed: [],
       notes,
