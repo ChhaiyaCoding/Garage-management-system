@@ -3,6 +3,60 @@ import GARAGE from './data';
 import { Icon } from './icons';
 import { Modal } from './shell';
 import { Money, Stat, lookupCustomer, lookupVehicle, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
+import { PRESETS, defaultRange, buildBuckets, bucketKeyForDate, dateInRange } from './lib/dateRange';
+
+// ── Date Range Picker (inline) ──
+function DateRangePicker({ range, onChange }) {
+  const [open, setOpen] = React.useState(false);
+  const [fromInput, setFromInput] = React.useState(range.from);
+  const [toInput, setToInput] = React.useState(range.to);
+  React.useEffect(() => { setFromInput(range.from); setToInput(range.to); }, [range.from, range.to]);
+
+  function applyPreset(id) {
+    const p = PRESETS.find(p => p.id === id);
+    if (!p) return;
+    onChange({ preset: id, ...p.build() });
+    setOpen(false);
+  }
+  function applyCustom() {
+    if (fromInput && toInput && fromInput <= toInput) {
+      const span = (new Date(toInput) - new Date(fromInput)) / 86400000;
+      const granularity = span > 60 ? "month" : "day";
+      onChange({ preset: "custom", from: fromInput, to: toInput, granularity });
+      setOpen(false);
+    }
+  }
+
+  const activeLabel = range.preset === "custom" ? `${range.from} → ${range.to}` : (PRESETS.find(p => p.id === range.preset) || { label: "Custom" }).label;
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button className="btn" onClick={() => setOpen(v => !v)}><Icon.Cal size={14} /> {activeLabel} <Icon.Down size={12} /></button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 50 }}></div>
+          <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 8, padding: 10, minWidth: 280, zIndex: 60, boxShadow: 'var(--shadow-lg)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+              {PRESETS.map(p => (
+                <button key={p.id} className={"btn btn-sm" + (range.preset === p.id ? " btn-primary" : " btn-ghost")} style={{ justifyContent: 'flex-start' }} onClick={() => applyPreset(p.id)}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ borderTop: '1px solid var(--border-0)', paddingTop: 10 }}>
+              <div className="mono muted" style={{ fontSize: 10, letterSpacing: '0.1em', marginBottom: 6 }}>CUSTOM RANGE</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
+                <input className="input" type="date" value={fromInput} onChange={e => setFromInput(e.target.value)} />
+                <input className="input" type="date" value={toInput} onChange={e => setToInput(e.target.value)} />
+              </div>
+              <button className="btn btn-sm btn-primary" style={{ width: '100%' }} onClick={applyCustom} disabled={!fromInput || !toInput || fromInput > toInput}>Apply</button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 // ─── Booking, DVI, Members, Reports, Settings screens ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -480,50 +534,52 @@ function MembersScreen({ state, setState, currency, toast, onAddMember }) {
 // ════════════════════════════════════════════════════════════
 function ReportsScreen({ state, currency, toast }) {
   const [salesOpen, setSalesOpen] = React.useState(false);
-  const [chartMetric, setChartMetric] = React.useState("revenue"); // revenue | billed | jobs | newCustomers
+  const [chartMetric, setChartMetric] = React.useState("revenue");
+  const [range, setRange] = React.useState(() => defaultRange());
 
-  // ── Live aggregations from state ──
+  // ── Live aggregations from state, filtered by range ──
   const allInvs = state.invoices || [];
   const allJobs = state.jobs || [];
   const allCustomers = state.customers || [];
   const allParts = state.parts || [];
 
-  // Last 12 months buckets
-  const now = new Date();
-  const monthly = [];
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    monthly.push({ key, label: d.toLocaleDateString('en-US', { month: 'short' }), year: d.getFullYear(), revenue: 0, billed: 0, jobs: 0, newCustomers: 0 });
-  }
-  const monthIdx = Object.fromEntries(monthly.map((m, i) => [m.key, i]));
-  allInvs.forEach(inv => {
-    const k = (inv.issued || "").slice(0, 7);
-    if (monthIdx[k] != null) {
-      monthly[monthIdx[k]].billed += inv.total || 0;
-      monthly[monthIdx[k]].revenue += inv.paid || 0;
+  // Build buckets from selected range
+  const buckets = buildBuckets(range);
+  const bucketIdx = Object.fromEntries(buckets.map((b, i) => [b.key, i]));
+  buckets.forEach(b => { b.revenue = 0; b.billed = 0; b.jobs = 0; b.newCustomers = 0; });
+
+  // Filter by range, then drop into buckets
+  const rangedInvs = allInvs.filter(i => dateInRange(i.issued, range.from, range.to));
+  const rangedJobs = allJobs.filter(j => dateInRange((j.created || "").slice(0, 10), range.from, range.to));
+  const rangedNewCust = allCustomers.filter(c => dateInRange(c.since, range.from, range.to));
+
+  rangedInvs.forEach(inv => {
+    const k = bucketKeyForDate(inv.issued, range.granularity);
+    if (bucketIdx[k] != null) {
+      buckets[bucketIdx[k]].billed += inv.total || 0;
+      buckets[bucketIdx[k]].revenue += inv.paid || 0;
     }
   });
-  allJobs.forEach(j => {
-    const k = (j.created || "").slice(0, 7);
-    if (monthIdx[k] != null) monthly[monthIdx[k]].jobs++;
+  rangedJobs.forEach(j => {
+    const k = bucketKeyForDate(j.created, range.granularity);
+    if (bucketIdx[k] != null) buckets[bucketIdx[k]].jobs++;
   });
-  allCustomers.forEach(c => {
-    const k = (c.since || "").slice(0, 7);
-    if (monthIdx[k] != null) monthly[monthIdx[k]].newCustomers++;
+  rangedNewCust.forEach(c => {
+    const k = bucketKeyForDate(c.since, range.granularity);
+    if (bucketIdx[k] != null) buckets[bucketIdx[k]].newCustomers++;
   });
-  const max = Math.max(...monthly.map(m => m[chartMetric] || 0), 1);
+  const max = Math.max(...buckets.map(b => b[chartMetric] || 0), 1);
 
-  // KPI calculations
-  const totalRevenue = monthly.reduce((s, m) => s + m.revenue, 0);
-  const totalBilled = monthly.reduce((s, m) => s + m.billed, 0);
-  const completedJobs = allJobs.filter(j => j.status === "done");
+  // KPI calculations — based on filtered set
+  const totalRevenue = rangedInvs.reduce((s, i) => s + (i.paid || 0), 0);
+  const totalBilled = rangedInvs.reduce((s, i) => s + (i.total || 0), 0);
+  const completedJobs = rangedJobs.filter(j => j.status === "done");
   const avgPerJob = completedJobs.length ? totalRevenue / completedJobs.length : 0;
-  // Gross margin: revenue from parts minus cost. Parts cost is sum of (qty × part.cost) across all jobs.
+  // Gross margin from ranged jobs
   let partsCost = 0;
   let partsRevenue = 0;
   let laborRevenue = 0;
-  allJobs.forEach(j => {
+  rangedJobs.forEach(j => {
     (j.partsUsed || []).forEach(p => {
       const part = allParts.find(x => x.id === p.id);
       if (part) partsCost += (p.qty || 0) * (part.cost || 0);
@@ -533,16 +589,16 @@ function ReportsScreen({ state, currency, toast }) {
   });
   const grossRevenue = partsRevenue + laborRevenue;
   const grossMargin = grossRevenue ? Math.round(((grossRevenue - partsCost) / grossRevenue) * 100) : 0;
-  // Retention: customers with ≥ 2 jobs / total customers with ≥ 1 job
+  // Retention: across ranged jobs
   const jobCountByCustomer = {};
-  allJobs.forEach(j => { jobCountByCustomer[j.customer] = (jobCountByCustomer[j.customer] || 0) + 1; });
+  rangedJobs.forEach(j => { jobCountByCustomer[j.customer] = (jobCountByCustomer[j.customer] || 0) + 1; });
   const customersWithJobs = Object.keys(jobCountByCustomer).length;
   const repeatCustomers = Object.values(jobCountByCustomer).filter(n => n >= 2).length;
   const retention = customersWithJobs ? Math.round((repeatCustomers / customersWithJobs) * 100) : 0;
 
-  // Top services: aggregate from job.services by name
+  // Top services: from ranged jobs
   const serviceAgg = {};
-  allJobs.forEach(j => {
+  rangedJobs.forEach(j => {
     (j.services || []).forEach(s => {
       const k = s.name || "—";
       if (!serviceAgg[k]) serviceAgg[k] = { name: k, count: 0, revenue: 0 };
@@ -552,9 +608,9 @@ function ReportsScreen({ state, currency, toast }) {
   });
   const topServices = Object.values(serviceAgg).sort((a, b) => b.revenue - a.revenue).slice(0, 8);
 
-  // Top parts: aggregate by part.id
+  // Top parts: from ranged jobs
   const partAgg = {};
-  allJobs.forEach(j => {
+  rangedJobs.forEach(j => {
     (j.partsUsed || []).forEach(p => {
       if (!partAgg[p.id]) partAgg[p.id] = { id: p.id, used: 0, revenue: 0 };
       partAgg[p.id].used += p.qty || 0;
@@ -566,17 +622,33 @@ function ReportsScreen({ state, currency, toast }) {
     return { ...pa, name: part ? part.name : pa.id };
   }).sort((a, b) => b.revenue - a.revenue).slice(0, 6);
 
+  // Top customers: by lifetime within range (use ranged invoices)
+  const custRevenue = {};
+  rangedInvs.forEach(inv => {
+    if (!custRevenue[inv.customer]) custRevenue[inv.customer] = { spent: 0, jobs: 0 };
+    custRevenue[inv.customer].spent += inv.paid || 0;
+  });
+  rangedJobs.forEach(j => {
+    if (!custRevenue[j.customer]) custRevenue[j.customer] = { spent: 0, jobs: 0 };
+    custRevenue[j.customer].jobs++;
+  });
+  const topCustomers = Object.entries(custRevenue).map(([id, data]) => {
+    const c = allCustomers.find(x => x.id === id) || { id, name: id };
+    return { ...c, ...data };
+  }).sort((a, b) => b.spent - a.spent).slice(0, 6);
+
   const metricLabel = chartMetric === "revenue" ? "ចំណូល · REVENUE" : chartMetric === "billed" ? "BILLED" : chartMetric === "jobs" ? "JOBS" : "NEW CUSTOMERS";
   const formatBar = v => chartMetric === "revenue" || chartMetric === "billed" ? (v ? Math.round(v / 1000) + 'K' : '') : (v || '');
+  const periodLabel = range.preset === "custom" ? `${range.from} → ${range.to}` : (PRESETS.find(p => p.id === range.preset) || {}).label || "12 ​ខែ";
   return (
     <div className="page">
       <div className="page-head">
         <div>
           <h1 className="page-title">Reports & BI</h1>
-          <div className="page-sub">របាយការណ៍ · Last 12 months · Phnom Penh branch</div>
+          <div className="page-sub">របាយការណ៍ · {periodLabel} · Phnom Penh branch</div>
         </div>
         <div className="page-actions">
-          <button className="btn" onClick={() => toast("ជ្រើសរើសចន្លោះកាលបរិច្ឆេទ (ឆាប់ៗ)", "info")}><Icon.Cal size={14} /> Date Range</button>
+          <DateRangePicker range={range} onChange={setRange} />
           <button className="btn" onClick={() => toast("តម្រងតាមសាខា (ឆាប់ៗ)", "info")}><Icon.Branch size={14} /> All Branches</button>
           <button className="btn btn-primary" onClick={() => setSalesOpen(true)}><Icon.Doc size={14} /> Sales Report</button>
           <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print</button>
@@ -585,7 +657,7 @@ function ReportsScreen({ state, currency, toast }) {
 
       <div className="kpi-grid">
         <div className="kpi">
-          <div className="kpi-label">ចំណូល​ 12 ខែ · REVENUE</div>
+          <div className="kpi-label">ចំណូល · REVENUE</div>
           <div className="kpi-value num"><Money value={totalRevenue} currency={currency} /></div>
           <div className="kpi-delta neutral">{allInvs.length} invoices · billed {moneyUSD(totalBilled)}</div>
         </div>
@@ -608,7 +680,7 @@ function ReportsScreen({ state, currency, toast }) {
 
       <div className="card">
         <h3 className="card-title">
-          {metricLabel} <span className="meta">LAST 12 MONTHS</span>
+          {metricLabel} <span className="meta">{periodLabel.toUpperCase()}</span>
           <span style={{ flex: 1 }}></span>
           <div style={{ display: 'flex', gap: 4 }}>
             {[
@@ -659,12 +731,12 @@ function ReportsScreen({ state, currency, toast }) {
           )}
         </div>
         <div className="card">
-          <h3 className="card-title">អតិថិជនកំពូល · TOP CUSTOMERS</h3>
-          {allCustomers.length === 0 ? <div className="empty" style={{ padding: 24 }}>មិនទាន់​មាន​អតិថិជន</div> : (
+          <h3 className="card-title">អតិថិជនកំពូល · TOP CUSTOMERS <span className="meta">{periodLabel}</span></h3>
+          {topCustomers.length === 0 ? <div className="empty" style={{ padding: 24 }}>គ្មាន​អតិថិជន​ក្នុង​ចន្លោះ​នេះ</div> : (
             <table className="table">
               <thead><tr><th>អតិថិជន</th><th className="num">Jobs</th><th className="num">ចំណាយ</th></tr></thead>
               <tbody>
-                {[...allCustomers].sort((a, b) => (b.lifetime || 0) - (a.lifetime || 0)).slice(0, 6).map(c => (
+                {topCustomers.map(c => (
                   <tr key={c.id}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -673,7 +745,7 @@ function ReportsScreen({ state, currency, toast }) {
                       </div>
                     </td>
                     <td className="num">{c.jobs || 0}</td>
-                    <td className="num" style={{ fontWeight: 700 }}><Money value={c.lifetime || 0} currency={currency} /></td>
+                    <td className="num" style={{ fontWeight: 700 }}><Money value={c.spent || 0} currency={currency} /></td>
                   </tr>
                 ))}
               </tbody>
