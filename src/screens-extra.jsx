@@ -11,7 +11,15 @@ const { customers, vehicles, parts, jobs, invoices, quotations, bookings, techni
 // ════════════════════════════════════════════════════════════
 // BOOKING (Online appointments)
 // ════════════════════════════════════════════════════════════
-function BookingScreen({ state, currency, onAddBooking, onConvertBooking, toast }) {
+function BookingScreen({ state, setState, currency, onAddBooking, onConvertBooking, toast }) {
+  function checkIn(bId) {
+    if (!setState) return;
+    setState(s => ({ ...s, bookings: s.bookings.map(b => b.id === bId ? { ...b, status: "checked-in" } : b) }));
+  }
+  function callPhone(phone) {
+    if (phone && phone !== "—") window.open("tel:" + phone.replace(/\s/g, ""), "_self");
+    else toast("គ្មានលេខទូរស័ព្ទ", "info");
+  }
   const slots = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
   const days = ["ច័ន្ទ 18", "អង្គារ 19", "ពុធ 17", "ព្រ. 20", "សុក្រ 21", "សៅរ៍ 22"];
   const todayCol = 2;
@@ -120,9 +128,9 @@ function BookingScreen({ state, currency, onAddBooking, onConvertBooking, toast 
               </div>
               <span className={"chip chip-" + (b.status === "checked-in" ? "amber" : b.status === "in-progress" ? "blue" : "gray")}>{b.status}</span>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button className="btn btn-sm" title="ហៅទូរស័ព្ទ" onClick={() => toast(`ហៅ ${c.name} · ${c.phone}`, "info")}><Icon.Phone size={12} /></button>
+                <button className="btn btn-sm" title="ហៅទូរស័ព្ទ" onClick={() => callPhone(c.phone)}><Icon.Phone size={12} /></button>
                 <button className="btn btn-sm" title="បង្កើតជា Job" onClick={() => onConvertBooking(b.id)}><Icon.Wrench size={12} /></button>
-                <button className="btn btn-sm btn-ghost" title="Check-in" onClick={() => toast(`${c.name} · Checked-in`, "ok")}><Icon.More size={12} /></button>
+                <button className={"btn btn-sm" + (b.status === "checked-in" ? " btn-primary" : " btn-ghost")} title="Check-in" onClick={() => { checkIn(b.id); toast(`${c.name} · Checked-in ✓`, "ok"); }} disabled={b.status === "checked-in"}><Icon.Check size={12} /></button>
               </div>
             </div>
           );

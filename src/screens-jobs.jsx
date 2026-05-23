@@ -202,7 +202,7 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
         <div style={{ marginBottom: 18 }}>
           {job.partsUsed.length === 0 && <div className="empty" style={{ padding: 20, fontSize: 12 }}>មិនទាន់មាន Parts ប្រើ</div>}
           {job.partsUsed.map((p, i) => {
-            const part = partsById[p.id];
+            const part = (state.parts || parts).find(x => x.id === p.id) || partsById[p.id] || { sku: p.id, name: "(unknown part)" };
             return (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: 'var(--bg-2)', borderRadius: 'var(--radius)', marginBottom: 6 }}>
                 <div className="mono" style={{ fontSize: 11, color: 'var(--text-2)', minWidth: 90 }}>{part.sku}</div>
@@ -213,7 +213,7 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
               </div>
             );
           })}
-          <AddPartRow jobId={id} setState={setState} toast={toast} />
+          <AddPartRow jobId={id} state={state} setState={setState} toast={toast} />
         </div>
 
         {/* Notes */}
@@ -256,10 +256,11 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
   );
 }
 
-function AddPartRow({ jobId, setState, toast }) {
+function AddPartRow({ jobId, state, setState, toast }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
-  const filtered = parts.filter(p =>
+  const sourceParts = (state && state.parts) || parts;
+  const filtered = sourceParts.filter(p =>
     !query || p.name.toLowerCase().includes(query.toLowerCase()) || p.sku.toLowerCase().includes(query.toLowerCase())
   ).slice(0, 5);
 

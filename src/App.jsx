@@ -201,7 +201,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
         {route === "parts" && <PartsScreen state={state} currency={tweaks.currency} toast={toast} onNewPart={() => setNewPartOpen(true)} />}
         {route === "quotation" && <QuotationScreen state={state} currency={tweaks.currency} onNewQuote={() => setNewQuoteOpen(true)} toast={toast} onConvert={convertQuoteToJob} onSend={sendQuote} onView={viewQuote} />}
         {route === "invoices" && <InvoicesScreen state={state} currency={tweaks.currency} onOpenInvoice={setInvoiceOpen} onNewInvoice={() => setNewInvoiceOpen(true)} toast={toast} />}
-        {route === "booking" && <BookingScreen state={state} currency={tweaks.currency} onAddBooking={() => setAddBookingOpen(true)} onConvertBooking={convertBookingToJob} toast={toast} />}
+        {route === "booking" && <BookingScreen state={state} setState={setState} currency={tweaks.currency} onAddBooking={() => setAddBookingOpen(true)} onConvertBooking={convertBookingToJob} toast={toast} />}
         {route === "dvi" && <DVIScreen currency={tweaks.currency} toast={toast} />}
         {route === "members" && <MembersScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} onAddMember={() => setAddMemberOpen(true)} />}
         {route === "reports" && <ReportsScreen state={state} currency={tweaks.currency} toast={toast} />}
