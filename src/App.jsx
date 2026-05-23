@@ -4,7 +4,7 @@ import { useTweaks, TweaksPanel, TweakSection, TweakColor, TweakRadio } from './
 import { Sidebar, Topbar, useToasts } from './shell';
 import { DashboardScreen, CustomersScreen, CustomerDrawer, AddCustomerModal } from './screens-core';
 import { JobsScreen, JobDrawer, NewJobModal, EditJobModal } from './screens-jobs';
-import { PartsScreen, QuotationScreen, NewQuoteModal, InvoicesScreen, InvoiceModal, NewPartModal, NewInvoiceModal } from './screens-billing';
+import { PartsScreen, QuotationScreen, NewQuoteModal, QuoteModal, InvoicesScreen, InvoiceModal, NewPartModal, NewInvoiceModal } from './screens-billing';
 import { BookingScreen, DVIScreen, MembersScreen, ReportsScreen, SettingsScreen, AddBookingModal, AddMemberModal } from './screens-extra';
 import { LoginScreen, LoadingScreen } from './screens-auth';
 import { supabase, isConfigured } from './lib/supabase';
@@ -76,6 +76,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
   const [customerOpen, setCustomerOpen] = React.useState(null);
   const [jobOpen, setJobOpen] = React.useState(null);
   const [invoiceOpen, setInvoiceOpen] = React.useState(null);
+  const [quoteOpen, setQuoteOpen] = React.useState(null);
   const [newJobOpen, setNewJobOpen] = React.useState(false);
   const [newJobPrefill, setNewJobPrefill] = React.useState("");
   const [newQuoteOpen, setNewQuoteOpen] = React.useState(false);
@@ -126,12 +127,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
     toast(`Quote ${qId} បានផ្ញើទៅអតិថិជន`, "ok");
   }
 
-  function viewQuote(qId) {
-    const q = state.quotations.find(x => x.id === qId);
-    if (!q) return;
-    const c = state.customers.find(x => x.id === q.customer) || G.customersById[q.customer];
-    toast(`${q.id} · ${c ? c.name : q.customer} · ${q.items} ធាតុ · $${q.total} · ${q.status.toUpperCase()}`, "info");
-  }
+  // viewQuote handled by setQuoteOpen below
 
   function convertBookingToJob(bId) {
     const b = state.bookings.find(x => x.id === bId);
@@ -207,7 +203,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
         {route === "customers" && <CustomersScreen state={state} search={search} currency={tweaks.currency} onOpenCustomer={setCustomerOpen} onNav={setRoute} onAddCustomer={() => setAddCustomerOpen(true)} toast={toast} />}
         {route === "jobs" && <JobsScreen state={state} setState={setState} onOpenJob={setJobOpen} onNewJob={() => setNewJobOpen(true)} currency={tweaks.currency} />}
         {route === "parts" && <PartsScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} onNewPart={() => setNewPartOpen(true)} />}
-        {route === "quotation" && <QuotationScreen state={state} setState={setState} currency={tweaks.currency} onNewQuote={() => setNewQuoteOpen(true)} toast={toast} onConvert={convertQuoteToJob} onSend={sendQuote} onView={viewQuote} />}
+        {route === "quotation" && <QuotationScreen state={state} setState={setState} currency={tweaks.currency} onNewQuote={() => setNewQuoteOpen(true)} toast={toast} onConvert={convertQuoteToJob} onSend={sendQuote} onView={setQuoteOpen} />}
         {route === "invoices" && <InvoicesScreen state={state} setState={setState} currency={tweaks.currency} onOpenInvoice={setInvoiceOpen} onNewInvoice={() => setNewInvoiceOpen(true)} toast={toast} />}
         {route === "booking" && <BookingScreen state={state} setState={setState} currency={tweaks.currency} onAddBooking={() => setAddBookingOpen(true)} onConvertBooking={convertBookingToJob} toast={toast} />}
         {route === "dvi" && <DVIScreen currency={tweaks.currency} toast={toast} />}
@@ -222,6 +218,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
       />}
       {jobOpen && <JobDrawer id={jobOpen} state={state} setState={setState} onClose={() => setJobOpen(null)} onGenerateInvoice={generateInvoice} onEdit={(jid) => { setJobOpen(null); setEditJobOpen(jid); }} currency={tweaks.currency} toast={toast} />}
       {invoiceOpen && <InvoiceModal id={invoiceOpen} state={state} setState={setState} currency={tweaks.currency} onClose={() => setInvoiceOpen(null)} toast={toast} />}
+      {quoteOpen && <QuoteModal id={quoteOpen} state={state} setState={setState} currency={tweaks.currency} onClose={() => setQuoteOpen(null)} toast={toast} onConvert={convertQuoteToJob} onSend={sendQuote} />}
       {newJobOpen && <NewJobModal onClose={() => { setNewJobOpen(false); setNewJobPrefill(""); }} setState={setState} toast={toast} state={state} prefillCustomer={newJobPrefill} />}
       {newQuoteOpen && <NewQuoteModal onClose={() => { setNewQuoteOpen(false); setNewQuotePrefill(""); }} setState={setState} toast={toast} currency={tweaks.currency} state={state} prefillCustomer={newQuotePrefill} />}
       {editJobOpen && <EditJobModal id={editJobOpen} state={state} setState={setState} onClose={() => setEditJobOpen(null)} toast={toast} />}

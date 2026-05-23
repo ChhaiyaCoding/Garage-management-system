@@ -391,7 +391,10 @@ function NewQuoteModal({ onClose, setState, toast, currency, state, prefillCusto
       quotations: [{
         id, customer: customerId, vehicle: vehicleId,
         created: new Date().toISOString().slice(0, 10), valid: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
-        total, items: items.length, status: status || "draft"
+        subtotal, tax, total,
+        lineItems: items,
+        items: items.length,
+        status: status || "draft"
       }, ...s.quotations],
     }));
     toast(`បង្កើត Quote ${id} (${(status || "draft").toUpperCase()}) ជោគជ័យ`, "ok");
@@ -753,6 +756,133 @@ function NewPartModal({ onClose, setState, toast }) {
   );
 }
 
+// ── Quote Modal (view + PDF) ──
+function QuoteModal({ id, state, setState, currency, onClose, toast, onConvert, onSend }) {
+  const q = state.quotations.find(x => x.id === id);
+  const sheetRef = React.useRef(null);
+  const [downloading, setDownloading] = React.useState(false);
+  if (!q) return null;
+  const c = lookupCustomer(q.customer, state) || MISSING_C;
+  const v = lookupVehicle(q.vehicle, state) || MISSING_V;
+  const lineItems = q.lineItems || [];
+  const subtotal = q.subtotal != null ? q.subtotal : (lineItems.reduce((s, x) => s + (x.qty || 1) * (x.price || 0), 0) || q.total / 1.1);
+  const tax = q.tax != null ? q.tax : +(subtotal * 0.1).toFixed(2);
+
+  async function downloadPdf() {
+    if (!sheetRef.current) return;
+    setDownloading(true);
+    try {
+      const { downloadElementAsPdf } = await import('./lib/pdf');
+      await downloadElementAsPdf(sheetRef.current, `${q.id}.pdf`);
+      toast(`បាន​ទាញ​យក ${q.id}.pdf`, "ok");
+    } catch (e) {
+      console.error(e);
+      toast("PDF generation failed: " + (e.message || "unknown error"), "error");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <Modal wide title={"Quote · " + q.id} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បិទ</button>
+        <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print</button>
+        <button className="btn" onClick={downloadPdf} disabled={downloading}><Icon.Download size={14} /> {downloading ? "កំពុង​បង្កើត..." : "ទាញ​យក PDF"}</button>
+        {q.status !== "sent" && q.status !== "accepted" && onSend && (
+          <button className="btn" onClick={() => { onSend(q.id); onClose(); }}><Icon.Send size={14} /> ផ្ញើ Quote</button>
+        )}
+        {q.status === "accepted" && onConvert && (
+          <button className="btn btn-primary" onClick={() => { onConvert(q.id); onClose(); }}><Icon.Wrench size={14} /> ប្ដូរ​ទៅ Job</button>
+        )}
+      </>}>
+      <div ref={sheetRef} style={{ background: 'white', color: '#0a0d12', padding: 32, borderRadius: 8, fontFamily: 'var(--font-en)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #0a0d12' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 6, background: 'var(--accent)', display: 'grid', placeItems: 'center', color: '#0b0b0b', fontWeight: 800, fontSize: 18 }}>G</div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: '0.02em' }}>GARAGE OS</div>
+                <div style={{ fontSize: 10, letterSpacing: '0.12em', color: '#666' }}>SERVICE CENTER · PHNOM PENH</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: '#666' }}>St. 271, Sangkat Toul Tom Pong<br />Phnom Penh, Cambodia · +855 23 555 100</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '0.04em', marginBottom: 4 }}>QUOTATION</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{q.id}</div>
+            <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>Created: {q.created}</div>
+            <div style={{ fontSize: 11, color: '#666' }}>Valid until: {q.valid}</div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>QUOTE FOR</div>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>{c.name}</div>
+            <div style={{ fontSize: 12, color: '#444' }}>{c.address}</div>
+            <div style={{ fontSize: 12, color: '#444' }}>{c.phone}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>VEHICLE</div>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>{v.plate} · {vehicleLabel(v)}</div>
+            <div style={{ fontSize: 12, color: '#444' }}>VIN: {v.vin}</div>
+            <div style={{ fontSize: 12, color: '#444' }}>Mileage: {(v.mileage || 0).toLocaleString()} km</div>
+          </div>
+        </div>
+
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 18, fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: '#f5f5f5' }}>
+              <th style={{ textAlign: 'left', padding: '10px 12px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>DESCRIPTION</th>
+              <th style={{ textAlign: 'right', padding: '10px 12px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>QTY</th>
+              <th style={{ textAlign: 'right', padding: '10px 12px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>RATE</th>
+              <th style={{ textAlign: 'right', padding: '10px 12px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>AMOUNT</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lineItems.length > 0 ? lineItems.map((it, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
+                <td style={{ padding: '10px 12px' }}>{it.desc || it.kind || "—"}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{it.qty || 1}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{moneyUSD(it.price || 0)}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{moneyUSD((it.qty || 1) * (it.price || 0))}</td>
+              </tr>
+            )) : (
+              <tr style={{ borderBottom: '1px solid #eee' }}>
+                <td style={{ padding: '10px 12px', color: '#888' }}>Quoted items ({q.items} ​ធាតុ)</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>—</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>—</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{moneyUSD(subtotal)}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 24 }}>
+          <table style={{ minWidth: 260, fontSize: 12 }}>
+            <tbody>
+              <tr><td style={{ padding: 4, color: '#666' }}>Subtotal</td><td style={{ padding: 4, textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{moneyUSD(subtotal)}</td></tr>
+              <tr><td style={{ padding: 4, color: '#666' }}>VAT 10%</td><td style={{ padding: 4, textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{moneyUSD(tax)}</td></tr>
+              <tr style={{ borderTop: '2px solid #0a0d12' }}>
+                <td style={{ padding: '8px 4px 4px', fontWeight: 800 }}>TOTAL</td>
+                <td style={{ padding: '8px 4px 4px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 16 }}>{moneyUSD(q.total)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{ fontSize: 11, color: '#666', borderTop: '1px solid #eee', paddingTop: 12, marginBottom: 8 }}>
+          <strong>Terms:</strong> Quote valid until {q.valid}. Prices subject to change after this date. Service warranty 30 days / 1,000 km.
+        </div>
+        <div style={{ fontSize: 10, color: '#888', textAlign: 'center', letterSpacing: '0.04em' }}>
+          THANK YOU · សូមអរគុណចំពោះការគាំទ្ររបស់លោកអ្នក
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function NewInvoiceModal({ onClose, state, setState, toast, currency }) {
   const allVehicles = (state && state.vehicles) || vehicles;
   const firstWithVeh = state.customers.find(c => allVehicles.some(v => v.owner === c.id));
@@ -833,4 +963,4 @@ function NewInvoiceModal({ onClose, state, setState, toast, currency }) {
   );
 }
 
-export { PartsScreen, QuotationScreen, NewQuoteModal, InvoicesScreen, InvoiceModal, NewPartModal, NewInvoiceModal };
+export { PartsScreen, QuotationScreen, NewQuoteModal, QuoteModal, InvoicesScreen, InvoiceModal, NewPartModal, NewInvoiceModal };
