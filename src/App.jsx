@@ -33,7 +33,9 @@ function App() {
   const [jobOpen, setJobOpen] = React.useState(null);
   const [invoiceOpen, setInvoiceOpen] = React.useState(null);
   const [newJobOpen, setNewJobOpen] = React.useState(false);
+  const [newJobPrefill, setNewJobPrefill] = React.useState("");
   const [newQuoteOpen, setNewQuoteOpen] = React.useState(false);
+  const [newQuotePrefill, setNewQuotePrefill] = React.useState("");
   const [editJobOpen, setEditJobOpen] = React.useState(null);
   const [newPartOpen, setNewPartOpen] = React.useState(false);
   const [newInvoiceOpen, setNewInvoiceOpen] = React.useState(false);
@@ -48,6 +50,7 @@ function App() {
     quotations: G.quotations.slice(),
     bookings: G.bookings.slice(),
     customers: G.customers.slice(),
+    vehicles: G.vehicles.slice(),
     members: G.members.slice(),
     branches: [
       { id: "BR-01", name: "សាខាមេ · ភ្នំពេញ", addr: "St. 271, Toul Tom Pong", bays: 8, staff: 12, status: "active", main: true },
@@ -170,11 +173,14 @@ function App() {
         {route === "settings" && <SettingsScreen state={state} setState={setState} tweaks={tweaks} setTweak={setTweak} toast={toast} />}
       </main>
 
-      {customerOpen && <CustomerDrawer id={customerOpen} state={state} onClose={() => setCustomerOpen(null)} currency={tweaks.currency} />}
+      {customerOpen && <CustomerDrawer id={customerOpen} state={state} onClose={() => setCustomerOpen(null)} currency={tweaks.currency} toast={toast}
+        onNewJob={(cid) => { setNewJobPrefill(cid); setNewJobOpen(true); }}
+        onNewQuote={(cid) => { setNewQuotePrefill(cid); setNewQuoteOpen(true); }}
+      />}
       {jobOpen && <JobDrawer id={jobOpen} state={state} setState={setState} onClose={() => setJobOpen(null)} onGenerateInvoice={generateInvoice} onEdit={(jid) => { setJobOpen(null); setEditJobOpen(jid); }} currency={tweaks.currency} toast={toast} />}
-      {invoiceOpen && <InvoiceModal id={invoiceOpen} state={state} currency={tweaks.currency} onClose={() => setInvoiceOpen(null)} toast={toast} />}
-      {newJobOpen && <NewJobModal onClose={() => setNewJobOpen(false)} setState={setState} toast={toast} />}
-      {newQuoteOpen && <NewQuoteModal onClose={() => setNewQuoteOpen(false)} setState={setState} toast={toast} currency={tweaks.currency} />}
+      {invoiceOpen && <InvoiceModal id={invoiceOpen} state={state} setState={setState} currency={tweaks.currency} onClose={() => setInvoiceOpen(null)} toast={toast} />}
+      {newJobOpen && <NewJobModal onClose={() => { setNewJobOpen(false); setNewJobPrefill(""); }} setState={setState} toast={toast} state={state} prefillCustomer={newJobPrefill} />}
+      {newQuoteOpen && <NewQuoteModal onClose={() => { setNewQuoteOpen(false); setNewQuotePrefill(""); }} setState={setState} toast={toast} currency={tweaks.currency} state={state} prefillCustomer={newQuotePrefill} />}
       {editJobOpen && <EditJobModal id={editJobOpen} state={state} setState={setState} onClose={() => setEditJobOpen(null)} toast={toast} />}
       {newPartOpen && <NewPartModal onClose={() => setNewPartOpen(false)} setState={setState} toast={toast} />}
       {newInvoiceOpen && <NewInvoiceModal onClose={() => setNewInvoiceOpen(false)} state={state} setState={setState} toast={toast} currency={tweaks.currency} />}

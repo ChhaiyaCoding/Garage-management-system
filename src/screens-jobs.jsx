@@ -2,7 +2,7 @@ import React from 'react';
 import GARAGE from './data';
 import { Icon } from './icons';
 import { Modal, Drawer } from './shell';
-import { Money, Row } from './screens-core';
+import { Money, Row, lookupCustomer, lookupVehicle, vehiclesByOwner, MISSING_C, MISSING_V } from './screens-core';
 // ─── Job Card Kanban + Job detail drawer + New Job modal ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -54,7 +54,7 @@ function JobsScreen({ state, setState, onOpenJob, onNewJob, currency, toast }) {
               <span className="kanban-col-count num">{grouped[col.id].length}</span>
             </div>
             {grouped[col.id].map(j => (
-              <JobCard key={j.id} job={j} onOpen={() => onOpenJob(j.id)} />
+              <JobCard key={j.id} job={j} state={state} onOpen={() => onOpenJob(j.id)} />
             ))}
             {grouped[col.id].length === 0 && (
               <div className="empty" style={{ padding: 20, fontSize: 11 }}>គ្មាន Job</div>
@@ -66,9 +66,9 @@ function JobsScreen({ state, setState, onOpenJob, onNewJob, currency, toast }) {
   );
 }
 
-function JobCard({ job, onOpen }) {
-  const v = vehiclesById[job.vehicle];
-  const c = customersById[job.customer];
+function JobCard({ job, state, onOpen }) {
+  const v = lookupVehicle(job.vehicle, state) || MISSING_V;
+  const c = lookupCustomer(job.customer, state) || MISSING_C;
   return (
     <div className="job-card" onClick={onOpen}>
       <div className="job-card-head">
@@ -93,8 +93,8 @@ function JobCard({ job, onOpen }) {
 function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, currency, toast }) {
   const job = state.jobs.find(j => j.id === id);
   if (!job) return null;
-  const v = vehiclesById[job.vehicle];
-  const c = customersById[job.customer];
+  const v = lookupVehicle(job.vehicle, state) || MISSING_V;
+  const c = lookupCustomer(job.customer, state) || MISSING_C;
 
   const partsTotal = job.partsUsed.reduce((s, p) => s + p.qty * p.price, 0);
   const laborTotal = job.services.reduce((s, x) => s + x.total, 0);
@@ -313,8 +313,11 @@ function AddPartRow({ jobId, setState, toast }) {
 }
 
 // ── New Job modal ──
-function NewJobModal({ onClose, setState, toast }) {
-  const [customerId, setCustomerId] = React.useState("CU-1001");
+function NewJobModal({ onClose, setState, toast, state, prefillCustomer }) {
+  const allCustomers = (state && state.customers) || customers;
+  const allVehicles = (state && state.vehicles) || vehicles;
+  const initialCustomer = prefillCustomer || (allCustomers[0] && allCustomers[0].id) || "CU-1001";
+  const [customerId, setCustomerId] = React.useState(initialCustomer);
   const [vehicleId, setVehicleId] = React.useState("");
   const [title, setTitle] = React.useState("");
   const [priority, setPriority] = React.useState("normal");
@@ -322,12 +325,14 @@ function NewJobModal({ onClose, setState, toast }) {
   const [promised, setPromised] = React.useState("17:00");
   const [notes, setNotes] = React.useState("");
 
-  const customerVehicles = vehicles.filter(v => v.owner === customerId);
+  const customerVehicles = allVehicles.filter(v => v.owner === customerId);
   React.useEffect(() => {
     if (customerVehicles.length && !customerVehicles.find(v => v.id === vehicleId)) {
       setVehicleId(customerVehicles[0].id);
+    } else if (!customerVehicles.length) {
+      setVehicleId("");
     }
-  }, [customerId]);
+  }, [customerId, allVehicles.length]);
 
   function submit() {
     if (!title.trim()) { toast("សូមបញ្ចូលចំណងជើង", "error"); return; }
@@ -365,12 +370,13 @@ function NewJobModal({ onClose, setState, toast }) {
         <div className="field">
           <label>អតិថិជន · CUSTOMER</label>
           <select className="select" value={customerId} onChange={e => setCustomerId(e.target.value)}>
-            {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {allCustomers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
         <div className="field">
           <label>រថយន្ត · VEHICLE</label>
           <select className="select" value={vehicleId} onChange={e => setVehicleId(e.target.value)}>
+            {customerVehicles.length === 0 && <option value="">— គ្មានរថយន្ត —</option>}
             {customerVehicles.map(v => <option key={v.id} value={v.id}>{v.plate} · {vehicleLabel(v)}</option>)}
           </select>
         </div>

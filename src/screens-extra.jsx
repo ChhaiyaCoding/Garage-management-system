@@ -2,7 +2,7 @@ import React from 'react';
 import GARAGE from './data';
 import { Icon } from './icons';
 import { Modal } from './shell';
-import { Money, Stat } from './screens-core';
+import { Money, Stat, lookupCustomer, lookupVehicle, MISSING_C, MISSING_V } from './screens-core';
 // ─── Booking, DVI, Members, Reports, Settings screens ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -80,8 +80,8 @@ function BookingScreen({ state, currency, onAddBooking, onConvertBooking, toast 
                   return (
                     <div key={di} style={{ height: 56, borderRadius: 4, background: booked ? 'var(--info-soft)' : 'var(--bg-2)', border: '1px solid ' + (booked ? 'rgba(56,189,248,0.3)' : 'var(--border-0)'), padding: 6, fontSize: 10, color: 'var(--text-1)' }}>
                       {booked && booked.map(b => {
-                        const c = customersById[b.customer];
-                        return <div key={b.id} style={{ fontWeight: 600 }}>{c.name.split(" ")[0]} · {b.service.slice(0, 14)}</div>;
+                        const c = lookupCustomer(b.customer, state) || MISSING_C;
+                        return <div key={b.id} style={{ fontWeight: 600 }}>{(c.name || "—").split(" ")[0]} · {b.service.slice(0, 14)}</div>;
                       })}
                     </div>
                   );
@@ -99,8 +99,8 @@ function BookingScreen({ state, currency, onAddBooking, onConvertBooking, toast 
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {state.bookings.map(b => {
-          const c = customersById[b.customer];
-          const v = vehiclesById[b.vehicle];
+          const c = lookupCustomer(b.customer, state) || MISSING_C;
+          const v = lookupVehicle(b.vehicle, state) || MISSING_V;
           return (
             <div key={b.id} className="card" style={{ display: 'grid', gridTemplateColumns: '100px 1fr auto auto', gap: 18, alignItems: 'center', padding: 16 }}>
               <div>
@@ -841,18 +841,19 @@ function LoyaltySettings() {
 }
 
 function AddBookingModal({ onClose, state, setState, toast }) {
-  const firstWithVeh = state.customers.find(c => vehicles.some(v => v.owner === c.id));
+  const allVehicles = (state && state.vehicles) || vehicles;
+  const firstWithVeh = state.customers.find(c => allVehicles.some(v => v.owner === c.id));
   const [customerId, setCustomerId] = React.useState((firstWithVeh && firstWithVeh.id) || (state.customers[0] && state.customers[0].id) || "CU-1001");
-  const custVehicles = vehicles.filter(v => v.owner === customerId);
+  const custVehicles = allVehicles.filter(v => v.owner === customerId);
   const [vehicleId, setVehicleId] = React.useState((custVehicles[0] && custVehicles[0].id) || "");
   const [service, setService] = React.useState("");
   const [time, setTime] = React.useState("09:00");
   const [duration, setDuration] = React.useState(1);
   const [techId, setTechId] = React.useState((technicians[0] && technicians[0].id) || "T-01");
   React.useEffect(() => {
-    const vs = vehicles.filter(v => v.owner === customerId);
+    const vs = allVehicles.filter(v => v.owner === customerId);
     setVehicleId(vs[0] ? vs[0].id : "");
-  }, [customerId]);
+  }, [customerId, allVehicles.length]);
 
   function submit() {
     if (!service.trim()) { toast("សូមបញ្ចូលប្រភេទសេវា", "error"); return; }

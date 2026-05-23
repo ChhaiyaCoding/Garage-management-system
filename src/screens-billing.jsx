@@ -2,7 +2,7 @@ import React from 'react';
 import GARAGE from './data';
 import { Icon } from './icons';
 import { Modal } from './shell';
-import { Money, Row, exportCsv } from './screens-core';
+import { Money, Row, exportCsv, lookupCustomer, lookupVehicle, MISSING_C, MISSING_V } from './screens-core';
 // ─── Parts, Quotation, Invoices screens ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -181,7 +181,7 @@ function QuotationScreen({ state, currency, onNewQuote, toast, onConvert, onSend
           <div className="page-sub">តម្លៃប៉ាន់ស្មាន · {allQuotes.length} ឯកសារ · Acceptance Rate {acceptRate}%</div>
         </div>
         <div className="page-actions">
-          <button className="btn" onClick={() => { exportCsv("quotations.csv", allQuotes.map(q => ({ id: q.id, customer: (customersById[q.customer] || {}).name || q.customer, vehicle: (vehiclesById[q.vehicle] || {}).plate || q.vehicle, created: q.created, valid: q.valid, items: q.items, total: q.total, status: q.status }))); toast(`នាំចេញ ${allQuotes.length} Quotations (CSV)`, "ok"); }}><Icon.Download size={14} /> Export</button>
+          <button className="btn" onClick={() => { exportCsv("quotations.csv", allQuotes.map(q => ({ id: q.id, customer: (lookupCustomer(q.customer, state) || {}).name || q.customer, vehicle: (lookupVehicle(q.vehicle, state) || {}).plate || q.vehicle, created: q.created, valid: q.valid, items: q.items, total: q.total, status: q.status }))); toast(`នាំចេញ ${allQuotes.length} Quotations (CSV)`, "ok"); }}><Icon.Download size={14} /> Export</button>
           <button className="btn btn-primary" onClick={onNewQuote}><Icon.Plus size={14} /> Quote ថ្មី</button>
         </div>
       </div>
@@ -240,8 +240,8 @@ function QuotationScreen({ state, currency, onNewQuote, toast, onConvert, onSend
           </thead>
           <tbody>
             {filtered.map(q => {
-              const c = customersById[q.customer];
-              const v = vehiclesById[q.vehicle];
+              const c = lookupCustomer(q.customer, state) || MISSING_C;
+              const v = lookupVehicle(q.vehicle, state) || MISSING_V;
               const stCls = q.status === "accepted" ? "green" : q.status === "rejected" ? "red" : q.status === "sent" ? "blue" : "gray";
               return (
                 <tr key={q.id}>
@@ -275,16 +275,20 @@ function QuotationScreen({ state, currency, onNewQuote, toast, onConvert, onSend
   );
 }
 
-function NewQuoteModal({ onClose, setState, toast, currency }) {
-  const [customerId, setCustomerId] = React.useState("CU-1001");
+function NewQuoteModal({ onClose, setState, toast, currency, state, prefillCustomer }) {
+  const allCustomers = (state && state.customers) || customers;
+  const allVehicles = (state && state.vehicles) || vehicles;
+  const initialCustomer = prefillCustomer || (allCustomers[0] && allCustomers[0].id) || "CU-1001";
+  const [customerId, setCustomerId] = React.useState(initialCustomer);
   const [vehicleId, setVehicleId] = React.useState("");
   const [items, setItems] = React.useState([
     { kind: "service", desc: "ផ្លាស់ប្រេងម៉ាស៊ីន + តម្រង", qty: 1, price: 32 },
   ]);
-  const customerVehicles = vehicles.filter(v => v.owner === customerId);
+  const customerVehicles = allVehicles.filter(v => v.owner === customerId);
   React.useEffect(() => {
     if (customerVehicles.length) setVehicleId(customerVehicles[0].id);
-  }, [customerId]);
+    else setVehicleId("");
+  }, [customerId, allVehicles.length]);
 
   const subtotal = items.reduce((s, x) => s + x.qty * x.price, 0);
   const tax = +(subtotal * 0.1).toFixed(2);
@@ -296,17 +300,18 @@ function NewQuoteModal({ onClose, setState, toast, currency }) {
   }
   function remove(i) { setItems(items.filter((_, idx) => idx !== i)); }
 
-  function submit() {
+  function submit(status) {
+    if (!vehicleId) { toast("ជ្រើសរើសរថយន្ត", "error"); return; }
     const id = "QT-2406-" + String(32 + Math.floor(Math.random() * 50)).padStart(3, "0");
     setState(s => ({
       ...s,
       quotations: [{
         id, customer: customerId, vehicle: vehicleId,
         created: "2026-05-17", valid: "2026-05-31",
-        total, items: items.length, status: "draft"
+        total, items: items.length, status: status || "draft"
       }, ...s.quotations],
     }));
-    toast(`បង្កើត Quote ${id} ជោគជ័យ`, "ok");
+    toast(`បង្កើត Quote ${id} (${(status || "draft").toUpperCase()}) ជោគជ័យ`, "ok");
     onClose();
   }
 
@@ -314,19 +319,20 @@ function NewQuoteModal({ onClose, setState, toast, currency }) {
     <Modal wide title="Quote ថ្មី · NEW QUOTATION" onClose={onClose}
       footer={<>
         <button className="btn" onClick={onClose}>បោះបង់</button>
-        <button className="btn" onClick={submit}>រក្សាជា Draft</button>
-        <button className="btn btn-primary" onClick={submit}><Icon.Send size={14} /> ផ្ញើ Quote</button>
+        <button className="btn" onClick={() => submit("draft")}>រក្សាជា Draft</button>
+        <button className="btn btn-primary" onClick={() => submit("sent")}><Icon.Send size={14} /> ផ្ញើ Quote</button>
       </>}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 18 }}>
         <div className="field">
           <label>អតិថិជន</label>
           <select className="select" value={customerId} onChange={e => setCustomerId(e.target.value)}>
-            {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {allCustomers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
         <div className="field">
           <label>រថយន្ត</label>
           <select className="select" value={vehicleId} onChange={e => setVehicleId(e.target.value)}>
+            {customerVehicles.length === 0 && <option value="">— គ្មានរថយន្ត —</option>}
             {customerVehicles.map(v => <option key={v.id} value={v.id}>{v.plate} · {vehicleLabel(v)}</option>)}
           </select>
         </div>
@@ -389,7 +395,7 @@ function InvoicesScreen({ state, currency, onOpenInvoice, onNewInvoice, toast })
           <div className="page-sub">វិក្កយបត្រ · {allInv.length} ឯកសារ · {allInv.filter(i => i.status !== "paid").length} នៅជំពាក់</div>
         </div>
         <div className="page-actions">
-          <button className="btn" onClick={() => { exportCsv("invoices.csv", allInv.map(inv => ({ id: inv.id, job: inv.job, customer: (customersById[inv.customer] || {}).name || inv.customer, vehicle: (vehiclesById[inv.vehicle] || {}).plate || inv.vehicle, issued: inv.issued, subtotal: inv.subtotal, tax: inv.tax, total: inv.total, paid: inv.paid, status: inv.status }))); toast && toast(`នាំចេញ ${allInv.length} Invoices (CSV)`, "ok"); }}><Icon.Download size={14} /> Export</button>
+          <button className="btn" onClick={() => { exportCsv("invoices.csv", allInv.map(inv => ({ id: inv.id, job: inv.job, customer: (lookupCustomer(inv.customer, state) || {}).name || inv.customer, vehicle: (lookupVehicle(inv.vehicle, state) || {}).plate || inv.vehicle, issued: inv.issued, subtotal: inv.subtotal, tax: inv.tax, total: inv.total, paid: inv.paid, status: inv.status }))); toast && toast(`នាំចេញ ${allInv.length} Invoices (CSV)`, "ok"); }}><Icon.Download size={14} /> Export</button>
           <button className="btn btn-primary" onClick={onNewInvoice}><Icon.Plus size={14} /> Invoice ថ្មី</button>
         </div>
       </div>
@@ -449,8 +455,8 @@ function InvoicesScreen({ state, currency, onOpenInvoice, onNewInvoice, toast })
           </thead>
           <tbody>
             {filtered.map(inv => {
-              const c = customersById[inv.customer];
-              const v = vehiclesById[inv.vehicle];
+              const c = lookupCustomer(inv.customer, state) || MISSING_C;
+              const v = lookupVehicle(inv.vehicle, state) || MISSING_V;
               const stCls = inv.status === "paid" ? "green" : inv.status === "partial" ? "amber" : inv.status === "overdue" ? "red" : "blue";
               return (
                 <tr key={inv.id} onClick={() => onOpenInvoice(inv.id)} style={{ cursor: 'pointer' }}>
@@ -479,11 +485,19 @@ function InvoicesScreen({ state, currency, onOpenInvoice, onNewInvoice, toast })
   );
 }
 
-function InvoiceModal({ id, state, currency, onClose, toast }) {
+function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
   const inv = state.invoices.find(i => i.id === id);
   if (!inv) return null;
-  const c = customersById[inv.customer];
-  const v = vehiclesById[inv.vehicle];
+  const c = lookupCustomer(inv.customer, state) || MISSING_C;
+  const v = lookupVehicle(inv.vehicle, state) || MISSING_V;
+  function acceptPayment() {
+    setState && setState(s => ({
+      ...s,
+      invoices: s.invoices.map(i => i.id === inv.id ? { ...i, paid: i.total, status: "paid", method: "ABA Pay" } : i),
+    }));
+    toast(`Invoice ${inv.id} · ទទួលបាន ${moneyUSD(inv.total)} (ABA Pay)`, "ok");
+    onClose();
+  }
   return (
     <Modal wide title={"Invoice · " + inv.id} onClose={onClose}
       footer={<>
@@ -491,7 +505,7 @@ function InvoiceModal({ id, state, currency, onClose, toast }) {
         <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print</button>
         <button className="btn" onClick={() => toast("បានផ្ញើវិក្កយបត្រតាម Telegram", "ok")}><Icon.Send size={14} /> ផ្ញើតាម Telegram</button>
         {inv.status !== "paid" && (
-          <button className="btn btn-primary" onClick={() => { toast("ទទួលការទូទាត់ ABA Pay ជោគជ័យ", "ok"); onClose(); }}>
+          <button className="btn btn-primary" onClick={acceptPayment}>
             <Icon.Money size={14} /> ទទួលការទូទាត់
           </button>
         )}
@@ -632,16 +646,16 @@ function NewPartModal({ onClose, setState, toast }) {
 }
 
 function NewInvoiceModal({ onClose, state, setState, toast, currency }) {
-  const firstWithVeh = state.customers.find(c => vehicles.some(v => v.owner === c.id));
+  const allVehicles = (state && state.vehicles) || vehicles;
+  const firstWithVeh = state.customers.find(c => allVehicles.some(v => v.owner === c.id));
   const [customerId, setCustomerId] = React.useState((firstWithVeh && firstWithVeh.id) || (state.customers[0] && state.customers[0].id) || "CU-1001");
-  const cust = state.customers.find(c => c.id === customerId);
-  const custVehicles = vehicles.filter(v => v.owner === customerId);
+  const custVehicles = allVehicles.filter(v => v.owner === customerId);
   const [vehicleId, setVehicleId] = React.useState((custVehicles[0] && custVehicles[0].id) || "");
   const [items, setItems] = React.useState([{ desc: "សេវាកម្ម", qty: 1, price: 20 }]);
   React.useEffect(() => {
-    const vs = vehicles.filter(v => v.owner === customerId);
+    const vs = allVehicles.filter(v => v.owner === customerId);
     setVehicleId(vs[0] ? vs[0].id : "");
-  }, [customerId]);
+  }, [customerId, allVehicles.length]);
 
   const subtotal = items.reduce((s, x) => s + x.qty * x.price, 0);
   const tax = +(subtotal * 0.1).toFixed(2);

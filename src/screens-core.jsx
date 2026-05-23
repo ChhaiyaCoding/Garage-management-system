@@ -13,6 +13,25 @@ function Money({ value, currency }) {
   return <>{moneyUSD(value)}</>;
 }
 
+// ─── State-aware lookups (fall back to static seed data) ───
+function lookupCustomer(id, state) {
+  if (!id) return null;
+  const list = (state && state.customers) || customers;
+  return list.find(c => c.id === id) || customersById[id] || null;
+}
+function lookupVehicle(id, state) {
+  if (!id) return null;
+  const list = (state && state.vehicles) || vehicles;
+  return list.find(v => v.id === id) || vehiclesById[id] || null;
+}
+function vehiclesByOwner(customerId, state) {
+  const list = (state && state.vehicles) || vehicles;
+  return list.filter(v => v.owner === customerId);
+}
+// Safe placeholders if customer/vehicle is missing
+const MISSING_C = { name: "—", initials: "?", color: "#666", phone: "", address: "" };
+const MISSING_V = { plate: "—", make: "—", model: "", year: "", vin: "", color: "", mileage: 0 };
+
 // ─── Cambodia address picker (Province → District → Commune → Village) ───
 let _addrCache = null;
 function loadAddressData() {
@@ -327,6 +346,7 @@ function RevenueBars({ currency }) {
 function CustomersScreen({ state, search, currency, onOpenCustomer, onNav, onAddCustomer, toast }) {
   const [filter, setFilter] = React.useState("all");
   const customers = state.customers;
+  const vehicles = state.vehicles || G.vehicles;
   const filtered = customers.filter(c => {
     if (filter === "vip" && !c.tags.includes("VIP")) return false;
     if (filter === "corp" && c.type !== "corporate") return false;
@@ -496,10 +516,10 @@ function CustomersScreen({ state, search, currency, onOpenCustomer, onNav, onAdd
 }
 
 // Customer drawer
-function CustomerDrawer({ id, state, onClose, currency }) {
-  const c = (state?.customers || customers).find(x => x.id === id) || customersById[id];
+function CustomerDrawer({ id, state, onClose, currency, onNewJob, onNewQuote, toast }) {
+  const c = lookupCustomer(id, state);
   if (!c) return null;
-  const cvehs = vehicles.filter(v => v.owner === id);
+  const cvehs = vehiclesByOwner(id, state);
   const cjobs = (state?.jobs || jobs).filter(j => j.customer === id);
   return (
     <Drawer onClose={onClose} width={620}>
@@ -522,10 +542,10 @@ function CustomerDrawer({ id, state, onClose, currency }) {
         </div>
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-          <button className="btn btn-primary btn-sm" style={{ flex: 1 }}><Icon.Plus size={12} /> Job ថ្មី</button>
-          <button className="btn btn-sm"><Icon.Calc size={12} /> Quote</button>
-          <button className="btn btn-sm"><Icon.Phone size={12} /></button>
-          <button className="btn btn-sm"><Icon.Mail size={12} /></button>
+          <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => { onNewJob && onNewJob(c.id); onClose(); }}><Icon.Plus size={12} /> Job ថ្មី</button>
+          <button className="btn btn-sm" onClick={() => { onNewQuote && onNewQuote(c.id); onClose(); }}><Icon.Calc size={12} /> Quote</button>
+          <button className="btn btn-sm" onClick={() => { if (c.phone && c.phone !== "—") { window.open("tel:" + c.phone.replace(/\s/g, ""), "_self"); } else { toast && toast("គ្មានលេខទូរស័ព្ទ", "info"); } }}><Icon.Phone size={12} /></button>
+          <button className="btn btn-sm" onClick={() => { if (c.telegram) { toast && toast(`បានផ្ញើសារ Telegram ទៅ ${c.name}`, "ok"); } else { toast && toast(`បានផ្ញើ SMS ទៅ ${c.phone || c.name}`, "ok"); } }}><Icon.Mail size={12} /></button>
         </div>
 
         <div className="section-heading"><h2 style={{ fontSize: 14 }}>រថយន្ត · VEHICLES ({cvehs.length})</h2></div>
@@ -545,16 +565,19 @@ function CustomerDrawer({ id, state, onClose, currency }) {
         <div className="section-heading"><h2 style={{ fontSize: 14 }}>ប្រវត្តិសេវាកម្ម · HISTORY</h2></div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {cjobs.length === 0 && <div className="empty">មិនទាន់មាន Job ទេ</div>}
-          {cjobs.map(j => (
-            <div key={j.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'var(--bg-2)', borderRadius: 'var(--radius)' }}>
-              <div className="mono" style={{ fontSize: 11, color: 'var(--accent)' }}>{j.id}</div>
-              <div style={{ flex: 1, fontSize: 13 }}>
-                <div style={{ fontWeight: 600 }}>{j.title}</div>
-                <div className="muted" style={{ fontSize: 11 }}>{vehiclesById[j.vehicle].plate} · {j.created.split(" ")[0]}</div>
+          {cjobs.map(j => {
+            const jv = lookupVehicle(j.vehicle, state) || MISSING_V;
+            return (
+              <div key={j.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'var(--bg-2)', borderRadius: 'var(--radius)' }}>
+                <div className="mono" style={{ fontSize: 11, color: 'var(--accent)' }}>{j.id}</div>
+                <div style={{ flex: 1, fontSize: 13 }}>
+                  <div style={{ fontWeight: 600 }}>{j.title}</div>
+                  <div className="muted" style={{ fontSize: 11 }}>{jv.plate} · {j.created.split(" ")[0]}</div>
+                </div>
+                <span className={"chip chip-" + statusColor(j.status)}>{j.status}</span>
               </div>
-              <span className={"chip chip-" + statusColor(j.status)}>{j.status}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </Drawer>
@@ -575,21 +598,47 @@ function AddCustomerModal({ onClose, setState, toast }) {
   const [phone, setPhone] = React.useState("");
   const [address, setAddress] = React.useState("");
   const [type, setType] = React.useState("personal");
+  // Optional vehicle
+  const [addVeh, setAddVeh] = React.useState(true);
+  const [plate, setPlate] = React.useState("");
+  const [make, setMake] = React.useState("Toyota");
+  const [model, setModel] = React.useState("");
+  const [year, setYear] = React.useState(2020);
   const PALETTE = ["#0fbfa1", "#22c55e", "#f5b400", "#a78bfa", "#38bdf8", "#f472b6", "#fb923c"];
 
   function submit() {
     if (!name.trim()) { toast("សូមបញ្ចូលឈ្មោះអតិថិជន", "error"); return; }
-    const id = "CU-1" + String(9 + Math.floor(Math.random() * 900)).padStart(3, "0");
+    const cid = "CU-1" + String(9 + Math.floor(Math.random() * 900)).padStart(3, "0");
     const parts = name.trim().split(/\s+/);
     const initials = (parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
+
+    // Optional vehicle creation
+    let newVeh = null;
+    if (addVeh && plate.trim()) {
+      const vid = "VE-" + String(2014 + Math.floor(Math.random() * 8000));
+      newVeh = {
+        id: vid, owner: cid, plate: plate.trim().toUpperCase(),
+        make: make.trim() || "—", model: model.trim() || "—",
+        year: +year || 2020, color: "—", vin: "—",
+        mileage: 0, nextService: "—", status: "ok",
+      };
+    }
+
     const newC = {
-      id, name: name.trim(), initials, color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
+      id: cid, name: name.trim(), initials, color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
       type, phone: phone.trim() || "—", telegram: false,
       address: address.trim() || "—", since: "2026-05-17",
-      tags: ["NEW"], points: 0, vehicles: [], lifetime: 0, jobs: 0,
+      tags: ["NEW"], points: 0,
+      vehicles: newVeh ? [newVeh.id] : [],
+      lifetime: 0, jobs: 0,
     };
-    setState(s => ({ ...s, customers: [newC, ...s.customers] }));
-    toast(`បន្ថែមអតិថិជន ${newC.name} (${id}) ជោគជ័យ`, "ok");
+
+    setState(s => ({
+      ...s,
+      customers: [newC, ...s.customers],
+      vehicles: newVeh ? [newVeh, ...(s.vehicles || [])] : s.vehicles,
+    }));
+    toast(`បន្ថែម ${newC.name}${newVeh ? ` + ${newVeh.plate}` : ""} ជោគជ័យ`, "ok");
     onClose();
   }
 
@@ -619,9 +668,40 @@ function AddCustomerModal({ onClose, setState, toast }) {
           <label>អាសយដ្ឋាន · ADDRESS</label>
           <AddressPicker value={address} onChange={setAddress} />
         </div>
+
+        <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border-0)', paddingTop: 14, marginTop: 4 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+            <input type="checkbox" checked={addVeh} onChange={e => setAddVeh(e.target.checked)} />
+            បន្ថែមរថយន្ត · ADD VEHICLE
+            <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>(មិនបង្ខំ — អាចបន្ថែមក្រោយ)</span>
+          </label>
+        </div>
+        {addVeh && (
+          <>
+            <div className="field">
+              <label>ស្លាកលេខ · PLATE</label>
+              <input className="input mono" value={plate} onChange={e => setPlate(e.target.value)} placeholder="2AB-1234" style={{ textTransform: 'uppercase' }} />
+            </div>
+            <div className="field">
+              <label>ឆ្នាំ · YEAR</label>
+              <input className="input" type="number" min="1990" max="2030" value={year} onChange={e => setYear(e.target.value)} />
+            </div>
+            <div className="field">
+              <label>ម៉ាក · MAKE</label>
+              <select className="select" value={make} onChange={e => setMake(e.target.value)}>
+                {["Toyota", "Honda", "Lexus", "Hyundai", "Kia", "Ford", "Mitsubishi", "Mazda", "Nissan", "BMW", "Mercedes-Benz", "Other"].map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label>ម៉ូដែល · MODEL</label>
+              <input className="input" value={model} onChange={e => setModel(e.target.value)} placeholder="Camry / Civic / RX350 ..." />
+            </div>
+          </>
+        )}
       </div>
     </Modal>
   );
 }
 
-export { DashboardScreen, CustomersScreen, CustomerDrawer, Stat, Money, Row, AddCustomerModal, exportCsv };
+export { DashboardScreen, CustomersScreen, CustomerDrawer, Stat, Money, Row, AddCustomerModal, exportCsv,
+  lookupCustomer, lookupVehicle, vehiclesByOwner, MISSING_C, MISSING_V };
