@@ -16,6 +16,7 @@ function PartsScreen({ state, setState, currency, toast, onNewPart }) {
   const [search, setSearch] = React.useState("");
   const [editPart, setEditPart] = React.useState(null);
   const [delPart, setDelPart] = React.useState(null);
+  const [reportOpen, setReportOpen] = React.useState(false);
   const allParts = state.parts;
   function reorderPart(p) {
     if (!setState) { toast(`Reorder request sent to ${p.supplier}`, "info"); return; }
@@ -46,6 +47,7 @@ function PartsScreen({ state, setState, currency, toast, onNewPart }) {
         </div>
         <div className="page-actions">
           <button className="btn" onClick={() => { exportCsv("parts.csv", allParts.map(p => ({ sku: p.sku, name: p.name, nameEn: p.nameEn, category: p.category, supplier: p.supplier, location: p.location, stock: p.stock, reorder: p.reorder, cost: p.cost, price: p.price }))); toast(`នាំចេញ ${allParts.length} Parts (CSV)`, "ok"); }}><Icon.Download size={14} /> Export</button>
+          <button className="btn" onClick={() => setReportOpen(true)}><Icon.Doc size={14} /> Stock Report</button>
           <button className="btn" onClick={() => toast("Barcode scanner (ឆាប់ៗ)", "info")}><Icon.Tag size={14} /> Barcode</button>
           <button className="btn btn-primary" onClick={onNewPart}><Icon.Plus size={14} /> Part ថ្មី</button>
         </div>
@@ -172,7 +174,192 @@ function PartsScreen({ state, setState, currency, toast, onNewPart }) {
       </div>
       {editPart && <EditPartModal part={editPart} setState={setState} onClose={() => setEditPart(null)} toast={toast} />}
       {delPart && <ConfirmModal title="លុប Part?" message={`លុប ${delPart.name} (${delPart.sku}) ឬ​ទេ?`} danger onClose={() => setDelPart(null)} onConfirm={() => { setState(s => ({ ...s, parts: s.parts.filter(x => x.id !== delPart.id) })); toast(`លុប ${delPart.name} ជោគជ័យ`, "ok"); setDelPart(null); }} />}
+      {reportOpen && <PartsReportModal parts={allParts} currency={currency} onClose={() => setReportOpen(false)} toast={toast} />}
     </div>
+  );
+}
+
+// ── Parts Stock Report Modal (with PDF) ──
+function PartsReportModal({ parts, currency, onClose, toast }) {
+  const sheetRef = React.useRef(null);
+  const [downloading, setDownloading] = React.useState(false);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const sorted = [...parts].sort((a, b) => {
+    // low/out first, then by supplier, then by sku
+    const aLow = a.stock <= a.reorder ? 0 : 1;
+    const bLow = b.stock <= b.reorder ? 0 : 1;
+    if (aLow !== bLow) return aLow - bLow;
+    if ((a.supplier || "") !== (b.supplier || "")) return (a.supplier || "").localeCompare(b.supplier || "");
+    return (a.sku || "").localeCompare(b.sku || "");
+  });
+
+  const totalValue = parts.reduce((s, p) => s + (p.stock || 0) * (p.cost || 0), 0);
+  const retailValue = parts.reduce((s, p) => s + (p.stock || 0) * (p.price || 0), 0);
+  const lowCount = parts.filter(p => p.stock > 0 && p.stock <= p.reorder).length;
+  const outCount = parts.filter(p => p.stock === 0).length;
+  const totalUnits = parts.reduce((s, p) => s + (p.stock || 0), 0);
+
+  // Group by supplier for summary
+  const supplierGroups = {};
+  parts.forEach(p => {
+    const k = p.supplier || "—";
+    if (!supplierGroups[k]) supplierGroups[k] = { skus: 0, units: 0, value: 0, low: 0 };
+    supplierGroups[k].skus++;
+    supplierGroups[k].units += p.stock || 0;
+    supplierGroups[k].value += (p.stock || 0) * (p.cost || 0);
+    if (p.stock <= p.reorder) supplierGroups[k].low++;
+  });
+  const supplierList = Object.entries(supplierGroups).sort((a, b) => b[1].value - a[1].value);
+
+  async function downloadPdf() {
+    if (!sheetRef.current) return;
+    setDownloading(true);
+    try {
+      const { downloadElementAsPdf } = await import('./lib/pdf');
+      await downloadElementAsPdf(sheetRef.current, `Parts-Stock-Report-${today}.pdf`);
+      toast("បាន​ទាញ​យក Parts Stock Report", "ok");
+    } catch (e) {
+      console.error(e);
+      toast("PDF generation failed: " + (e.message || "unknown error"), "error");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <Modal wide title="Parts Stock Report" onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បិទ</button>
+        <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print</button>
+        <button className="btn btn-primary" onClick={downloadPdf} disabled={downloading}><Icon.Download size={14} /> {downloading ? "កំពុង​បង្កើត..." : "ទាញ​យក PDF"}</button>
+      </>}>
+      <div ref={sheetRef} style={{ background: 'white', color: '#0a0d12', padding: 32, borderRadius: 8, fontFamily: 'var(--font-en)' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #0a0d12' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 6, background: 'var(--accent)', display: 'grid', placeItems: 'center', color: '#0b0b0b', fontWeight: 800, fontSize: 18 }}>G</div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: '0.02em' }}>GARAGE OS</div>
+                <div style={{ fontSize: 10, letterSpacing: '0.12em', color: '#666' }}>SERVICE CENTER · PHNOM PENH</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: '#666' }}>St. 271, Sangkat Toul Tom Pong<br />Phnom Penh, Cambodia · +855 23 555 100</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '0.04em', marginBottom: 4 }}>STOCK REPORT</div>
+            <div style={{ fontSize: 11, color: '#666' }}>As of {today}</div>
+          </div>
+        </div>
+
+        {/* Summary KPIs */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 24 }}>
+          <div style={{ background: '#f5f5f5', padding: 12, borderRadius: 6 }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.12em', color: '#888' }}>SKUs</div>
+            <div style={{ fontSize: 20, fontWeight: 800, fontFamily: 'var(--font-mono)' }}>{parts.length}</div>
+          </div>
+          <div style={{ background: '#f5f5f5', padding: 12, borderRadius: 6 }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.12em', color: '#888' }}>UNITS</div>
+            <div style={{ fontSize: 20, fontWeight: 800, fontFamily: 'var(--font-mono)' }}>{totalUnits.toLocaleString()}</div>
+          </div>
+          <div style={{ background: '#f5f5f5', padding: 12, borderRadius: 6 }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.12em', color: '#888' }}>COST VALUE</div>
+            <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'var(--font-mono)' }}>{moneyUSD(totalValue)}</div>
+          </div>
+          <div style={{ background: outCount > 0 ? '#fee2e2' : '#f5f5f5', padding: 12, borderRadius: 6 }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.12em', color: outCount > 0 ? '#991b1b' : '#888' }}>OUT OF STOCK</div>
+            <div style={{ fontSize: 20, fontWeight: 800, fontFamily: 'var(--font-mono)', color: outCount > 0 ? '#dc2626' : '#0a0d12' }}>{outCount}</div>
+          </div>
+          <div style={{ background: lowCount > 0 ? '#fef3c7' : '#f5f5f5', padding: 12, borderRadius: 6 }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.12em', color: lowCount > 0 ? '#7a5a00' : '#888' }}>LOW STOCK</div>
+            <div style={{ fontSize: 20, fontWeight: 800, fontFamily: 'var(--font-mono)', color: lowCount > 0 ? '#d97706' : '#0a0d12' }}>{lowCount}</div>
+          </div>
+        </div>
+
+        {/* Suppliers summary */}
+        <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>SUPPLIERS · BY VALUE</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 22, fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: '#f5f5f5' }}>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>SUPPLIER</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>SKUs</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>UNITS</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>LOW</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>VALUE</th>
+            </tr>
+          </thead>
+          <tbody>
+            {supplierList.map(([s, g]) => (
+              <tr key={s} style={{ borderBottom: '1px solid #eee' }}>
+                <td style={{ padding: '8px 10px', fontWeight: 600 }}>{s}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{g.skus}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{g.units.toLocaleString()}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', color: g.low > 0 ? '#dc2626' : '#0a0d12', fontWeight: g.low > 0 ? 700 : 400 }}>{g.low}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{moneyUSD(g.value)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Items - low stock first */}
+        <div style={{ fontSize: 10, letterSpacing: '0.14em', color: '#888', marginBottom: 6 }}>ALL ITEMS · LOW STOCK FIRST</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+          <thead>
+            <tr style={{ background: '#f5f5f5' }}>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>SKU</th>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>NAME</th>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>SUPPLIER</th>
+              <th style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>LOC</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>STOCK</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>MIN</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>COST</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>PRICE</th>
+              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, letterSpacing: '0.14em', color: '#666' }}>VALUE</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map(p => {
+              const isOut = p.stock === 0;
+              const isLow = !isOut && p.stock <= p.reorder;
+              const rowBg = isOut ? '#fee2e2' : isLow ? '#fef3c7' : 'transparent';
+              const value = (p.stock || 0) * (p.cost || 0);
+              return (
+                <tr key={p.id} style={{ borderBottom: '1px solid #eee', background: rowBg }}>
+                  <td style={{ padding: '6px 10px', fontFamily: 'var(--font-mono)', fontSize: 10 }}>{p.sku}</td>
+                  <td style={{ padding: '6px 10px' }}>{p.name}</td>
+                  <td style={{ padding: '6px 10px', color: '#666' }}>{p.supplier}</td>
+                  <td style={{ padding: '6px 10px', fontFamily: 'var(--font-mono)', fontSize: 10, color: '#666' }}>{p.location}</td>
+                  <td style={{ padding: '6px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700, color: isOut ? '#dc2626' : isLow ? '#d97706' : '#0a0d12' }}>{p.stock}</td>
+                  <td style={{ padding: '6px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', color: '#666' }}>{p.reorder}</td>
+                  <td style={{ padding: '6px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{moneyUSD(p.cost || 0)}</td>
+                  <td style={{ padding: '6px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{moneyUSD(p.price || 0)}</td>
+                  <td style={{ padding: '6px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{moneyUSD(value)}</td>
+                </tr>
+              );
+            })}
+            <tr style={{ borderTop: '2px solid #0a0d12', background: '#fafafa' }}>
+              <td colSpan={4} style={{ padding: '10px 10px', fontWeight: 800, letterSpacing: '0.06em' }}>TOTAL</td>
+              <td style={{ padding: '10px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800 }}>{totalUnits}</td>
+              <td></td>
+              <td></td>
+              <td style={{ padding: '10px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 600, color: '#666' }}>Retail: {moneyUSD(retailValue)}</td>
+              <td style={{ padding: '10px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 13 }}>{moneyUSD(totalValue)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* Footer */}
+        {(lowCount > 0 || outCount > 0) && (
+          <div style={{ marginTop: 18, padding: 12, background: '#fef3c7', borderLeft: '3px solid #d97706', borderRadius: 4, fontSize: 12, color: '#7a5a00' }}>
+            <strong>Action needed:</strong> {outCount > 0 && `${outCount} SKUs out of stock`}{outCount > 0 && lowCount > 0 && " · "}{lowCount > 0 && `${lowCount} SKUs below reorder level`} — សូម​បញ្ជា​ទិញ​ឲ្យ​ឆាប់
+          </div>
+        )}
+        <div style={{ fontSize: 10, color: '#888', textAlign: 'center', letterSpacing: '0.04em', borderTop: '1px solid #eee', paddingTop: 14, marginTop: 18 }}>
+          Generated by Garage OS · {today}
+        </div>
+      </div>
+    </Modal>
   );
 }
 
