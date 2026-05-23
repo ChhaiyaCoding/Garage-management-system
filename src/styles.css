@@ -55,62 +55,88 @@
   --row-pad: 9px;
 }
 
-/* ───────── Light theme overrides ───────── */
-/* Inspired by Linear / Notion / Stripe — warm off-white surfaces with
-   crisp white cards that lift via shadow rather than pure-white-on-white. */
+/* ───────── Light theme · Apple Soft Slate ───────── */
+/* Inspired by macOS Big Sur Light: medium slate gray page bg, off-white
+   cards (not pure white), distinct sidebar/topbar surfaces, and richer
+   accent hues that don't wash out on light slate. */
 [data-theme="light"] {
-  /* Surfaces */
-  --bg-0: #eef0f5;   /* app background — cool warm gray, never pure white */
-  --bg-1: #ffffff;   /* cards / drawers — pops cleanly against bg-0 */
-  --bg-2: #f5f6fa;   /* secondary panels, table headers */
-  --bg-3: #e6e8f0;   /* inputs, kanban col bg */
-  --bg-hover: #e9ebf2;
+  /* Surfaces — clearly gray, never pure white */
+  --bg-0: #d8dbe2;   /* app/page bg — medium slate */
+  --bg-1: #fafbfd;   /* cards — soft off-white (not #ffffff!) */
+  --bg-2: #e9ecf2;   /* alternate surface · table headers */
+  --bg-3: #c8ccd6;   /* inputs · kanban col bg · heavier */
+  --bg-hover: #e0e3eb;
 
-  /* Borders — subtle but visible */
-  --border-0: #dadde6;
-  --border-1: #c1c5d1;
-  --border-2: #9298a8;
+  /* Sidebar + Topbar get their own slightly-deeper chrome tone */
+  --bg-chrome: #cdd1d9;
 
-  /* Text — deeper for better contrast on warm bg */
-  --text-0: #0b1220;
-  --text-1: #2c3447;
-  --text-2: #5a6377;
-  --text-3: #8990a3;
+  /* Borders */
+  --border-0: #bcc1cc;
+  --border-1: #a3a9b6;
+  --border-2: #80869a;
 
-  /* Soft accent fills get more punch on light surfaces */
-  --accent-soft: rgba(245, 180, 0, 0.22);
-  --success-soft: rgba(34, 197, 94, 0.18);
-  --info-soft: rgba(56, 189, 248, 0.18);
-  --warn-soft: rgba(251, 146, 60, 0.20);
+  /* Text */
+  --text-0: #1c2230;   /* primary */
+  --text-1: #3a4255;
+  --text-2: #5e6678;
+  --text-3: #858ca0;
+
+  /* Soft fills — punchier so chips read as colored regions */
+  --accent-soft: rgba(184, 134, 11, 0.20);
+  --success-soft: rgba(21, 128, 61, 0.18);
+  --info-soft: rgba(56, 189, 248, 0.20);
+  --warn-soft: rgba(251, 146, 60, 0.22);
   --danger-soft: rgba(239, 68, 68, 0.18);
-  --teal-soft: rgba(20, 184, 166, 0.18);
-  --purple-soft: rgba(167, 139, 250, 0.20);
-  --pink-soft: rgba(244, 114, 182, 0.20);
+  --teal-soft: rgba(20, 184, 166, 0.20);
+  --purple-soft: rgba(109, 40, 217, 0.18);
+  --pink-soft: rgba(244, 114, 182, 0.22);
 
-  /* Shadows do the heavy lifting in light mode — make cards float */
-  --shadow-sm: 0 1px 2px rgba(15, 20, 27, 0.06), 0 1px 1px rgba(15, 20, 27, 0.04);
-  --shadow-lg: 0 28px 60px -20px rgba(15, 20, 27, 0.22), 0 10px 20px -10px rgba(15, 20, 27, 0.14);
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(28, 34, 48, 0.07), 0 1px 1px rgba(28, 34, 48, 0.04);
+  --shadow-lg: 0 28px 60px -20px rgba(28, 34, 48, 0.28), 0 10px 20px -10px rgba(28, 34, 48, 0.16);
 }
 
-/* Cards & drawers lift visibly off the bg in light mode */
-[data-theme="light"] .card,
-[data-theme="light"] .kpi,
-[data-theme="light"] .modal,
-[data-theme="light"] .drawer,
+/* Sidebar + Topbar get their own surface in light mode */
 [data-theme="light"] .sidebar,
 [data-theme="light"] .topbar {
-  box-shadow: 0 1px 3px rgba(15, 20, 27, 0.06), 0 1px 2px rgba(15, 20, 27, 0.04);
+  background: var(--bg-chrome);
+  border-color: var(--border-0);
+}
+
+/* Cards float visibly off bg-0 (no more invisible white-on-white) */
+[data-theme="light"] .card,
+[data-theme="light"] .kpi {
+  box-shadow: 0 1px 2px rgba(28, 34, 48, 0.06), 0 1px 1px rgba(28, 34, 48, 0.04);
+  border-color: var(--border-0);
 }
 [data-theme="light"] .modal,
 [data-theme="light"] .drawer {
+  background: var(--bg-1);
   box-shadow: var(--shadow-lg);
 }
 [data-theme="light"] .modal-backdrop {
-  background: rgba(15, 20, 27, 0.35);
-  backdrop-filter: blur(4px);
+  background: rgba(28, 34, 48, 0.42);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
-/* Scrollbar in light mode — softer, no dark ridges */
+/* Inputs & selects need a touch more contrast on slate */
+[data-theme="light"] .input,
+[data-theme="light"] .select,
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+  background: var(--bg-1);
+  border-color: var(--border-0);
+}
+
+/* Active nav item — accent backdrop reads cleaner on light chrome */
+[data-theme="light"] .nav-item.active {
+  background: var(--accent-soft);
+  color: var(--text-0);
+}
+
+/* Scrollbar */
 [data-theme="light"] ::-webkit-scrollbar-thumb {
   background: var(--border-1);
   border-color: var(--bg-0);

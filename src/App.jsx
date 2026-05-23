@@ -29,6 +29,13 @@ const ACCENT_PALETTES = {
   "#22c55e": { c: "#22c55e", hi: "#4ade80", dim: "#14532d", soft: "rgba(34, 197, 94, 0.12)" },
   "#a78bfa": { c: "#a78bfa", hi: "#c4b5fd", dim: "#4c1d95", soft: "rgba(167, 139, 250, 0.12)" },
 };
+// Light-mode variants: darker, richer hues so accent reads on slate gray bg.
+const ACCENT_PALETTES_LIGHT = {
+  "#f5b400": { c: "#b8860b", hi: "#d99e1a", dim: "#6b4d00", soft: "rgba(184, 134, 11, 0.18)" },
+  "#3b82f6": { c: "#1d4ed8", hi: "#3b82f6", dim: "#1e3a8a", soft: "rgba(29, 78, 216, 0.16)" },
+  "#22c55e": { c: "#15803d", hi: "#22c55e", dim: "#14532d", soft: "rgba(21, 128, 61, 0.16)" },
+  "#a78bfa": { c: "#6d28d9", hi: "#8b5cf6", dim: "#4c1d95", soft: "rgba(109, 40, 217, 0.16)" },
+};
 
 function defaultState() {
   return {
@@ -182,7 +189,8 @@ function App({ initialState, userId, userEmail, onSignOut }) {
 
   React.useEffect(() => {
     const root = document.documentElement;
-    const p = ACCENT_PALETTES[tweaks.accent] || ACCENT_PALETTES["#f5b400"];
+    const palette = effectiveTheme === "light" ? ACCENT_PALETTES_LIGHT : ACCENT_PALETTES;
+    const p = palette[tweaks.accent] || palette["#f5b400"];
     root.style.setProperty("--accent", p.c);
     root.style.setProperty("--accent-hi", p.hi);
     root.style.setProperty("--accent-dim", p.dim);
