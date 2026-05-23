@@ -505,7 +505,7 @@ function CustomersScreen({ state, search, currency, onOpenCustomer, onNav, onAdd
           </thead>
           <tbody>
             {vehicles.slice(0, 10).map(v => {
-              const c = customersById[v.owner];
+              const c = lookupCustomer(v.owner, state) || MISSING_C;
               const stColor = v.status === "overdue" ? "red" : v.status === "due" ? "orange" : "green";
               const stLabel = v.status === "overdue" ? "OVERDUE" : v.status === "due" ? "DUE SOON" : "ON SCHEDULE";
               return (
