@@ -577,6 +577,8 @@ function InvoicesScreen({ state, setState, currency, onOpenInvoice, onNewInvoice
 
 function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
   const inv = state.invoices.find(i => i.id === id);
+  const sheetRef = React.useRef(null);
+  const [downloading, setDownloading] = React.useState(false);
   if (!inv) return null;
   const c = lookupCustomer(inv.customer, state) || MISSING_C;
   const v = lookupVehicle(inv.vehicle, state) || MISSING_V;
@@ -588,11 +590,27 @@ function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
     toast(`Invoice ${inv.id} · ទទួលបាន ${moneyUSD(inv.total)} (ABA Pay)`, "ok");
     onClose();
   }
+  async function downloadPdf() {
+    if (!sheetRef.current) return;
+    setDownloading(true);
+    try {
+      // Lazy-load to keep initial bundle small (~750 KB saved)
+      const { downloadElementAsPdf } = await import('./lib/pdf');
+      await downloadElementAsPdf(sheetRef.current, `${inv.id}.pdf`);
+      toast(`បាន​ទាញ​យក ${inv.id}.pdf`, "ok");
+    } catch (e) {
+      console.error(e);
+      toast("PDF generation failed: " + (e.message || "unknown error"), "error");
+    } finally {
+      setDownloading(false);
+    }
+  }
   return (
     <Modal wide title={"Invoice · " + inv.id} onClose={onClose}
       footer={<>
         <button className="btn" onClick={onClose}>បិទ</button>
         <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print</button>
+        <button className="btn" onClick={downloadPdf} disabled={downloading}><Icon.Download size={14} /> {downloading ? "កំពុង​បង្កើត..." : "ទាញ​យក PDF"}</button>
         <button className="btn" onClick={() => toast("បានផ្ញើវិក្កយបត្រតាម Telegram", "ok")}><Icon.Send size={14} /> ផ្ញើតាម Telegram</button>
         {inv.status !== "paid" && (
           <button className="btn btn-primary" onClick={acceptPayment}>
@@ -600,7 +618,7 @@ function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
           </button>
         )}
       </>}>
-      <div style={{ background: 'white', color: '#0a0d12', padding: 32, borderRadius: 8, fontFamily: 'var(--font-en)' }}>
+      <div ref={sheetRef} style={{ background: 'white', color: '#0a0d12', padding: 32, borderRadius: 8, fontFamily: 'var(--font-en)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #0a0d12' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
