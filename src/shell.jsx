@@ -1,6 +1,99 @@
 import React from 'react';
 import { Icon } from './icons';
 import { useInstallPrompt } from './lib/installPrompt';
+import { searchAll, TYPE_LABELS } from './lib/search';
+
+// ── Global Search dropdown ──
+function GlobalSearch({ state, onNavigate }) {
+  const [q, setQ] = React.useState("");
+  const [open, setOpen] = React.useState(false);
+  const [active, setActive] = React.useState(0);
+  const inputRef = React.useRef(null);
+
+  const results = React.useMemo(() => state ? searchAll(state, q, 24) : [], [state, q]);
+
+  // Keyboard shortcut: Cmd/Ctrl + K
+  React.useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        inputRef.current && inputRef.current.focus();
+        setOpen(true);
+      }
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  React.useEffect(() => { setActive(0); }, [q]);
+
+  function go(r) {
+    onNavigate && onNavigate(r);
+    setOpen(false);
+    setQ("");
+  }
+
+  function onKeyDown(e) {
+    if (!open) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive(a => Math.min(results.length - 1, a + 1)); }
+    if (e.key === "ArrowUp") { e.preventDefault(); setActive(a => Math.max(0, a - 1)); }
+    if (e.key === "Enter" && results[active]) { e.preventDefault(); go(results[active]); }
+  }
+
+  return (
+    <div style={{ position: 'relative', flex: 1, maxWidth: 560 }}>
+      <div className="search-input" style={{ width: '100%' }}>
+        <Icon.Search size={16} />
+        <input
+          ref={inputRef}
+          placeholder="ស្វែងរក​អ្វី​ក៏​បាន · ⌘K"
+          value={q}
+          onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={onKeyDown}
+        />
+        {q && <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)', paddingRight: 6 }}>{results.length}</span>}
+      </div>
+
+      {open && q && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }}></div>
+          <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 6, background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 10, padding: 6, maxHeight: 480, overflowY: 'auto', zIndex: 50, boxShadow: 'var(--shadow-lg)' }}>
+            {results.length === 0 && (
+              <div className="empty" style={{ padding: 18, fontSize: 12 }}>គ្មាន​លទ្ធផល​ "{q}"</div>
+            )}
+            {results.map((r, i) => {
+              const IconComp = Icon[r.icon] || Icon.Search;
+              const isActive = i === active;
+              return (
+                <div
+                  key={r.type + "-" + r.id}
+                  onClick={() => go(r)}
+                  onMouseEnter={() => setActive(i)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 6, cursor: 'pointer', background: isActive ? 'var(--bg-2)' : 'transparent' }}
+                >
+                  <div style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--bg-2)', display: 'grid', placeItems: 'center', color: 'var(--accent)', flexShrink: 0 }}>
+                    {r.color && r.initials ? (
+                      <div style={{ width: 22, height: 22, borderRadius: 4, background: r.color, color: '#0b0b0b', display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 700 }}>{r.initials}</div>
+                    ) : (
+                      <IconComp size={14} />
+                    )}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.meta}</div>
+                  </div>
+                  <span className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{TYPE_LABELS[r.type] || r.type}</span>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 // ─── App Shell: Sidebar + Topbar + Toast helpers ───
 
 const NAV_CORE = [
@@ -73,7 +166,7 @@ function Sidebar({ active, onNav }) {
   );
 }
 
-function Topbar({ search, setSearch, onOpenTweaks, currency, setCurrency, userEmail, onSignOut, saveStatus, theme, onToggleTheme }) {
+function Topbar({ search, setSearch, onOpenTweaks, currency, setCurrency, userEmail, onSignOut, saveStatus, theme, onToggleTheme, state, onNavigate }) {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const { canInstall, isStandalone, promptInstall } = useInstallPrompt();
   const localName = userEmail ? userEmail.split("@")[0] : "លោក សុខ ភារុណ";
@@ -84,14 +177,18 @@ function Topbar({ search, setSearch, onOpenTweaks, currency, setCurrency, userEm
       <div className="branch-pill">
         សាខាមេ · ភ្នំពេញ <Icon.Down size={14} />
       </div>
-      <div className="search-input">
-        <Icon.Search size={16} />
-        <input
-          placeholder="ស្វែងរក អតិថិជន · រថយន្ត · Job · Parts ..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
+      {onNavigate ? (
+        <GlobalSearch state={state} onNavigate={onNavigate} />
+      ) : (
+        <div className="search-input">
+          <Icon.Search size={16} />
+          <input
+            placeholder="ស្វែងរក អតិថិជន · រថយន្ត · Job · Parts ..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      )}
       <div className="topbar-actions">
         {saveLabel && (
           <span className="mono" style={{ fontSize: 10, letterSpacing: '0.1em', color: saveStatus === "error" ? 'var(--danger)' : saveStatus === "saving" ? 'var(--text-2)' : 'var(--success)' }}>{saveLabel}</span>

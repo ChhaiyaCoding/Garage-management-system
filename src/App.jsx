@@ -206,7 +206,8 @@ function App({ initialState, userId, userEmail, onSignOut }) {
   }
 
   React.useEffect(() => {
-    if (search && route !== "customers") setRoute("customers");
+    // Note: global search now handles navigation explicitly via onNavigate.
+    // The old "type in topbar → jump to customers" auto-route effect is gone.
   }, [search]);
 
   return (
@@ -219,6 +220,20 @@ function App({ initialState, userId, userEmail, onSignOut }) {
           currency={tweaks.currency} setCurrency={(v) => setTweak("currency", v)}
           userEmail={userEmail} onSignOut={onSignOut} saveStatus={saveStatus}
           theme={effectiveTheme} onToggleTheme={() => setTweak("theme", effectiveTheme === "dark" ? "light" : "dark")}
+          state={state}
+          onNavigate={(r) => {
+            switch (r.type) {
+              case "customer": setRoute("customers"); setCustomerOpen(r.id); break;
+              case "vehicle": setRoute("customers"); setCustomerOpen(r.ownerId); break;
+              case "job": setRoute("jobs"); setJobOpen(r.id); break;
+              case "part": setRoute("parts"); break;
+              case "invoice": setRoute("invoices"); setInvoiceOpen(r.id); break;
+              case "quote": setRoute("quotation"); setQuoteOpen(r.id); break;
+              case "booking": setRoute("booking"); break;
+              case "member": setRoute("members"); break;
+              default: break;
+            }
+          }}
         />
         {route === "dashboard" && <DashboardScreen state={state} currency={tweaks.currency} onNav={setRoute} toast={toast} />}
         {route === "customers" && <CustomersScreen state={state} search={search} currency={tweaks.currency} onOpenCustomer={setCustomerOpen} onNav={setRoute} onAddCustomer={() => setAddCustomerOpen(true)} toast={toast} />}
