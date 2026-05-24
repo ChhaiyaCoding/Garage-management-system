@@ -663,8 +663,8 @@ function JobPrintModal({ job, state, currency, onClose, toast }) {
                   <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{part.sku}</td>
                   <td style={{ padding: '8px 10px' }}>{part.name}</td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{p.qty}</td>
-                  <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{moneyUSD(p.price)}</td>
-                  <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{moneyUSD(p.qty * p.price)}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{moneyUSD(p.price || 0)}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{moneyUSD((p.qty || 0) * (p.price || 0))}</td>
                 </tr>
               );
             })}
@@ -720,14 +720,14 @@ function AddPartRow({ jobId, state, setState, toast }) {
   const [query, setQuery] = React.useState("");
   const sourceParts = (state && state.parts) || parts;
   const filtered = sourceParts.filter(p =>
-    !query || p.name.toLowerCase().includes(query.toLowerCase()) || p.sku.toLowerCase().includes(query.toLowerCase())
+    !query || (p.name || "").toLowerCase().includes(query.toLowerCase()) || (p.sku || "").toLowerCase().includes(query.toLowerCase())
   ).slice(0, 5);
 
   function addPart(p) {
     setState(s => ({
       ...s,
-      jobs: s.jobs.map(j => j.id === jobId ? { ...j, partsUsed: [...j.partsUsed, { id: p.id, qty: 1, price: p.price }] } : j),
-      parts: s.parts.map(pp => pp.id === p.id ? { ...pp, stock: Math.max(0, pp.stock - 1) } : pp),
+      jobs: s.jobs.map(j => j.id === jobId ? { ...j, partsUsed: [...j.partsUsed, { id: p.id, qty: 1, price: p.price || 0 }] } : j),
+      parts: s.parts.map(pp => pp.id === p.id ? { ...pp, stock: Math.max(0, (pp.stock || 0) - 1) } : pp),
     }));
     toast(`+ ${p.name} · ស្តុកថយ 1`, "ok");
     setOpen(false);

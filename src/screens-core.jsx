@@ -161,9 +161,9 @@ function DashboardScreen({ state, currency, onNav, toast }) {
   const dBookings = state?.bookings || bookings;
   const dCustomers = state?.customers || [];
   const todayStr = new Date().toISOString().slice(0, 10);
-  const todayRevenue = dInvoices.filter(i => i.issued === todayStr).reduce((s, i) => s + i.paid, 0);
+  const todayRevenue = dInvoices.filter(i => i.issued === todayStr).reduce((s, i) => s + (i.paid || 0), 0);
   const openJobs = dJobs.filter(j => j.status !== "done").length;
-  const lowStock = dParts.filter(p => p.stock <= p.reorder).length;
+  const lowStock = dParts.filter(p => (p.stock || 0) <= (p.reorder || 0)).length;
   const todayBookings = dBookings.length;
 
   // ── Live aggregations for the chart row ──
@@ -432,7 +432,7 @@ function CustomersScreen({ state, search, currency, onOpenCustomer, onNav, onAdd
     if (filter === "new" && !c.tags.includes("NEW")) return false;
     if (search) {
       const s = search.toLowerCase();
-      if (!c.name.toLowerCase().includes(s) && !c.phone.includes(s)) return false;
+      if (!(c.name || "").toLowerCase().includes(s) && !(c.phone || "").includes(s)) return false;
     }
     return true;
   });

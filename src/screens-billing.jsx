@@ -31,7 +31,7 @@ function PartsScreen({ state, setState, currency, toast, onNewPart }) {
     if (tab === "out" && p.stock > 0) return false;
     if (search) {
       const s = search.toLowerCase();
-      if (!p.name.toLowerCase().includes(s) && !p.sku.toLowerCase().includes(s) && !p.nameEn.toLowerCase().includes(s)) return false;
+      if (!(p.name || "").toLowerCase().includes(s) && !(p.sku || "").toLowerCase().includes(s) && !(p.nameEn || "").toLowerCase().includes(s)) return false;
     }
     return true;
   });
