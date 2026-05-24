@@ -3,6 +3,8 @@ import GARAGE from './data';
 import { Icon } from './icons';
 import { Modal, Drawer } from './shell';
 import { Money, Row, lookupCustomer, lookupVehicle, vehiclesByOwner, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
+import { uploadJobPhoto, deleteJobPhoto, PHOTO_KINDS } from './lib/photos';
+import { isConfigured } from './lib/supabase';
 // ─── Job Card Kanban + Job detail drawer + New Job modal ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -90,7 +92,7 @@ function JobCard({ job, state, onOpen }) {
   );
 }
 
-function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, currency, toast }) {
+function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, currency, toast, userId }) {
   const job = state.jobs.find(j => j.id === id);
   const [delConfirm, setDelConfirm] = React.useState(false);
   const [printOpen, setPrintOpen] = React.useState(false);
@@ -234,6 +236,9 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
           <AddPartRow jobId={id} state={state} setState={setState} toast={toast} />
         </div>
 
+        {/* Photos */}
+        <JobPhotosSection job={job} userId={userId} setState={setState} toast={toast} />
+
         {/* Notes */}
         {job.notes && (
           <>
@@ -273,6 +278,221 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
       {delConfirm && <ConfirmModal title="លុប Job?" message={`លុប ${job.id} · ${job.title} ឬ​ទេ?`} danger onClose={() => setDelConfirm(false)} onConfirm={() => { setState(s => ({ ...s, jobs: s.jobs.filter(j => j.id !== job.id) })); toast(`លុប ${job.id} ជោគជ័យ`, "ok"); setDelConfirm(false); onClose(); }} />}
       {printOpen && <JobPrintModal job={job} state={state} currency={currency} onClose={() => setPrintOpen(false)} toast={toast} />}
     </Drawer>
+  );
+}
+
+// ── Job Photos · upload, grid, lightbox ──
+function JobPhotosSection({ job, userId, setState, toast }) {
+  const photos = job.photos || [];
+  const [uploading, setUploading] = React.useState(false);
+  const [lightboxIdx, setLightboxIdx] = React.useState(null);
+  const [kind, setKind] = React.useState('before');
+  const fileRef = React.useRef(null);
+
+  const canUpload = isConfigured && !!userId;
+
+  async function onFilesPicked(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    if (!canUpload) {
+      toast("ត្រូវ Sign in ដើម្បី upload រូបភាព", "error");
+      e.target.value = "";
+      return;
+    }
+    setUploading(true);
+    const uploaded = [];
+    for (const f of files) {
+      const res = await uploadJobPhoto(userId, job.id, f, kind);
+      if (res.ok) {
+        uploaded.push(res.photo);
+      } else {
+        toast(`Upload បរាជ័យ · ${res.reason}`, "error");
+      }
+    }
+    if (uploaded.length > 0) {
+      setState(s => ({
+        ...s,
+        jobs: s.jobs.map(j =>
+          j.id === job.id ? { ...j, photos: [...(j.photos || []), ...uploaded] } : j
+        ),
+      }));
+      toast(`បាន​ដាក់ ${uploaded.length} រូប`, "ok");
+    }
+    setUploading(false);
+    e.target.value = "";
+  }
+
+  async function onDelete(photo) {
+    if (!confirm(`លុប​រូបភាព​នេះ​មែន​ទេ?`)) return;
+    const res = await deleteJobPhoto(photo.path);
+    if (!res.ok && res.reason !== 'not-configured') {
+      toast(`លុប​បរាជ័យ · ${res.reason}`, "error");
+      return;
+    }
+    setState(s => ({
+      ...s,
+      jobs: s.jobs.map(j =>
+        j.id === job.id ? { ...j, photos: (j.photos || []).filter(p => p.id !== photo.id) } : j
+      ),
+    }));
+    toast("បាន​លុប​រូបភាព", "ok");
+    setLightboxIdx(null);
+  }
+
+  return (
+    <>
+      <div className="section-heading">
+        <h2 style={{ fontSize: 14 }}>រូបភាព · PHOTOS</h2>
+        <span className="sub">{photos.length} រូប</span>
+      </div>
+
+      <div style={{ marginBottom: 22 }}>
+        {/* Upload bar */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+          {PHOTO_KINDS.map(k => (
+            <button
+              key={k.id}
+              className={"btn btn-sm" + (kind === k.id ? " btn-primary" : "")}
+              onClick={() => setKind(k.id)}
+            >
+              {k.labelKm}
+            </button>
+          ))}
+          <div style={{ flex: 1 }}></div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic"
+            multiple
+            style={{ display: 'none' }}
+            onChange={onFilesPicked}
+          />
+          <button
+            className="btn btn-sm btn-primary"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading || !canUpload}
+            title={canUpload ? "ដាក់​រូបភាព​ថ្មី" : "Sign in ដើម្បី upload"}
+          >
+            <Icon.Camera size={14} /> {uploading ? "កំពុង​ផ្ទុក..." : "ដាក់​រូបភាព"}
+          </button>
+        </div>
+
+        {/* Thumbnail grid */}
+        {photos.length === 0 ? (
+          <div className="empty" style={{ padding: 20, fontSize: 12 }}>
+            មិន​ទាន់​មាន​រូបភាព​ទេ {canUpload ? "· ចុច \"ដាក់រូបភាព\" ខាងលើ" : "· Sign in ដើម្បី upload"}
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+            {photos.map((p, i) => {
+              const labelKm = (PHOTO_KINDS.find(k => k.id === p.kind) || PHOTO_KINDS[2]).labelKm;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setLightboxIdx(i)}
+                  style={{
+                    position: 'relative',
+                    aspectRatio: '1 / 1',
+                    border: '1px solid var(--border-1)',
+                    borderRadius: 'var(--radius-sm)',
+                    overflow: 'hidden',
+                    cursor: 'pointer',
+                    padding: 0,
+                    background: 'var(--bg-2)',
+                  }}
+                  title={labelKm}
+                >
+                  <img
+                    src={p.url}
+                    alt={labelKm}
+                    loading="lazy"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  />
+                  <span
+                    className="mono"
+                    style={{
+                      position: 'absolute',
+                      left: 4,
+                      bottom: 4,
+                      fontSize: 9,
+                      letterSpacing: '0.06em',
+                      padding: '2px 5px',
+                      background: 'rgba(10, 13, 18, 0.78)',
+                      color: '#fff',
+                      borderRadius: 3,
+                    }}
+                  >
+                    {labelKm}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Lightbox */}
+      {lightboxIdx !== null && photos[lightboxIdx] && (
+        <PhotoLightbox
+          photo={photos[lightboxIdx]}
+          index={lightboxIdx}
+          total={photos.length}
+          onPrev={() => setLightboxIdx(i => (i - 1 + photos.length) % photos.length)}
+          onNext={() => setLightboxIdx(i => (i + 1) % photos.length)}
+          onClose={() => setLightboxIdx(null)}
+          onDelete={() => onDelete(photos[lightboxIdx])}
+        />
+      )}
+    </>
+  );
+}
+
+function PhotoLightbox({ photo, index, total, onPrev, onNext, onClose, onDelete }) {
+  React.useEffect(() => {
+    const h = (e) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") onPrev();
+      if (e.key === "ArrowRight") onNext();
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose, onPrev, onNext]);
+  const labelKm = (PHOTO_KINDS.find(k => k.id === photo.kind) || PHOTO_KINDS[2]).labelKm;
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 300, display: 'grid', placeItems: 'center', padding: 24 }}
+    >
+      <div onClick={e => e.stopPropagation()} style={{ position: 'relative', maxWidth: '92vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+        <img src={photo.url} alt={labelKm} style={{ maxWidth: '92vw', maxHeight: '78vh', objectFit: 'contain', borderRadius: 8, boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#fff', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
+          <span style={{ padding: '4px 10px', background: 'var(--accent)', color: '#0b0b0b', borderRadius: 4, fontWeight: 700 }}>{labelKm}</span>
+          <span>{index + 1} / {total}</span>
+          <span style={{ color: 'rgba(255,255,255,0.6)' }}>{new Date(photo.uploadedAt).toLocaleString()}</span>
+        </div>
+        <button
+          className="icon-btn"
+          onClick={onClose}
+          style={{ position: 'absolute', top: -8, right: -8, background: '#fff', color: '#000' }}
+          title="បិទ"
+        >
+          <Icon.X size={16} />
+        </button>
+        {total > 1 && (
+          <>
+            <button onClick={onPrev} className="icon-btn" style={{ position: 'absolute', left: -52, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.9)', color: '#000' }} title="មុន"><Icon.Left size={18} /></button>
+            <button onClick={onNext} className="icon-btn" style={{ position: 'absolute', right: -52, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.9)', color: '#000' }} title="បន្ទាប់"><Icon.Right size={18} /></button>
+          </>
+        )}
+        <button
+          className="btn btn-sm"
+          onClick={onDelete}
+          style={{ position: 'absolute', bottom: -50, background: 'var(--danger)', color: '#fff', border: 'none' }}
+        >
+          <Icon.Trash size={12} /> លុប​រូបភាព
+        </button>
+      </div>
+    </div>
   );
 }
 

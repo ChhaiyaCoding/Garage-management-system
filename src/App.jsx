@@ -311,7 +311,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
         onNewJob={(cid) => { setNewJobPrefill(cid); setNewJobOpen(true); }}
         onNewQuote={(cid) => { setNewQuotePrefill(cid); setNewQuoteOpen(true); }}
       />}
-      {jobOpen && <JobDrawer id={jobOpen} state={state} setState={setState} onClose={() => setJobOpen(null)} onGenerateInvoice={generateInvoice} onEdit={(jid) => { setJobOpen(null); setEditJobOpen(jid); }} currency={tweaks.currency} toast={toast} />}
+      {jobOpen && <JobDrawer id={jobOpen} state={state} setState={setState} onClose={() => setJobOpen(null)} onGenerateInvoice={generateInvoice} onEdit={(jid) => { setJobOpen(null); setEditJobOpen(jid); }} currency={tweaks.currency} toast={toast} userId={userId} />}
       {invoiceOpen && <InvoiceModal id={invoiceOpen} state={state} setState={setState} currency={tweaks.currency} onClose={() => setInvoiceOpen(null)} toast={toast} />}
       {quoteOpen && <QuoteModal id={quoteOpen} state={state} setState={setState} currency={tweaks.currency} onClose={() => setQuoteOpen(null)} toast={toast} onConvert={convertQuoteToJob} onSend={sendQuote} />}
       {newJobOpen && <NewJobModal onClose={() => { setNewJobOpen(false); setNewJobPrefill(""); }} setState={setState} toast={toast} state={state} prefillCustomer={newJobPrefill} />}

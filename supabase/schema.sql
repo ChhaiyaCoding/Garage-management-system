@@ -55,3 +55,49 @@ create policy "Users can delete their own workspace"
 -- Done!
 -- Verify with:
 --   select * from workspaces;
+
+-- ════════════════════════════════════════════════════════════
+-- Job photos · Supabase Storage bucket
+-- ════════════════════════════════════════════════════════════
+-- Stores before/after/other photos uploaded from JobDrawer.
+-- Path layout:  {user_id}/{job_id}/{uuid}.{ext}
+-- Bucket is public-read so the app can use the returned public URL
+-- directly in <img src>; writes/deletes are restricted to the owner
+-- via RLS on storage.objects below.
+
+insert into storage.buckets (id, name, public)
+values ('job-photos', 'job-photos', true)
+on conflict (id) do update set public = excluded.public;
+
+-- Drop any existing policies, then recreate.
+drop policy if exists "Anyone can read job photos" on storage.objects;
+create policy "Anyone can read job photos"
+  on storage.objects for select
+  using (bucket_id = 'job-photos');
+
+drop policy if exists "Users can upload to their own folder" on storage.objects;
+create policy "Users can upload to their own folder"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'job-photos'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+drop policy if exists "Users can update their own job photos" on storage.objects;
+create policy "Users can update their own job photos"
+  on storage.objects for update
+  using (
+    bucket_id = 'job-photos'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+drop policy if exists "Users can delete their own job photos" on storage.objects;
+create policy "Users can delete their own job photos"
+  on storage.objects for delete
+  using (
+    bucket_id = 'job-photos'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- Done!  Verify with:
+--   select id, public from storage.buckets where id = 'job-photos';
