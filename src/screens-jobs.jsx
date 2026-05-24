@@ -85,9 +85,9 @@ function JobCard({ job, state, onOpen }) {
       <div className="job-foot">
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div className="avatar av-sm" style={{ background: job.techColor, color: '#0b0b0b', width: 22, height: 22, fontSize: 9 }}>{job.techInitials}</div>
-          <span>{c.name.split(' ')[0]}</span>
+          <span>{(c.name || "—").split(' ')[0]}</span>
         </div>
-        <span>{job.promised.split(' ')[1]}</span>
+        <span>{(job.promised || "").split(' ')[1] || "—"}</span>
       </div>
     </div>
   );

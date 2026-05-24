@@ -691,7 +691,7 @@ function CustomerDrawer({ id, state, setState, onClose, currency, onNewJob, onNe
                 <div className="mono" style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-text)' }}>{j.id}</div>
                 <div style={{ flex: 1, fontSize: 13 }}>
                   <div style={{ fontWeight: 600 }}>{j.title}</div>
-                  <div className="muted" style={{ fontSize: 11 }}>{jv.plate} · {j.created.split(" ")[0]}</div>
+                  <div className="muted" style={{ fontSize: 11 }}>{jv.plate} · {(j.created || "").split(" ")[0] || "—"}</div>
                 </div>
                 <span className={"chip chip-" + statusColor(j.status)}>{j.status}</span>
               </div>

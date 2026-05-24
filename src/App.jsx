@@ -201,12 +201,14 @@ function App({ initialState, userId, userEmail, onSignOut }) {
     if (b.status === "in-progress") { toast(`ការកក់ ${bId} មាន Job រួចហើយ`, "info"); return; }
     const today = new Date().toISOString().slice(0, 10);
     const newId = generateId("JOB", state.jobs);
+    const techName = b.tech || "—";
+    const techInitials = techName === "—" ? "—" : techName.split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase();
     const newJob = {
-      id: newId, title: b.service, vehicle: b.vehicle, customer: b.customer,
-      tech: b.tech, techInitials: b.tech.split(' ').map(w => w[0]).join('').slice(0, 2), techColor: "#22c55e",
+      id: newId, title: b.service || "—", vehicle: b.vehicle, customer: b.customer,
+      tech: techName, techInitials, techColor: "#22c55e",
       status: "waiting", priority: "normal",
       created: today + " " + new Date().toTimeString().slice(0, 5),
-      promised: today + " " + b.time, services: [], partsUsed: [], notes: `បង្កើតពីការកក់ ${b.id}`,
+      promised: today + " " + (b.time || "17:00"), services: [], partsUsed: [], notes: `បង្កើតពីការកក់ ${b.id}`,
     };
     setState(s => ({
       ...s,

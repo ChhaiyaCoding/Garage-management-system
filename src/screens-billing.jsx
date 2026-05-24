@@ -35,10 +35,10 @@ function PartsScreen({ state, setState, currency, toast, onNewPart }) {
     }
     return true;
   });
-  const totalValue = allParts.reduce((s, p) => s + p.stock * p.cost, 0);
-  const lowCount = allParts.filter(p => p.stock <= p.reorder).length;
-  const outCount = allParts.filter(p => p.stock === 0).length;
-  const suppliers = [...new Set(allParts.map(p => p.supplier))];
+  const totalValue = allParts.reduce((s, p) => s + (p.stock || 0) * (p.cost || 0), 0);
+  const lowCount = allParts.filter(p => (p.stock || 0) <= (p.reorder || 0)).length;
+  const outCount = allParts.filter(p => (p.stock || 0) === 0).length;
+  const suppliers = [...new Set(allParts.map(p => p.supplier || "—"))];
 
   return (
     <div className="page">
@@ -137,8 +137,8 @@ function PartsScreen({ state, setState, currency, toast, onNewPart }) {
                       </div>
                     </div>
                   </td>
-                  <td className="num muted">${p.cost.toFixed(2)}</td>
-                  <td className="num" style={{ fontWeight: 700 }}>${p.price.toFixed(2)}</td>
+                  <td className="num muted">${(p.cost || 0).toFixed(2)}</td>
+                  <td className="num" style={{ fontWeight: 700 }}>${(p.price || 0).toFixed(2)}</td>
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm btn-ghost" title="Reorder · បញ្ជា​ទិញ​ស្តុក" onClick={() => reorderPart(p)}>
@@ -474,7 +474,7 @@ function QuotationScreen({ state, setState, currency, onNewQuote, toast, onConve
         </div>
         <div className="kpi">
           <div className="kpi-label">តម្លៃសរុប</div>
-          <div className="kpi-value num"><Money value={allQuotes.reduce((s, q) => s + q.total, 0)} currency={currency} /></div>
+          <div className="kpi-value num"><Money value={allQuotes.reduce((s, q) => s + (q.total || 0), 0)} currency={currency} /></div>
           <div className="kpi-delta">មុនពន្ធ</div>
         </div>
       </div>
@@ -527,7 +527,7 @@ function QuotationScreen({ state, setState, currency, onNewQuote, toast, onConve
                   <td className="mono">{q.valid}</td>
                   <td className="num">{q.items}</td>
                   <td className="num" style={{ fontWeight: 700 }}><Money value={q.total} currency={currency} /></td>
-                  <td><span className={"chip chip-" + stCls}>{q.status.toUpperCase()}</span></td>
+                  <td><span className={"chip chip-" + stCls}>{(q.status || "draft").toUpperCase()}</span></td>
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm btn-ghost" title="View" onClick={() => onView(q.id)}><Icon.Doc size={12} /></button>
@@ -659,9 +659,9 @@ function InvoicesScreen({ state, setState, currency, onOpenInvoice, onNewInvoice
   const [tab, setTab] = React.useState("all");
   const allInv = state.invoices;
   const filtered = tab === "all" ? allInv : allInv.filter(i => i.status === tab);
-  const paid = allInv.filter(i => i.status === "paid").reduce((s, i) => s + i.paid, 0);
-  const outstanding = allInv.reduce((s, i) => s + (i.total - i.paid), 0);
-  const overdue = allInv.filter(i => i.status === "overdue").reduce((s, i) => s + (i.total - i.paid), 0);
+  const paid = allInv.filter(i => i.status === "paid").reduce((s, i) => s + (i.paid || 0), 0);
+  const outstanding = allInv.reduce((s, i) => s + ((i.total || 0) - (i.paid || 0)), 0);
+  const overdue = allInv.filter(i => i.status === "overdue").reduce((s, i) => s + ((i.total || 0) - (i.paid || 0)), 0);
 
   return (
     <div className="page">
@@ -749,7 +749,7 @@ function InvoicesScreen({ state, setState, currency, onOpenInvoice, onNewInvoice
                   <td className="num" style={{ fontWeight: 700 }}><Money value={inv.total} currency={currency} /></td>
                   <td className="num"><Money value={inv.paid} currency={currency} /></td>
                   <td className="muted">{inv.method}</td>
-                  <td><span className={"chip chip-" + stCls}>{inv.status.toUpperCase()}</span></td>
+                  <td><span className={"chip chip-" + stCls}>{(inv.status || "due").toUpperCase()}</span></td>
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm btn-ghost" title="Print" onClick={e => { e.stopPropagation(); window.print(); }}><Icon.Print size={12} /></button>

@@ -414,8 +414,8 @@ function MembersScreen({ state, setState, currency, toast, onAddMember }) {
     }));
     toast(`+${delta} ពិន្ទុ`, "ok");
   }
-  const totalPoints = members.reduce((s, m) => s + m.points, 0);
-  const totalSpent = members.reduce((s, m) => s + m.spent, 0);
+  const totalPoints = members.reduce((s, m) => s + (m.points || 0), 0);
+  const totalSpent = members.reduce((s, m) => s + (m.spent || 0), 0);
   return (
     <div className="page">
       <div className="page-head">
