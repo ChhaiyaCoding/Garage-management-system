@@ -31,8 +31,11 @@ const ACCENT_PALETTES = {
 };
 // Light mode reuses the original brand hues; only the "soft" fills get
 // a small opacity bump so chip backgrounds stay readable on slate.
+// dim for #f5b400: shifted toward amber (40° hue vs 44° of original) at
+// 31% lightness so it reads as warm honey-gold, not olive.  Contrast
+// on near-white cards ≈ 4.6:1 (passes WCAG AA).
 const ACCENT_PALETTES_LIGHT = {
-  "#f5b400": { c: "#f5b400", hi: "#ffc832", dim: "#8a6500", soft: "rgba(245, 180, 0, 0.22)" },
+  "#f5b400": { c: "#f5b400", hi: "#ffc832", dim: "#a06b00", soft: "rgba(245, 180, 0, 0.22)" },
   "#3b82f6": { c: "#3b82f6", hi: "#60a5fa", dim: "#1e3a8a", soft: "rgba(59, 130, 246, 0.18)" },
   "#22c55e": { c: "#22c55e", hi: "#4ade80", dim: "#14532d", soft: "rgba(34, 197, 94, 0.18)" },
   "#a78bfa": { c: "#a78bfa", hi: "#c4b5fd", dim: "#4c1d95", soft: "rgba(167, 139, 250, 0.20)" },
