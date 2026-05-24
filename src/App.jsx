@@ -1,5 +1,5 @@
 import React from 'react';
-import GARAGE from './data';
+import GARAGE, { generateId } from './data';
 import { useTweaks, TweaksPanel, TweakSection, TweakColor, TweakRadio } from './tweaks-panel';
 import { useShortcuts, SHORTCUTS } from './lib/shortcuts';
 import { useOnline } from './lib/useOnline';
@@ -11,7 +11,8 @@ import { BookingScreen, DVIScreen, MembersScreen, ReportsScreen, SettingsScreen,
 import { LoginScreen, LoadingScreen } from './screens-auth';
 import { supabase, isConfigured } from './lib/supabase';
 import { loadWorkspace, queueSave, flushSave } from './lib/storage';
-import { sendMessage, lowStockMessage } from './lib/telegram';
+import { sendMessage, lowStockMessage, quoteShareMessage, ownerForwardMessage, isConfigured as telegramConfigured } from './lib/telegram';
+import { lookupCustomer } from './screens-core';
 import './styles.css';
 
 const G = GARAGE;
@@ -156,7 +157,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
     if (!q) return;
     const today = new Date().toISOString().slice(0, 10);
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-    const newId = "JOB-2406-" + String(89 + Math.floor(Math.random() * 30)).padStart(3, "0");
+    const newId = generateId("JOB", state.jobs);
     const newJob = {
       id: newId, title: `ពី Quote ${q.id}`, vehicle: q.vehicle, customer: q.customer,
       tech: "Sok Pheap", techInitials: "SP", techColor: "#22c55e",
@@ -173,9 +174,23 @@ function App({ initialState, userId, userEmail, onSignOut }) {
     setRoute("jobs");
   }
 
-  function sendQuote(qId) {
+  async function sendQuote(qId) {
+    const q = state.quotations.find(x => x.id === qId);
+    if (!q) return;
+    const c = lookupCustomer(q.customer, state) || { name: q.customer };
+    const msg = quoteShareMessage(q, c, (state.config && state.config.garageName) || "Garage");
+    const tg = state.config && state.config.telegram;
+    // Mark status="sent" first — so list reflects the action even if Telegram fails
     setState(s => ({ ...s, quotations: s.quotations.map(x => x.id === qId ? { ...x, status: "sent" } : x) }));
-    toast(`Quote ${qId} បានផ្ញើទៅអតិថិជន`, "ok");
+    if (telegramConfigured(state.config) && c.telegramChatId) {
+      const res = await sendMessage(tg.botToken, c.telegramChatId, msg);
+      toast(res.ok ? `Quote ${qId} → ${c.name} (Telegram)` : `Quote ${qId} marked sent · Telegram failed: ${res.description}`, res.ok ? "ok" : "info");
+    } else if (telegramConfigured(state.config)) {
+      const res = await sendMessage(tg.botToken, tg.ownerChatId, ownerForwardMessage(c.name, msg));
+      toast(res.ok ? `Quote ${qId} → Telegram របស់​អ្នក · forward ​ទៅ ${c.name}` : `Quote ${qId} marked sent · Telegram failed`, res.ok ? "ok" : "info");
+    } else {
+      toast(`Quote ${qId} marked as sent (Telegram មិន​បាន​ភ្ជាប់)`, "info");
+    }
   }
 
   // viewQuote handled by setQuoteOpen below
@@ -185,7 +200,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
     if (!b) return;
     if (b.status === "in-progress") { toast(`ការកក់ ${bId} មាន Job រួចហើយ`, "info"); return; }
     const today = new Date().toISOString().slice(0, 10);
-    const newId = "JOB-2406-" + String(89 + Math.floor(Math.random() * 30)).padStart(3, "0");
+    const newId = generateId("JOB", state.jobs);
     const newJob = {
       id: newId, title: b.service, vehicle: b.vehicle, customer: b.customer,
       tech: b.tech, techInitials: b.tech.split(' ').map(w => w[0]).join('').slice(0, 2), techColor: "#22c55e",
@@ -275,7 +290,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
     const tax = +(subtotal * 0.1).toFixed(2);
     const total = +(subtotal + tax).toFixed(2);
     const newInv = {
-      id: "INV-2406-" + String(73 + Math.floor(Math.random() * 30)).padStart(3, "0"),
+      id: generateId("INV", state.invoices),
       job: jobId, customer: job.customer, vehicle: job.vehicle,
       issued: new Date().toISOString().slice(0, 10),
       subtotal, tax, total, paid: 0,
@@ -330,7 +345,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
         {route === "quotation" && <QuotationScreen state={state} setState={setState} currency={tweaks.currency} onNewQuote={() => setNewQuoteOpen(true)} toast={toast} onConvert={convertQuoteToJob} onSend={sendQuote} onView={setQuoteOpen} />}
         {route === "invoices" && <InvoicesScreen state={state} setState={setState} currency={tweaks.currency} onOpenInvoice={setInvoiceOpen} onNewInvoice={() => setNewInvoiceOpen(true)} toast={toast} />}
         {route === "booking" && <BookingScreen state={state} setState={setState} currency={tweaks.currency} onAddBooking={() => setAddBookingOpen(true)} onConvertBooking={convertBookingToJob} toast={toast} />}
-        {route === "dvi" && <DVIScreen currency={tweaks.currency} toast={toast} />}
+        {route === "dvi" && <DVIScreen state={state} currency={tweaks.currency} toast={toast} />}
         {route === "members" && <MembersScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} onAddMember={() => setAddMemberOpen(true)} />}
         {route === "reports" && <ReportsScreen state={state} currency={tweaks.currency} toast={toast} />}
         {route === "settings" && <SettingsScreen state={state} setState={setState} tweaks={tweaks} setTweak={setTweak} toast={toast} />}
@@ -348,10 +363,10 @@ function App({ initialState, userId, userEmail, onSignOut }) {
       {newJobOpen && <NewJobModal onClose={() => { setNewJobOpen(false); setNewJobPrefill(""); }} setState={setState} toast={toast} state={state} prefillCustomer={newJobPrefill} />}
       {newQuoteOpen && <NewQuoteModal onClose={() => { setNewQuoteOpen(false); setNewQuotePrefill(""); }} setState={setState} toast={toast} currency={tweaks.currency} state={state} prefillCustomer={newQuotePrefill} />}
       {editJobOpen && <EditJobModal id={editJobOpen} state={state} setState={setState} onClose={() => setEditJobOpen(null)} toast={toast} />}
-      {newPartOpen && <NewPartModal onClose={() => setNewPartOpen(false)} setState={setState} toast={toast} />}
+      {newPartOpen && <NewPartModal onClose={() => setNewPartOpen(false)} state={state} setState={setState} toast={toast} />}
       {newInvoiceOpen && <NewInvoiceModal onClose={() => setNewInvoiceOpen(false)} state={state} setState={setState} toast={toast} currency={tweaks.currency} />}
       {addBookingOpen && <AddBookingModal onClose={() => setAddBookingOpen(false)} state={state} setState={setState} toast={toast} />}
-      {addCustomerOpen && <AddCustomerModal onClose={() => setAddCustomerOpen(false)} setState={setState} toast={toast} />}
+      {addCustomerOpen && <AddCustomerModal onClose={() => setAddCustomerOpen(false)} state={state} setState={setState} toast={toast} />}
       {addMemberOpen && <AddMemberModal onClose={() => setAddMemberOpen(false)} state={state} setState={setState} toast={toast} />}
 
       <TweaksPanel>

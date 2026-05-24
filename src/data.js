@@ -414,4 +414,23 @@ const GARAGE = (function () {
   };
 })();
 
+// ID generator: collision-free, year-month aware.
+// Format: PREFIX-YYMM-NNN where NNN is sequential within (existingItems).
+// Falls back to a random 3-digit when existingItems is unknown.
+export function generateId(prefix, existingItems) {
+  const now = new Date();
+  const yymm = String(now.getFullYear()).slice(2) + String(now.getMonth() + 1).padStart(2, "0");
+  const stem = `${prefix}-${yymm}-`;
+  if (Array.isArray(existingItems)) {
+    const maxSeq = existingItems
+      .map(x => x.id)
+      .filter(id => typeof id === "string" && id.startsWith(stem))
+      .map(id => parseInt(id.slice(stem.length), 10))
+      .filter(n => !isNaN(n))
+      .reduce((max, n) => Math.max(max, n), 0);
+    return stem + String(maxSeq + 1).padStart(3, "0");
+  }
+  return stem + String(Math.floor(Math.random() * 900) + 100);
+}
+
 export default GARAGE;

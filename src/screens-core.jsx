@@ -2,6 +2,8 @@ import React from 'react';
 import GARAGE from './data';
 import { Icon } from './icons';
 import { Modal, Drawer } from './shell';
+import { sendMessage, isConfigured as telegramConfigured, ownerForwardMessage } from './lib/telegram';
+import { generateId } from './data';
 // ─── Dashboard, Customers & Vehicles, Job Card screens ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -634,7 +636,20 @@ function CustomerDrawer({ id, state, setState, onClose, currency, onNewJob, onNe
           <button className="btn btn-sm" onClick={() => { onNewQuote && onNewQuote(c.id); onClose(); }}><Icon.Calc size={12} /> Quote</button>
           <button className="btn btn-sm" title="Statement" onClick={() => setStmtOpen(true)}><Icon.Doc size={12} /></button>
           <button className="btn btn-sm" onClick={() => { if (c.phone && c.phone !== "—") { window.open("tel:" + c.phone.replace(/\s/g, ""), "_self"); } else { toast && toast("គ្មានលេខទូរស័ព្ទ", "info"); } }}><Icon.Phone size={12} /></button>
-          <button className="btn btn-sm" onClick={() => { if (c.telegram) { toast && toast(`បានផ្ញើសារ Telegram ទៅ ${c.name}`, "ok"); } else { toast && toast(`បានផ្ញើ SMS ទៅ ${c.phone || c.name}`, "ok"); } }}><Icon.Mail size={12} /></button>
+          <button className="btn btn-sm" title="ផ្ញើ​សារ​សួរ​សុខ​ទុក្ខ​តាម Telegram" onClick={async () => {
+            const garageName = (state?.config && state.config.garageName) || "Garage";
+            const msg = `<b>👋 ${garageName}</b>\n\nជម្រាបសួរ ${c.name},\n\nសូម​អរគុណ​ដែល​ប្រើ​សេវាកម្ម​យើង។`;
+            const tg = state?.config && state.config.telegram;
+            if (telegramConfigured(state?.config) && c.telegramChatId) {
+              const res = await sendMessage(tg.botToken, c.telegramChatId, msg);
+              toast && toast(res.ok ? `បាន​ផ្ញើ​សារ​ទៅ ${c.name}` : `ផ្ញើ​បរាជ័យ · ${res.description}`, res.ok ? "ok" : "error");
+            } else if (telegramConfigured(state?.config)) {
+              const res = await sendMessage(tg.botToken, tg.ownerChatId, ownerForwardMessage(c.name, msg));
+              toast && toast(res.ok ? `បាន​ផ្ញើ​ទៅ Telegram របស់​អ្នក · forward ​ទៅ ${c.name}` : `ផ្ញើ​បរាជ័យ · ${res.description}`, res.ok ? "ok" : "error");
+            } else {
+              toast && toast("Telegram មិន​បាន​ភ្ជាប់ · ​សុំ​ភ្ជាប់​នៅ Settings", "info");
+            }
+          }}><Icon.Mail size={12} /></button>
         </div>
         {stmtOpen && <CustomerStatementModal customer={c} state={state} currency={currency} onClose={() => setStmtOpen(false)} toast={toast} />}
 
@@ -661,7 +676,7 @@ function CustomerDrawer({ id, state, setState, onClose, currency, onNewJob, onNe
             </div>
           ))}
         </div>
-        {addVehOpen && <AddVehicleModal customerId={c.id} setState={setState} onClose={() => setAddVehOpen(false)} toast={toast} />}
+        {addVehOpen && <AddVehicleModal customerId={c.id} state={state} setState={setState} onClose={() => setAddVehOpen(false)} toast={toast} />}
         {editVeh && <EditVehicleModal vehicle={editVeh} setState={setState} onClose={() => setEditVeh(null)} toast={toast} />}
         {confirmDelVeh && <ConfirmModal title="លុបរថយន្ត?" message={`លុប ${confirmDelVeh.plate} · ${vehicleLabel(confirmDelVeh)} ឬ​ទេ?`} onClose={() => setConfirmDelVeh(null)} onConfirm={() => { setState(s => ({ ...s, vehicles: s.vehicles.filter(x => x.id !== confirmDelVeh.id) })); toast(`លុប ${confirmDelVeh.plate} ជោគជ័យ`, "ok"); setConfirmDelVeh(null); }} />}
         {confirmDelCust && <ConfirmModal title="លុបអតិថិជន?" message={`លុប ${c.name} និង​រថយន្ត ${cvehs.length} គ្រឿង? Jobs/Invoices/Quotes នឹង​នៅ​ដដែល​តែ​អត់​មាន​អ្នកជា​​ម្ចាស់។`} danger onClose={() => setConfirmDelCust(false)} onConfirm={() => { setState(s => ({ ...s, customers: s.customers.filter(x => x.id !== c.id), vehicles: (s.vehicles || []).filter(v => v.owner !== c.id) })); toast(`លុប ${c.name} ជោគជ័យ`, "ok"); setConfirmDelCust(false); onClose(); }} />}
@@ -697,7 +712,7 @@ function Stat({ label, value }) {
   );
 }
 
-function AddCustomerModal({ onClose, setState, toast }) {
+function AddCustomerModal({ onClose, state, setState, toast }) {
   const [name, setName] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [address, setAddress] = React.useState("");
@@ -712,14 +727,14 @@ function AddCustomerModal({ onClose, setState, toast }) {
 
   function submit() {
     if (!name.trim()) { toast("សូមបញ្ចូលឈ្មោះអតិថិជន", "error"); return; }
-    const cid = "CU-1" + String(9 + Math.floor(Math.random() * 900)).padStart(3, "0");
+    const cid = generateId("CU", state?.customers || []);
     const parts = name.trim().split(/\s+/);
     const initials = (parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
 
     // Optional vehicle creation
     let newVeh = null;
     if (addVeh && plate.trim()) {
-      const vid = "VE-" + String(2014 + Math.floor(Math.random() * 8000));
+      const vid = generateId("VE", state?.vehicles || []);
       newVeh = {
         id: vid, owner: cid, plate: plate.trim().toUpperCase(),
         make: make.trim() || "—", model: model.trim() || "—",
@@ -873,7 +888,7 @@ function EditCustomerModal({ customer, state, setState, onClose, toast }) {
 }
 
 // ── Add Vehicle Modal (to existing customer) ──
-function AddVehicleModal({ customerId, setState, onClose, toast }) {
+function AddVehicleModal({ customerId, state, setState, onClose, toast }) {
   const [plate, setPlate] = React.useState("");
   const [make, setMake] = React.useState("Toyota");
   const [model, setModel] = React.useState("");
@@ -884,7 +899,7 @@ function AddVehicleModal({ customerId, setState, onClose, toast }) {
 
   function save() {
     if (!plate.trim()) { toast("បំពេញ​ស្លាក​លេខ", "error"); return; }
-    const vid = "VE-" + String(2014 + Math.floor(Math.random() * 8000));
+    const vid = generateId("VE", state?.vehicles || []);
     const v = {
       id: vid, owner: customerId, plate: plate.trim().toUpperCase(),
       make: make.trim() || "—", model: model.trim() || "—",

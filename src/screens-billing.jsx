@@ -4,6 +4,7 @@ import { Icon } from './icons';
 import { Modal } from './shell';
 import { Money, Row, exportCsv, lookupCustomer, lookupVehicle, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
 import { buildShareUrl, invoiceShareMessage, quoteShareMessage, sendMessage, ownerForwardMessage, isConfigured as telegramConfigured } from './lib/telegram';
+import { generateId } from './data';
 // ─── Parts, Quotation, Invoices screens ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -573,7 +574,7 @@ function NewQuoteModal({ onClose, setState, toast, currency, state, prefillCusto
 
   function submit(status) {
     if (!vehicleId) { toast("ជ្រើសរើសរថយន្ត", "error"); return; }
-    const id = "QT-2406-" + String(32 + Math.floor(Math.random() * 50)).padStart(3, "0");
+    const id = generateId("QT", state?.quotations || []);
     setState(s => ({
       ...s,
       quotations: [{
@@ -903,7 +904,7 @@ function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
   );
 }
 
-function NewPartModal({ onClose, setState, toast }) {
+function NewPartModal({ onClose, state, setState, toast }) {
   const [sku, setSku] = React.useState("");
   const [name, setName] = React.useState("");
   const [nameEn, setNameEn] = React.useState("");
@@ -918,7 +919,7 @@ function NewPartModal({ onClose, setState, toast }) {
   function submit() {
     if (!name.trim()) { toast("សូមបញ្ចូលឈ្មោះ Part", "error"); return; }
     if (!sku.trim()) { toast("សូមបញ្ចូល SKU", "error"); return; }
-    const id = "P-" + String(13 + Math.floor(Math.random() * 800)).padStart(3, "0");
+    const id = generateId("P", state?.parts || []);
     const newP = {
       id, sku: sku.trim().toUpperCase(), name: name.trim(), nameEn: nameEn.trim() || name.trim(),
       category, supplier: supplier.trim() || "—",
@@ -1118,7 +1119,7 @@ function NewInvoiceModal({ onClose, state, setState, toast, currency }) {
 
   function submit() {
     if (!vehicleId) { toast("ជ្រើសរើសរថយន្ត", "error"); return; }
-    const id = "INV-2406-" + String(73 + Math.floor(Math.random() * 90)).padStart(3, "0");
+    const id = generateId("INV", state?.invoices || []);
     const newInv = {
       id, job: "—", customer: customerId, vehicle: vehicleId, issued: new Date().toISOString().slice(0, 10),
       subtotal, tax, total, paid: 0, status: "due", method: "—",

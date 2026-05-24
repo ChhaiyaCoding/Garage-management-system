@@ -1,10 +1,10 @@
 import React from 'react';
-import GARAGE from './data';
+import GARAGE, { generateId } from './data';
 import { Icon } from './icons';
 import { Modal } from './shell';
 import { Money, Stat, lookupCustomer, lookupVehicle, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
 import { PRESETS, defaultRange, buildBuckets, bucketKeyForDate, dateInRange } from './lib/dateRange';
-import { getBotMe, sendMessage, isConfigured as telegramConfigured, newBookingMessage } from './lib/telegram';
+import { getBotMe, sendMessage, isConfigured as telegramConfigured, newBookingMessage, ownerForwardMessage } from './lib/telegram';
 
 // ── Date Range Picker (inline) ──
 function DateRangePicker({ range, onChange }) {
@@ -235,7 +235,7 @@ const DVI_SECTIONS = [
   ]},
 ];
 
-function DVIScreen({ currency, toast }) {
+function DVIScreen({ state, currency, toast }) {
   const [sections, setSections] = React.useState(() =>
     DVI_SECTIONS.map(s => ({ ...s, items: s.items.map(i => ({ ...i })) }))
   );
@@ -263,7 +263,23 @@ function DVIScreen({ currency, toast }) {
         </div>
         <div className="page-actions">
           <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print Report</button>
-          <button className="btn" onClick={() => toast("បានផ្ញើរបាយការណ៍ DVI តាម Telegram", "ok")}><Icon.Send size={14} /> ផ្ញើតាម Telegram</button>
+          <button className="btn" onClick={async () => {
+            const garageName = (state?.config && state.config.garageName) || "Garage";
+            const failItems = allItems.filter(i => i.status === "fail").map(i => `• ${i.name}${i.note ? ` — ${i.note}` : ''}`).join('\n');
+            const warnItems = allItems.filter(i => i.status === "warn").map(i => `• ${i.name}${i.note ? ` — ${i.note}` : ''}`).join('\n');
+            const msg = `<b>🔍 ${garageName} · DVI Report</b>\n` +
+              `\nរថយន្ត: <b>2KA-3917 · Lexus RX350</b>\nJob: <code>JOB-2406-088</code>\n\n` +
+              `✅ ${counts.pass} pass · ⚠️ ${counts.warn} warn · ❌ ${counts.fail} fail\n` +
+              (failItems ? `\n<b>❌ បន្ទាន់</b>\n${failItems}\n` : '') +
+              (warnItems ? `\n<b>⚠️ ​ត្រូវ​ផ្លាស់</b>\n${warnItems}\n` : '');
+            const tg = state?.config && state.config.telegram;
+            if (telegramConfigured(state?.config)) {
+              const res = await sendMessage(tg.botToken, tg.ownerChatId, msg);
+              toast(res.ok ? "បានផ្ញើ DVI report ​ទៅ Telegram" : `ផ្ញើ​បរាជ័យ · ${res.description}`, res.ok ? "ok" : "error");
+            } else {
+              toast("Telegram មិន​បាន​ភ្ជាប់ · ​សុំ​ភ្ជាប់​នៅ Settings", "info");
+            }
+          }}><Icon.Send size={14} /> ផ្ញើតាម Telegram</button>
           <button className="btn btn-primary" onClick={() => toast(`DVI បានរក្សាទុក · ${counts.pass} pass · ${counts.warn} warn · ${counts.fail} fail`, "ok")}>
             <Icon.Check size={14} /> Submit Inspection
           </button>
@@ -1167,8 +1183,10 @@ function BranchModal({ branch, setState, toast, onClose }) {
       setState(s => ({ ...s, branches: s.branches.map(b => b.id === branch.id ? { ...b, name: name.trim(), addr: addr.trim(), bays: +bays, staff: +staffN } : b) }));
       toast(`កែសាខា ${name} ជោគជ័យ`, "ok");
     } else {
-      const id = "BR-" + String(4 + Math.floor(Math.random() * 90)).padStart(2, "0");
-      setState(s => ({ ...s, branches: [...s.branches, { id, name: name.trim(), addr: addr.trim(), bays: +bays, staff: +staffN, status: "active" }] }));
+      setState(s => {
+        const id = generateId("BR", s.branches || []);
+        return { ...s, branches: [...(s.branches || []), { id, name: name.trim(), addr: addr.trim(), bays: +bays, staff: +staffN, status: "active" }] };
+      });
       toast(`បន្ថែមសាខា ${name} ជោគជ័យ`, "ok");
     }
     onClose();
@@ -1240,8 +1258,10 @@ function StaffModal({ staff, setState, toast, onClose }) {
       setState(s => ({ ...s, staff: s.staff.map(x => x.id === staff.id ? { ...x, name: name.trim(), role, dept, initials } : x) }));
       toast(`កែបុគ្គលិក ${name} ជោគជ័យ`, "ok");
     } else {
-      const id = "S-" + String(8 + Math.floor(Math.random() * 90)).padStart(2, "0");
-      setState(s => ({ ...s, staff: [...s.staff, { id, name: name.trim(), initials, color: PALETTE[Math.floor(Math.random() * PALETTE.length)], role, dept, load: 0, capacity: 0 }] }));
+      setState(s => {
+        const id = generateId("S", s.staff || []);
+        return { ...s, staff: [...(s.staff || []), { id, name: name.trim(), initials, color: PALETTE[Math.floor(Math.random() * PALETTE.length)], role, dept, load: 0, capacity: 0 }] };
+      });
       toast(`បន្ថែមបុគ្គលិក ${name} ជោគជ័យ`, "ok");
     }
     onClose();
@@ -1542,7 +1562,7 @@ function AddBookingModal({ onClose, state, setState, toast }) {
     if (!service.trim()) { toast("សូមបញ្ចូលប្រភេទសេវា", "error"); return; }
     if (!vehicleId) { toast("ជ្រើសរើសរថយន្ត", "error"); return; }
     const tech = technicians.find(t => t.id === techId);
-    const id = "BK-" + String(507 + Math.floor(Math.random() * 90));
+    const id = generateId("BK", state?.bookings || []);
     const today = new Date().toISOString().slice(0, 10);
     const newB = { id, date: today, time, duration: +duration, customer: customerId, vehicle: vehicleId, service: service.trim(), tech: tech ? tech.name : "—", status: "confirmed" };
     setState(s => ({ ...s, bookings: [...s.bookings, newB].sort((a, b) => a.time.localeCompare(b.time)) }));
@@ -1602,7 +1622,7 @@ function AddMemberModal({ onClose, state, setState, toast }) {
 
   function submit() {
     if (!name.trim()) { toast("សូមបញ្ចូលឈ្មោះសមាជិក", "error"); return; }
-    const id = "M-" + String(100 + Math.floor(Math.random() * 900));
+    const id = generateId("M", state?.members || []);
     const newM = { id, name: name.trim(), tier, points: +points, spent: +spent, joined: new Date().toISOString().slice(0, 10) };
     setState(s => ({ ...s, members: [...s.members, newM] }));
     toast(`បន្ថែមសមាជិក ${name} (${tier}) ជោគជ័យ`, "ok");

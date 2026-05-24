@@ -1,5 +1,5 @@
 import React from 'react';
-import GARAGE from './data';
+import GARAGE, { generateId } from './data';
 import { Icon } from './icons';
 import { Modal, Drawer } from './shell';
 import { Money, Row, lookupCustomer, lookupVehicle, vehiclesByOwner, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
@@ -857,7 +857,7 @@ function NewJobModal({ onClose, setState, toast, state, prefillCustomer }) {
     if (!vehicleId) { toast("ជ្រើសរើសរថយន្ត", "error"); return; }
     const tech = technicians.find(t => t.id === techId);
     const today = new Date().toISOString().slice(0, 10);
-    const newId = "JOB-2406-" + String(89 + Math.floor(Math.random() * 30)).padStart(3, "0");
+    const newId = generateId("JOB", state?.jobs || []);
     const newJob = {
       id: newId,
       title,
