@@ -3,7 +3,7 @@ import GARAGE from './data';
 import { Icon } from './icons';
 import { Modal } from './shell';
 import { Money, Row, exportCsv, lookupCustomer, lookupVehicle, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
-import { buildShareUrl, invoiceShareMessage, quoteShareMessage } from './lib/telegram';
+import { buildShareUrl, invoiceShareMessage, quoteShareMessage, sendMessage, ownerForwardMessage, isConfigured as telegramConfigured } from './lib/telegram';
 // ─── Parts, Quotation, Invoices screens ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -802,9 +802,18 @@ function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
         <button className="btn" onClick={onClose}>បិទ</button>
         <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print</button>
         <button className="btn" onClick={downloadPdf} disabled={downloading}><Icon.Download size={14} /> {downloading ? "កំពុង​បង្កើត..." : "ទាញ​យក PDF"}</button>
-        <button className="btn" onClick={() => {
+        <button className="btn" onClick={async () => {
           const msg = invoiceShareMessage(inv, c, (state.config && state.config.garageName) || "Garage");
-          window.open(buildShareUrl(msg), "_blank");
+          const tg = state.config && state.config.telegram;
+          if (telegramConfigured(state.config) && c.telegramChatId) {
+            const res = await sendMessage(tg.botToken, c.telegramChatId, msg);
+            res.ok ? toast(`បាន​ផ្ញើ Invoice ​ទៅ ${c.name}`, "ok") : toast(`ផ្ញើ​បរាជ័យ · ${res.description}`, "error");
+          } else if (telegramConfigured(state.config)) {
+            const res = await sendMessage(tg.botToken, tg.ownerChatId, ownerForwardMessage(c.name, msg));
+            res.ok ? toast(`បាន​ផ្ញើ​ទៅ Telegram របស់​អ្នក · forward ​ទៅ ${c.name}`, "ok") : toast(`ផ្ញើ​បរាជ័យ · ${res.description}`, "error");
+          } else {
+            window.open(buildShareUrl(msg), "_blank");
+          }
         }}><Icon.Send size={14} /> ផ្ញើ​តាម Telegram</button>
         {inv.status !== "paid" && (
           <button className="btn btn-primary" onClick={acceptPayment}>
@@ -980,9 +989,18 @@ function QuoteModal({ id, state, setState, currency, onClose, toast, onConvert, 
         <button className="btn" onClick={onClose}>បិទ</button>
         <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print</button>
         <button className="btn" onClick={downloadPdf} disabled={downloading}><Icon.Download size={14} /> {downloading ? "កំពុង​បង្កើត..." : "ទាញ​យក PDF"}</button>
-        <button className="btn" onClick={() => {
+        <button className="btn" onClick={async () => {
           const msg = quoteShareMessage(q, c, (state.config && state.config.garageName) || "Garage");
-          window.open(buildShareUrl(msg), "_blank");
+          const tg = state.config && state.config.telegram;
+          if (telegramConfigured(state.config) && c.telegramChatId) {
+            const res = await sendMessage(tg.botToken, c.telegramChatId, msg);
+            res.ok ? toast(`បាន​ផ្ញើ Quote ​ទៅ ${c.name}`, "ok") : toast(`ផ្ញើ​បរាជ័យ · ${res.description}`, "error");
+          } else if (telegramConfigured(state.config)) {
+            const res = await sendMessage(tg.botToken, tg.ownerChatId, ownerForwardMessage(c.name, msg));
+            res.ok ? toast(`បាន​ផ្ញើ​ទៅ Telegram របស់​អ្នក · forward ​ទៅ ${c.name}`, "ok") : toast(`ផ្ញើ​បរាជ័យ · ${res.description}`, "error");
+          } else {
+            window.open(buildShareUrl(msg), "_blank");
+          }
         }}><Icon.Send size={14} /> ផ្ញើ​តាម Telegram</button>
         {q.status !== "sent" && q.status !== "accepted" && onSend && (
           <button className="btn" onClick={() => { onSend(q.id); onClose(); }}><Icon.Send size={14} /> ផ្ញើ Quote</button>

@@ -41,14 +41,38 @@ export async function sendMessage(token, chatId, text, opts = {}) {
   });
 }
 
-// Build a t.me share URL.  Falls back when we don't have the customer's
-// chat ID — opens Telegram with a pre-filled message that the owner
-// can forward to any chat manually.
+// Strip HTML tags (Telegram share URL doesn't render them — they leak
+// as raw <b>...</b> text). Telegram bot API does support HTML, so we
+// only sanitize for the share-URL path.
+export function stripHtml(text) {
+  return String(text || '')
+    .replace(/<\/?[a-z][^>]*>/gi, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
+// Build a t.me share URL.  t.me/share/url REQUIRES the `url` parameter
+// — if only `text` is given, Telegram redirects to its homepage. So we
+// always pass a URL (the app URL by default) plus the plain-text body.
 export function buildShareUrl(text, urlToShare) {
   const params = new URLSearchParams();
-  if (urlToShare) params.set('url', urlToShare);
-  if (text) params.set('text', text);
+  params.set('url', urlToShare || 'https://garage-management-system-pearl.vercel.app');
+  if (text) params.set('text', stripHtml(text));
   return `https://t.me/share/url?${params.toString()}`;
+}
+
+// Wrap a message for owner-forward: bot sends to owner with a header
+// "→ forward to [customer]" so owner can long-press → Forward → pick chat.
+export function ownerForwardMessage(customerName, body) {
+  return (
+    `<b>↪️ ផ្ញើ​ទៅ ${customerName || 'អតិថិជន'}</b>\n` +
+    `<i>(long-press → Forward → ជ្រើស chat ​អតិថិជន)</i>\n` +
+    `\n` +
+    `━━━━━━━━━━━━━━━\n` +
+    body
+  );
 }
 
 // Quick check whether owner has configured the bot.

@@ -5,7 +5,7 @@ import { Modal, Drawer } from './shell';
 import { Money, Row, lookupCustomer, lookupVehicle, vehiclesByOwner, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
 import { uploadJobPhoto, deleteJobPhoto, PHOTO_KINDS } from './lib/photos';
 import { isConfigured } from './lib/supabase';
-import { buildShareUrl, sendMessage, jobStatusMessage, isConfigured as telegramConfigured } from './lib/telegram';
+import { buildShareUrl, sendMessage, jobStatusMessage, ownerForwardMessage, isConfigured as telegramConfigured } from './lib/telegram';
 // ─── Job Card Kanban + Job detail drawer + New Job modal ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -271,12 +271,21 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
               const garageName = (state.config && state.config.garageName) || "Garage";
               const msg = jobStatusMessage(job, c, v, garageName);
               const tg = state.config && state.config.telegram;
+              // Best case: customer has chat ID → bot sends directly
               if (telegramConfigured(state.config) && c.telegramChatId) {
                 const res = await sendMessage(tg.botToken, c.telegramChatId, msg);
                 if (res.ok) toast(`បាន​ផ្ញើ​សារ​ទៅ ${c.name}`, "ok");
                 else toast(`ផ្ញើ​បរាជ័យ · ${res.description}`, "error");
-              } else {
-                // Fall back to share URL — owner forwards from their own Telegram
+              }
+              // Bot connected but customer has no chat ID → send to owner with forward header
+              else if (telegramConfigured(state.config)) {
+                const forwardMsg = ownerForwardMessage(c.name, msg);
+                const res = await sendMessage(tg.botToken, tg.ownerChatId, forwardMsg);
+                if (res.ok) toast(`បាន​ផ្ញើ​ទៅ Telegram របស់​អ្នក · forward ​ទៅ ${c.name}`, "ok");
+                else toast(`ផ្ញើ​បរាជ័យ · ${res.description}`, "error");
+              }
+              // No bot configured → t.me/share URL
+              else {
                 window.open(buildShareUrl(msg), "_blank");
               }
             }}
