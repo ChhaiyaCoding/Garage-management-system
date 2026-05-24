@@ -121,7 +121,7 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
       <div style={{ padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
           <div>
-            <div className="mono" style={{ fontSize: 12, color: 'var(--accent-text)', letterSpacing: '0.1em' }}>{job.id}</div>
+            <div className="mono" style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-text)', letterSpacing: '0.1em' }}>{job.id}</div>
             <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>{job.title}</div>
             <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>បង្កើត {job.created} · សន្យាបញ្ចប់ {job.promised}</div>
           </div>

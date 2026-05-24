@@ -673,7 +673,7 @@ function CustomerDrawer({ id, state, setState, onClose, currency, onNewJob, onNe
             const jv = lookupVehicle(j.vehicle, state) || MISSING_V;
             return (
               <div key={j.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'var(--bg-2)', borderRadius: 'var(--radius)' }}>
-                <div className="mono" style={{ fontSize: 11, color: 'var(--accent-text)' }}>{j.id}</div>
+                <div className="mono" style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-text)' }}>{j.id}</div>
                 <div style={{ flex: 1, fontSize: 13 }}>
                   <div style={{ fontWeight: 600 }}>{j.title}</div>
                   <div className="muted" style={{ fontSize: 11 }}>{jv.plate} · {j.created.split(" ")[0]}</div>

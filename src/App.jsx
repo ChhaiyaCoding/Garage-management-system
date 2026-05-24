@@ -199,9 +199,12 @@ function App({ initialState, userId, userEmail, onSignOut }) {
     root.style.setProperty("--accent-hi", p.hi);
     root.style.setProperty("--accent-dim", p.dim);
     root.style.setProperty("--accent-soft", p.soft);
-    // --accent-text: brand color stays for surfaces, darker variant for text
-    // readability on light backgrounds. Dark mode uses the bright accent.
-    root.style.setProperty("--accent-text", effectiveTheme === "light" ? p.dim : p.c);
+    // --accent-text:
+    //   Dark mode → bright accent (high contrast on near-black bg).
+    //   Light mode → primary dark text (--text-0 value, #1c2230) for
+    //   maximum readability; the amber surface tone (borders, soft
+    //   fills, --accent itself) still carries the brand identity.
+    root.style.setProperty("--accent-text", effectiveTheme === "light" ? "#1c2230" : p.c);
     root.dataset.density = tweaks.density;
     root.dataset.sidebar = tweaks.sidebar;
     root.dataset.theme = effectiveTheme;
