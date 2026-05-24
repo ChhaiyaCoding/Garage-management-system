@@ -11,6 +11,7 @@ import { BookingScreen, DVIScreen, MembersScreen, ReportsScreen, SettingsScreen,
 import { LoginScreen, LoadingScreen } from './screens-auth';
 import { supabase, isConfigured } from './lib/supabase';
 import { loadWorkspace, queueSave, flushSave } from './lib/storage';
+import { sendMessage, lowStockMessage } from './lib/telegram';
 import './styles.css';
 
 const G = GARAGE;
@@ -119,6 +120,36 @@ function App({ initialState, userId, userEmail, onSignOut }) {
       else setSaveStatus("error");
     });
   }, [state, userId, online]);
+
+  // ─── Low-stock Telegram alerts (owner) ───
+  // Send only on transition (above reorder → below).  Seed the Set with
+  // all currently-low parts on first render so existing low-stock items
+  // don't spam the owner the moment they log in.
+  const lowStockAlertedRef = React.useRef(null);
+  React.useEffect(() => {
+    const tg = state.config && state.config.telegram;
+    const parts = state.parts || [];
+    // First-time seed: remember which parts are already low, no alerts.
+    if (lowStockAlertedRef.current === null) {
+      lowStockAlertedRef.current = new Set(
+        parts.filter(p => p.stock <= (p.reorder || 0)).map(p => p.id)
+      );
+      return;
+    }
+    if (!tg || !tg.botToken || !tg.ownerChatId || tg.notifyLowStock === false) return;
+    const alerted = lowStockAlertedRef.current;
+    parts.forEach(p => {
+      const threshold = p.reorder || 0;
+      const isLow = p.stock <= threshold;
+      if (isLow && !alerted.has(p.id)) {
+        sendMessage(tg.botToken, tg.ownerChatId, lowStockMessage(p)).catch(() => {});
+        alerted.add(p.id);
+      } else if (!isLow && alerted.has(p.id)) {
+        // Restocked — clear flag so the next dip alerts again
+        alerted.delete(p.id);
+      }
+    });
+  }, [state.parts, state.config]);
 
   function convertQuoteToJob(qId) {
     const q = state.quotations.find(x => x.id === qId);

@@ -99,9 +99,9 @@ export function lowStockMessage(part) {
     `\n` +
     `<b>${part.name}</b>\n` +
     `SKU: <code>${part.sku}</code>\n` +
-    `សល់: <b>${part.stock}</b> (min ${part.minStock})\n` +
+    `សល់: <b>${part.stock}</b> (reorder ≤ ${part.reorder ?? 0})\n` +
     `\n` +
-    `សូម​ ​reorder ឆាប់​ៗ។`
+    `សូម​ reorder ឆាប់​ៗ។`
   );
 }
 
