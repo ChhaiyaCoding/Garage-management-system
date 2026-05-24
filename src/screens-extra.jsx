@@ -4,6 +4,7 @@ import { Icon } from './icons';
 import { Modal } from './shell';
 import { Money, Stat, lookupCustomer, lookupVehicle, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
 import { PRESETS, defaultRange, buildBuckets, bucketKeyForDate, dateInRange } from './lib/dateRange';
+import { getBotMe, sendMessage, isConfigured as telegramConfigured, newBookingMessage } from './lib/telegram';
 
 // ── Date Range Picker (inline) ──
 function DateRangePicker({ range, onChange }) {
@@ -1061,7 +1062,7 @@ function SettingsScreen({ state, setState, tweaks, setTweak, toast }) {
       {tab === "branches" && <BranchSettings state={state} setState={setState} toast={toast} />}
       {tab === "staff" && <StaffSettings state={state} setState={setState} toast={toast} />}
       {tab === "billing" && <BillingSettings state={state} setState={setState} toast={toast} />}
-      {tab === "integrations" && <IntegrationSettings toast={toast} />}
+      {tab === "integrations" && <IntegrationSettings state={state} setState={setState} toast={toast} />}
       {tab === "loyalty" && <LoyaltySettings state={state} setState={setState} toast={toast} />}
     </div>
   );
@@ -1302,34 +1303,184 @@ function BillingSettings({ state, setState, toast }) {
   );
 }
 
-function IntegrationSettings({ toast }) {
+function IntegrationSettings({ state, setState, toast }) {
+  const tgConnected = telegramConfigured(state.config);
+  const [tgModalOpen, setTgModalOpen] = React.useState(false);
   const integ = [
-    { name: "ABA Pay", desc: "Accept payments · QR + Bakong", icon: "Money", connected: true },
-    { name: "Wing Money", desc: "Mobile wallet payments", icon: "Money", connected: true },
-    { name: "Telegram", desc: "Send invoices & reminders", icon: "Send", connected: true },
+    { name: "Telegram", desc: "ផ្ញើ​សារ​ទៅ​អតិថិជន · ការ​កក់​ថ្មី · ស្ដុក​អស់", icon: "Send", connected: tgConnected, key: "telegram" },
+    { name: "ABA Pay", desc: "Accept payments · QR + Bakong", icon: "Money", connected: false },
+    { name: "Wing Money", desc: "Mobile wallet payments", icon: "Money", connected: false },
     { name: "SMS Gateway", desc: "Smart, Cellcard, Metfone", icon: "Phone", connected: false },
     { name: "QuickBooks", desc: "Accounting sync", icon: "Doc", connected: false },
-    { name: "Bakong KHQR", desc: "National QR standard", icon: "Tag", connected: true },
+    { name: "Bakong KHQR", desc: "National QR standard", icon: "Tag", connected: false },
   ];
+  function onConfigure(item) {
+    if (item.key === "telegram") {
+      setTgModalOpen(true);
+    } else {
+      toast && toast(`${item.name} (ឆាប់ៗ)`, "info");
+    }
+  }
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-      {integ.map(it => (
-        <div key={it.name} className="card" style={{ padding: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <div style={{ width: 36, height: 36, background: 'var(--bg-3)', borderRadius: 8, display: 'grid', placeItems: 'center', color: 'var(--accent-text)' }}>
-              {React.createElement(Icon[it.icon])}
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        {integ.map(it => (
+          <div key={it.name} className="card" style={{ padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ width: 36, height: 36, background: 'var(--bg-3)', borderRadius: 8, display: 'grid', placeItems: 'center', color: 'var(--accent-text)' }}>
+                {React.createElement(Icon[it.icon])}
+              </div>
+              {it.connected ? <span className="chip chip-green">CONNECTED</span> : <span className="chip chip-gray">OFF</span>}
             </div>
-            {it.connected ? <span className="chip chip-green">CONNECTED</span> : <span className="chip chip-gray">OFF</span>}
+            <div style={{ fontWeight: 700, fontSize: 14 }}>{it.name}</div>
+            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{it.desc}</div>
+            <button className="btn btn-sm" style={{ marginTop: 12, width: '100%', justifyContent: 'center' }} onClick={() => onConfigure(it)}>
+              {it.connected ? "កំណត់" : "ភ្ជាប់"}
+            </button>
           </div>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>{it.name}</div>
-          <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{it.desc}</div>
-          <button className="btn btn-sm" style={{ marginTop: 12, width: '100%', justifyContent: 'center' }}
-            onClick={() => toast && toast(it.connected ? `កំណត់ ${it.name} (ឆាប់ៗ)` : `ភ្ជាប់ ${it.name} (ឆាប់ៗ)`, "info")}>
-            {it.connected ? "កំណត់" : "ភ្ជាប់"}
-          </button>
+        ))}
+      </div>
+      {tgModalOpen && <TelegramSetupModal state={state} setState={setState} toast={toast} onClose={() => setTgModalOpen(false)} />}
+    </>
+  );
+}
+
+function TelegramSetupModal({ state, setState, toast, onClose }) {
+  const tg = state.config?.telegram || {};
+  const [botToken, setBotToken] = React.useState(tg.botToken || "");
+  const [ownerChatId, setOwnerChatId] = React.useState(tg.ownerChatId || "");
+  const [notifyNewBooking, setNotifyNewBooking] = React.useState(tg.notifyNewBooking ?? true);
+  const [notifyLowStock, setNotifyLowStock] = React.useState(tg.notifyLowStock ?? true);
+  const [testing, setTesting] = React.useState(false);
+  const [verifyMsg, setVerifyMsg] = React.useState(null);
+
+  async function verifyAndSave() {
+    if (!botToken.trim()) {
+      setVerifyMsg({ kind: "error", text: "ត្រូវ​បំពេញ Bot Token" });
+      return;
+    }
+    setTesting(true);
+    setVerifyMsg(null);
+    const me = await getBotMe(botToken.trim());
+    if (!me.ok) {
+      setTesting(false);
+      setVerifyMsg({ kind: "error", text: `Bot Token មិន​ត្រឹមត្រូវ · ${me.description || "unknown"}` });
+      return;
+    }
+    // Try sending a test message if chat ID provided
+    if (ownerChatId.trim()) {
+      const send = await sendMessage(
+        botToken.trim(),
+        ownerChatId.trim(),
+        `✅ <b>Garage OS</b> បាន​ភ្ជាប់​ដោយ​ជោគជ័យ\n\nBot: @${me.result.username}`,
+      );
+      if (!send.ok) {
+        setTesting(false);
+        setVerifyMsg({ kind: "error", text: `Bot ត្រឹមត្រូវ ប៉ុន្តែ Chat ID មិន​ដំណើរការ · ${send.description}` });
+        return;
+      }
+    }
+    // Save to state
+    setState(s => ({
+      ...s,
+      config: {
+        ...s.config,
+        telegram: {
+          botToken: botToken.trim(),
+          botUsername: me.result.username,
+          ownerChatId: ownerChatId.trim(),
+          notifyNewBooking,
+          notifyLowStock,
+        },
+      },
+    }));
+    setTesting(false);
+    toast(ownerChatId ? "Telegram បាន​ភ្ជាប់ · សារ​សាក​ត្រូវ​បាន​ផ្ញើ" : "Bot Token បាន​រក្សា​ទុក", "ok");
+    onClose();
+  }
+
+  function disconnect() {
+    setState(s => ({
+      ...s,
+      config: { ...s.config, telegram: null },
+    }));
+    toast("បាន​ផ្ដាច់ Telegram", "info");
+    onClose();
+  }
+
+  return (
+    <Modal title="ភ្ជាប់ Telegram Bot" onClose={onClose}
+      footer={<>
+        {tg.botToken && (
+          <button className="btn" onClick={disconnect} style={{ background: 'transparent', color: 'var(--danger)' }}>ផ្ដាច់</button>
+        )}
+        <div style={{ flex: 1 }}></div>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={verifyAndSave} disabled={testing}>
+          {testing ? "កំពុង​សាក..." : "សាក & រក្សា​ទុក"}
+        </button>
+      </>}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div className="muted" style={{ fontSize: 12, padding: 12, background: 'var(--bg-2)', borderRadius: 'var(--radius)' }}>
+          <strong>វិធី​បង្កើត Bot:</strong>
+          <ol style={{ margin: '6px 0 0 18px', padding: 0, lineHeight: 1.7 }}>
+            <li>បើក Telegram → ស្វែងរក <code>@BotFather</code></li>
+            <li>ផ្ញើ <code>/newbot</code> → ដាក់​ឈ្មោះ​ឱ្យ bot របស់​អ្នក</li>
+            <li>Copy <b>Bot Token</b> ដែល​ BotFather ផ្ដល់​ឱ្យ → paste ខាង​ក្រោម</li>
+            <li>បន្ទាប់​មក ស្វែង <code>@userinfobot</code> → ផ្ញើ <code>/start</code> → copy <b>Chat ID</b> របស់​អ្នក → paste ខាង​ក្រោម</li>
+            <li>បំផុត ផ្ញើ <code>/start</code> ទៅ bot ​ដែល​អ្នក​បាន​បង្កើត (សំខាន់!)</li>
+          </ol>
         </div>
-      ))}
-    </div>
+
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Bot Token</label>
+          <input
+            type="text"
+            className="input"
+            placeholder="123456:ABC-DEF..."
+            value={botToken}
+            onChange={e => setBotToken(e.target.value)}
+            style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
+          />
+        </div>
+
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Chat ID របស់​ម្ចាស់​ហាង <span className="muted" style={{ fontWeight: 400 }}>(សម្រាប់​ទទួល​ការ​ជូន​ដំណឹង)</span></label>
+          <input
+            type="text"
+            className="input"
+            placeholder="123456789"
+            value={ownerChatId}
+            onChange={e => setOwnerChatId(e.target.value)}
+            style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>ការ​ជូន​ដំណឹង​ស្វ័យ​ប្រវត្តិ​ទៅ​ម្ចាស់​ហាង:</div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" checked={notifyNewBooking} onChange={e => setNotifyNewBooking(e.target.checked)} />
+            មាន booking ថ្មី
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" checked={notifyLowStock} onChange={e => setNotifyLowStock(e.target.checked)} />
+            Parts ស្ទើរ​អស់ (low stock)
+          </label>
+        </div>
+
+        {verifyMsg && (
+          <div style={{
+            padding: 10,
+            borderRadius: 'var(--radius)',
+            fontSize: 12,
+            background: verifyMsg.kind === "error" ? 'var(--danger-soft)' : 'var(--success-soft)',
+            color: verifyMsg.kind === "error" ? 'var(--danger)' : 'var(--success)',
+          }}>
+            {verifyMsg.text}
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -1392,9 +1543,17 @@ function AddBookingModal({ onClose, state, setState, toast }) {
     if (!vehicleId) { toast("ជ្រើសរើសរថយន្ត", "error"); return; }
     const tech = technicians.find(t => t.id === techId);
     const id = "BK-" + String(507 + Math.floor(Math.random() * 90));
-    const newB = { id, time, duration: +duration, customer: customerId, vehicle: vehicleId, service: service.trim(), tech: tech ? tech.name : "—", status: "confirmed" };
+    const today = new Date().toISOString().slice(0, 10);
+    const newB = { id, date: today, time, duration: +duration, customer: customerId, vehicle: vehicleId, service: service.trim(), tech: tech ? tech.name : "—", status: "confirmed" };
     setState(s => ({ ...s, bookings: [...s.bookings, newB].sort((a, b) => a.time.localeCompare(b.time)) }));
     toast(`បន្ថែមការកក់ ${id} · ${time} ជោគជ័យ`, "ok");
+    // Owner Telegram notification — fire-and-forget
+    const tg = state.config && state.config.telegram;
+    if (tg && tg.botToken && tg.ownerChatId && tg.notifyNewBooking !== false) {
+      const cust = (state.customers || []).find(c => c.id === customerId);
+      const veh = (state.vehicles || []).find(v => v.id === vehicleId);
+      sendMessage(tg.botToken, tg.ownerChatId, newBookingMessage(newB, cust, veh)).catch(() => {});
+    }
     onClose();
   }
 

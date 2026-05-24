@@ -5,6 +5,7 @@ import { Modal, Drawer } from './shell';
 import { Money, Row, lookupCustomer, lookupVehicle, vehiclesByOwner, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
 import { uploadJobPhoto, deleteJobPhoto, PHOTO_KINDS } from './lib/photos';
 import { isConfigured } from './lib/supabase';
+import { buildShareUrl, sendMessage, jobStatusMessage, isConfigured as telegramConfigured } from './lib/telegram';
 // ─── Job Card Kanban + Job detail drawer + New Job modal ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -260,9 +261,26 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="btn" onClick={() => setPrintOpen(true)}><Icon.Print size={14} /> Print / PDF</button>
           <button className="btn" onClick={() => onEdit(job.id)}><Icon.Pen size={14} /> Edit</button>
+          <button
+            className="btn"
+            title="ផ្ញើ​សារ​ទៅ​អតិថិជន​តាម Telegram"
+            onClick={async () => {
+              const garageName = (state.config && state.config.garageName) || "Garage";
+              const msg = jobStatusMessage(job, c, v, garageName);
+              const tg = state.config && state.config.telegram;
+              if (telegramConfigured(state.config) && c.telegramChatId) {
+                const res = await sendMessage(tg.botToken, c.telegramChatId, msg);
+                if (res.ok) toast(`បាន​ផ្ញើ​សារ​ទៅ ${c.name}`, "ok");
+                else toast(`ផ្ញើ​បរាជ័យ · ${res.description}`, "error");
+              } else {
+                // Fall back to share URL — owner forwards from their own Telegram
+                window.open(buildShareUrl(msg), "_blank");
+              }
+            }}
+          ><Icon.Send size={14} /> ផ្ញើ Telegram</button>
           <div style={{ flex: 1 }}></div>
           {job.status === "done" ? (
             <button className="btn btn-primary" onClick={() => onGenerateInvoice(job.id)}>

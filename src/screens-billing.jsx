@@ -3,6 +3,7 @@ import GARAGE from './data';
 import { Icon } from './icons';
 import { Modal } from './shell';
 import { Money, Row, exportCsv, lookupCustomer, lookupVehicle, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
+import { buildShareUrl, invoiceShareMessage, quoteShareMessage } from './lib/telegram';
 // ─── Parts, Quotation, Invoices screens ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -801,7 +802,10 @@ function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
         <button className="btn" onClick={onClose}>បិទ</button>
         <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print</button>
         <button className="btn" onClick={downloadPdf} disabled={downloading}><Icon.Download size={14} /> {downloading ? "កំពុង​បង្កើត..." : "ទាញ​យក PDF"}</button>
-        <button className="btn" onClick={() => toast("បានផ្ញើវិក្កយបត្រតាម Telegram", "ok")}><Icon.Send size={14} /> ផ្ញើតាម Telegram</button>
+        <button className="btn" onClick={() => {
+          const msg = invoiceShareMessage(inv, c, (state.config && state.config.garageName) || "Garage");
+          window.open(buildShareUrl(msg), "_blank");
+        }}><Icon.Send size={14} /> ផ្ញើ​តាម Telegram</button>
         {inv.status !== "paid" && (
           <button className="btn btn-primary" onClick={acceptPayment}>
             <Icon.Money size={14} /> ទទួលការទូទាត់
@@ -976,6 +980,10 @@ function QuoteModal({ id, state, setState, currency, onClose, toast, onConvert, 
         <button className="btn" onClick={onClose}>បិទ</button>
         <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print</button>
         <button className="btn" onClick={downloadPdf} disabled={downloading}><Icon.Download size={14} /> {downloading ? "កំពុង​បង្កើត..." : "ទាញ​យក PDF"}</button>
+        <button className="btn" onClick={() => {
+          const msg = quoteShareMessage(q, c, (state.config && state.config.garageName) || "Garage");
+          window.open(buildShareUrl(msg), "_blank");
+        }}><Icon.Send size={14} /> ផ្ញើ​តាម Telegram</button>
         {q.status !== "sent" && q.status !== "accepted" && onSend && (
           <button className="btn" onClick={() => { onSend(q.id); onClose(); }}><Icon.Send size={14} /> ផ្ញើ Quote</button>
         )}
