@@ -235,10 +235,30 @@ const DVI_SECTIONS = [
   ]},
 ];
 
-function DVIScreen({ state, currency, toast }) {
+function DVIScreen({ state, setState, currency, toast }) {
+  const allJobs = (state && state.jobs) || jobs;
+  const allVehicles = (state && state.vehicles) || vehicles;
+  const allCustomers = (state && state.customers) || [];
+  const allDvis = (state && state.dvis) || [];
+
+  // Selected Job (default: first active job, else first job)
+  const defaultJob = allJobs.find(j => j.status !== "done") || allJobs[0];
+  const [jobId, setJobId] = React.useState(defaultJob ? defaultJob.id : "");
+  const job = allJobs.find(j => j.id === jobId);
+  const veh = job ? allVehicles.find(v => v.id === job.vehicle) : null;
+  const cust = job ? allCustomers.find(c => c.id === job.customer) : null;
+
+  // Load existing DVI for this job, or start from template
+  const existingDvi = allDvis.find(d => d.jobId === jobId);
   const [sections, setSections] = React.useState(() =>
-    DVI_SECTIONS.map(s => ({ ...s, items: s.items.map(i => ({ ...i })) }))
+    existingDvi ? existingDvi.sections : DVI_SECTIONS.map(s => ({ ...s, items: s.items.map(i => ({ ...i })) }))
   );
+
+  // When Job changes, reload sections
+  React.useEffect(() => {
+    const dvi = allDvis.find(d => d.jobId === jobId);
+    setSections(dvi ? dvi.sections : DVI_SECTIONS.map(s => ({ ...s, items: s.items.map(i => ({ ...i })) })));
+  }, [jobId]);
 
   function setItemStatus(secId, idx, status) {
     setSections(secs => secs.map(s => s.id !== secId ? s : {
@@ -254,21 +274,68 @@ function DVIScreen({ state, currency, toast }) {
     pending: allItems.filter(i => !["pass", "warn", "fail"].includes(i.status)).length,
   };
 
+  function saveDvi() {
+    if (!job) { toast("សូម​ជ្រើស Job ​មុន", "error"); return; }
+    const dvi = {
+      id: existingDvi?.id || generateId("DVI", allDvis),
+      jobId: job.id,
+      vehicleId: job.vehicle,
+      customerId: job.customer,
+      sections,
+      counts: { pass: counts.pass, warn: counts.warn, fail: counts.fail },
+      inspectedBy: job.tech || "—",
+      createdAt: existingDvi?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setState(s => ({
+      ...s,
+      dvis: existingDvi
+        ? (s.dvis || []).map(d => d.id === existingDvi.id ? dvi : d)
+        : [dvi, ...(s.dvis || [])],
+    }));
+    toast(`DVI ​បាន​រក្សា​ទុក​ · ${counts.pass} pass · ${counts.warn} warn · ${counts.fail} fail`, "ok");
+  }
+
+  if (allJobs.length === 0) {
+    return (
+      <div className="page">
+        <div className="page-head">
+          <h1 className="page-title">DVI Inspection</h1>
+          <div className="page-sub">Digital Vehicle Inspection</div>
+        </div>
+        <div className="empty" style={{ padding: 40, textAlign: 'center' }}>
+          មិន​មាន Job ​ដើម្បី​ត្រួត​ពិនិត្យ — ​សុំ​បង្កើត Job ​មុន
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
       <div className="page-head">
         <div>
           <h1 className="page-title">DVI Inspection</h1>
-          <div className="page-sub">Digital Vehicle Inspection · 2KA-3917 · Lexus RX350 · JOB-2406-088</div>
+          <div className="page-sub">
+            {job ? `${veh?.plate || "—"} · ${veh ? `${veh.year} ${veh.make} ${veh.model}` : "—"} · ${job.id}` : "Digital Vehicle Inspection"}
+            {existingDvi && <span style={{ marginLeft: 10, color: 'var(--success)' }}>· ✓ បាន​រក្សា​ទុក</span>}
+          </div>
         </div>
         <div className="page-actions">
-          <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print Report</button>
+          <select className="input" value={jobId} onChange={e => setJobId(e.target.value)} style={{ minWidth: 220 }}>
+            {allJobs.map(j => {
+              const jv = allVehicles.find(v => v.id === j.vehicle);
+              return <option key={j.id} value={j.id}>{j.id} · {jv?.plate || j.vehicle} · {j.title?.slice(0, 24) || ''}</option>;
+            })}
+          </select>
+          <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print</button>
           <button className="btn" onClick={async () => {
+            if (!job) return;
             const garageName = (state?.config && state.config.garageName) || "Garage";
             const failItems = allItems.filter(i => i.status === "fail").map(i => `• ${i.name}${i.note ? ` — ${i.note}` : ''}`).join('\n');
             const warnItems = allItems.filter(i => i.status === "warn").map(i => `• ${i.name}${i.note ? ` — ${i.note}` : ''}`).join('\n');
+            const vehLabel = veh ? `${veh.plate} · ${veh.year} ${veh.make} ${veh.model}` : '—';
             const msg = `<b>🔍 ${garageName} · DVI Report</b>\n` +
-              `\nរថយន្ត: <b>2KA-3917 · Lexus RX350</b>\nJob: <code>JOB-2406-088</code>\n\n` +
+              `\nរថយន្ត: <b>${vehLabel}</b>\nJob: <code>${job.id}</code>\nអតិថិជន: ${cust?.name || '—'}\n\n` +
               `✅ ${counts.pass} pass · ⚠️ ${counts.warn} warn · ❌ ${counts.fail} fail\n` +
               (failItems ? `\n<b>❌ បន្ទាន់</b>\n${failItems}\n` : '') +
               (warnItems ? `\n<b>⚠️ ​ត្រូវ​ផ្លាស់</b>\n${warnItems}\n` : '');
@@ -279,9 +346,9 @@ function DVIScreen({ state, currency, toast }) {
             } else {
               toast("Telegram មិន​បាន​ភ្ជាប់ · ​សុំ​ភ្ជាប់​នៅ Settings", "info");
             }
-          }}><Icon.Send size={14} /> ផ្ញើតាម Telegram</button>
-          <button className="btn btn-primary" onClick={() => toast(`DVI បានរក្សាទុក · ${counts.pass} pass · ${counts.warn} warn · ${counts.fail} fail`, "ok")}>
-            <Icon.Check size={14} /> Submit Inspection
+          }}><Icon.Send size={14} /> ផ្ញើ Telegram</button>
+          <button className="btn btn-primary" onClick={saveDvi}>
+            <Icon.Check size={14} /> {existingDvi ? "Update DVI" : "Save DVI"}
           </button>
         </div>
       </div>
@@ -293,21 +360,21 @@ function DVIScreen({ state, currency, toast }) {
         </div>
         <div>
           <div className="mono muted" style={{ fontSize: 10, letterSpacing: '0.14em' }}>PLATE</div>
-          <div style={{ fontWeight: 700, fontSize: 18 }} className="mono">2KA-3917</div>
+          <div style={{ fontWeight: 700, fontSize: 18 }} className="mono">{veh?.plate || "—"}</div>
         </div>
         <div>
           <div className="mono muted" style={{ fontSize: 10, letterSpacing: '0.14em' }}>VEHICLE</div>
-          <div style={{ fontWeight: 600 }}>2019 Lexus RX350</div>
+          <div style={{ fontWeight: 600 }}>{veh ? `${veh.year || ""} ${veh.make || ""} ${veh.model || ""}`.trim() : "—"}</div>
         </div>
         <div>
           <div className="mono muted" style={{ fontSize: 10, letterSpacing: '0.14em' }}>MILEAGE</div>
-          <div style={{ fontWeight: 600 }} className="num">78,420 km</div>
+          <div style={{ fontWeight: 600 }} className="num">{veh?.mileage ? `${veh.mileage.toLocaleString()} km` : "—"}</div>
         </div>
         <div>
           <div className="mono muted" style={{ fontSize: 10, letterSpacing: '0.14em' }}>INSPECTED BY</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div className="avatar av-sm" style={{ background: '#22c55e', color: '#0b0b0b', fontSize: 10 }}>SP</div>
-            <span style={{ fontWeight: 600 }}>Sok Pheap</span>
+            <div className="avatar av-sm" style={{ background: job?.techColor || '#22c55e', color: '#0b0b0b', fontSize: 10 }}>{job?.techInitials || "—"}</div>
+            <span style={{ fontWeight: 600 }}>{job?.tech || "—"}</span>
           </div>
         </div>
       </div>

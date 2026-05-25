@@ -53,6 +53,7 @@ function defaultState() {
     customers: G.customers.slice(),
     vehicles: G.vehicles.slice(),
     members: G.members.slice(),
+    dvis: [],
     branches: [
       { id: "BR-01", name: "សាខាមេ · ភ្នំពេញ", addr: "St. 271, Toul Tom Pong", bays: 8, staff: 12, status: "active", main: true },
       { id: "BR-02", name: "សាខា ខ. កែវ", addr: "St. 2004, Sen Sok", bays: 5, staff: 7, status: "active" },
@@ -347,7 +348,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
         {route === "quotation" && <QuotationScreen state={state} setState={setState} currency={tweaks.currency} onNewQuote={() => setNewQuoteOpen(true)} toast={toast} onConvert={convertQuoteToJob} onSend={sendQuote} onView={setQuoteOpen} />}
         {route === "invoices" && <InvoicesScreen state={state} setState={setState} currency={tweaks.currency} onOpenInvoice={setInvoiceOpen} onNewInvoice={() => setNewInvoiceOpen(true)} toast={toast} />}
         {route === "booking" && <BookingScreen state={state} setState={setState} currency={tweaks.currency} onAddBooking={() => setAddBookingOpen(true)} onConvertBooking={convertBookingToJob} toast={toast} />}
-        {route === "dvi" && <DVIScreen state={state} currency={tweaks.currency} toast={toast} />}
+        {route === "dvi" && <DVIScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} />}
         {route === "members" && <MembersScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} onAddMember={() => setAddMemberOpen(true)} />}
         {route === "reports" && <ReportsScreen state={state} currency={tweaks.currency} toast={toast} />}
         {route === "settings" && <SettingsScreen state={state} setState={setState} tweaks={tweaks} setTweak={setTweak} toast={toast} />}
