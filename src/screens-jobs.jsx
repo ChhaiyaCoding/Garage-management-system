@@ -108,8 +108,24 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
   const total = subtotal + tax;
 
   function updateStatus(next) {
-    setState(s => ({ ...s, jobs: s.jobs.map(j => j.id === id ? { ...j, status: next } : j) }));
-    toast(`Job ${id} → ${next}`, "info");
+    const wasDone = job.status === "done";
+    const isDone = next === "done";
+    setState(s => {
+      const updates = { ...s, jobs: s.jobs.map(j => j.id === id ? { ...j, status: next, ...(isDone && !wasDone ? { completed: new Date().toISOString().slice(0, 16).replace('T', ' ') } : {}) } : j) };
+      // On transition to "done" → auto-set vehicle's nextService to +3 months
+      if (isDone && !wasDone && job.vehicle) {
+        const due = new Date();
+        due.setMonth(due.getMonth() + 3);
+        const nextService = due.toISOString().slice(0, 10);
+        updates.vehicles = (s.vehicles || []).map(v => v.id === job.vehicle ? { ...v, nextService, lastService: new Date().toISOString().slice(0, 10) } : v);
+      }
+      return updates;
+    });
+    if (isDone && !wasDone) {
+      toast(`Job ${id} → done · Next service ​បាន​កំណត់ +3 ​ខែ`, "ok");
+    } else {
+      toast(`Job ${id} → ${next}`, "info");
+    }
   }
 
   function removePart(idx) {

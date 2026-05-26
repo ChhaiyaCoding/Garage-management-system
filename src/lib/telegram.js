@@ -117,6 +117,18 @@ export function newBookingMessage(booking, customer, vehicle) {
   );
 }
 
+export function serviceReminderMessage(vehicle, customer, garageName) {
+  return (
+    `<b>🔧 ${garageName || 'Garage'}</b>\n` +
+    `\n` +
+    `ជម្រាបសួរ ${customer?.name || 'លោកអ្នក'},\n\n` +
+    `រថយន្ត <b>${vehicle?.plate || '—'}</b> ${vehicle?.make || ''} ${vehicle?.model || ''} ​ដល់​ពេល​ត្រួត​ពិនិត្យ​សេវាកម្ម។\n\n` +
+    `កាល​បរិច្ឆេទ​​ណែ​នាំ: <b>${vehicle?.nextService || '—'}</b>\n` +
+    `\n` +
+    `សូម​ទាក់​ទង​យើង​ដើម្បី​ណាត់​ពេល​សេវាកម្ម។`
+  );
+}
+
 export function reorderMessage(part, qty, totalCost, garageName) {
   return (
     `<b>🛒 ${garageName || 'Garage'} · Reorder</b>\n` +

@@ -2,7 +2,7 @@ import React from 'react';
 import GARAGE from './data';
 import { Icon } from './icons';
 import { Modal, Drawer } from './shell';
-import { sendMessage, isConfigured as telegramConfigured, ownerForwardMessage } from './lib/telegram';
+import { sendMessage, isConfigured as telegramConfigured, ownerForwardMessage, serviceReminderMessage } from './lib/telegram';
 import { generateId } from './data';
 // ─── Dashboard, Customers & Vehicles, Job Card screens ───
 const G = GARAGE;
@@ -445,6 +445,25 @@ function CustomersScreen({ state, search, currency, onOpenCustomer, onNav, onAdd
           <div className="page-sub">អតិថិជន & រថយន្ត · សរុប {customers.length} នាក់ · {vehicles.length} រថយន្ត</div>
         </div>
         <div className="page-actions">
+          <button className="btn" onClick={async () => {
+            const today = new Date().toISOString().slice(0, 10);
+            const cutoff = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+            const due = vehicles.filter(v => v.nextService && v.nextService !== '—' && v.nextService <= cutoff);
+            if (due.length === 0) { toast && toast("គ្មាន​រថយន្ត​ដល់​ពេល​សេវាកម្ម​នៅ 7 ​ថ្ងៃ​ខាង​មុខ", "info"); return; }
+            const garageName = (state?.config && state.config.garageName) || "Garage";
+            const tg = state?.config && state.config.telegram;
+            if (!telegramConfigured(state?.config)) { toast && toast("Telegram មិន​បាន​ភ្ជាប់ · ​សុំ​ភ្ជាប់​នៅ Settings", "info"); return; }
+            let sent = 0, failed = 0;
+            for (const v of due) {
+              const c = customers.find(x => x.id === v.owner);
+              const msg = serviceReminderMessage(v, c, garageName);
+              const target = c?.telegramChatId || tg.ownerChatId;
+              const finalMsg = c?.telegramChatId ? msg : ownerForwardMessage(c?.name || v.plate, msg);
+              const res = await sendMessage(tg.botToken, target, finalMsg);
+              if (res.ok) sent++; else failed++;
+            }
+            toast && toast(`បាន​ផ្ញើ ${sent}/${due.length} ​សារ​រំលឹក${failed ? ` · ${failed} បរាជ័យ` : ''}`, sent > 0 ? "ok" : "error");
+          }}><Icon.Bell size={14} /> ផ្ញើ​​សារ​រំលឹក​សេវាកម្ម</button>
           <button className="btn" onClick={() => { exportCsv("customers.csv", customers.map(c => ({ id: c.id, name: c.name, type: c.type, phone: c.phone, address: c.address, since: c.since, points: c.points, lifetime: c.lifetime, jobs: c.jobs }))); toast && toast(`នាំចេញ ${customers.length} អតិថិជន (CSV)`, "ok"); }}><Icon.Download size={14} /> នាំចេញ</button>
           <button className="btn" onClick={() => toast && toast("នាំចូល Excel (ឆាប់ៗ)", "info")}><Icon.Up size={14} /> នាំចូល Excel</button>
           <button className="btn btn-primary" onClick={onAddCustomer}><Icon.Plus size={14} /> បន្ថែមអតិថិជន</button>
