@@ -1713,6 +1713,7 @@ function AddBookingModal({ onClose, state, setState, toast }) {
   const custVehicles = allVehicles.filter(v => v.owner === customerId);
   const [vehicleId, setVehicleId] = React.useState((custVehicles[0] && custVehicles[0].id) || "");
   const [service, setService] = React.useState("");
+  const [date, setDate] = React.useState(new Date().toISOString().slice(0, 10));
   const [time, setTime] = React.useState("09:00");
   const [duration, setDuration] = React.useState(1);
   const [techId, setTechId] = React.useState((technicians[0] && technicians[0].id) || "T-01");
@@ -1724,10 +1725,10 @@ function AddBookingModal({ onClose, state, setState, toast }) {
   function submit() {
     if (!service.trim()) { toast("សូមបញ្ចូលប្រភេទសេវា", "error"); return; }
     if (!vehicleId) { toast("ជ្រើសរើសរថយន្ត", "error"); return; }
+    if (!date) { toast("សូម​ជ្រើស​កាល​បរិច្ឆេទ", "error"); return; }
     const tech = technicians.find(t => t.id === techId);
     const id = generateId("BK", state?.bookings || []);
-    const today = new Date().toISOString().slice(0, 10);
-    const newB = { id, date: today, time, duration: +duration, customer: customerId, vehicle: vehicleId, service: service.trim(), tech: tech ? tech.name : "—", status: "confirmed" };
+    const newB = { id, date, time, duration: +duration, customer: customerId, vehicle: vehicleId, service: service.trim(), tech: tech ? tech.name : "—", status: "confirmed" };
     setState(s => ({ ...s, bookings: [...s.bookings, newB].sort((a, b) => a.time.localeCompare(b.time)) }));
     toast(`បន្ថែមការកក់ ${id} · ${time} ជោគជ័យ`, "ok");
     // Owner Telegram notification — fire-and-forget
@@ -1764,8 +1765,9 @@ function AddBookingModal({ onClose, state, setState, toast }) {
           <label>សេវាកម្ម · SERVICE</label>
           <input className="input" value={service} onChange={e => setService(e.target.value)} placeholder="ឧ. Oil change" autoFocus />
         </div>
+        <div className="field"><label>កាល​បរិច្ឆេទ · DATE</label><input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
         <div className="field"><label>ម៉ោង · TIME</label><input className="input" type="time" value={time} onChange={e => setTime(e.target.value)} /></div>
-        <div className="field"><label>រយៈពេល (ម៉ោង)</label><input className="input" type="number" step="0.5" value={duration} onChange={e => setDuration(e.target.value)} /></div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>រយៈពេល (ម៉ោង)</label><input className="input" type="number" step="0.5" value={duration} onChange={e => setDuration(e.target.value)} /></div>
         <div className="field" style={{ gridColumn: '1 / -1' }}>
           <label>ជាងជួសជុល · TECHNICIAN</label>
           <select className="select" value={techId} onChange={e => setTechId(e.target.value)}>
@@ -1820,6 +1822,7 @@ function EditBookingModal({ booking, state, setState, onClose, toast }) {
   const custVehicles = allVehicles.filter(v => v.owner === customerId);
   const [vehicleId, setVehicleId] = React.useState(booking.vehicle);
   const [service, setService] = React.useState(booking.service || "");
+  const [date, setDate] = React.useState(booking.date || new Date().toISOString().slice(0, 10));
   const [time, setTime] = React.useState(booking.time || "09:00");
   const [duration, setDuration] = React.useState(booking.duration || 1);
   const [techId, setTechId] = React.useState(() => {
@@ -1841,8 +1844,8 @@ function EditBookingModal({ booking, state, setState, onClose, toast }) {
       ...s,
       bookings: s.bookings.map(b => b.id === booking.id ? {
         ...b, customer: customerId, vehicle: vehicleId, service: service.trim(),
-        time, duration: +duration, tech: tech ? tech.name : b.tech, status,
-      } : b).sort((a, b) => a.time.localeCompare(b.time)),
+        date, time, duration: +duration, tech: tech ? tech.name : b.tech, status,
+      } : b).sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || '')),
     }));
     toast(`រក្សាទុក​ការកក់ ${booking.id} ជោគជ័យ`, "ok");
     onClose();
@@ -1872,6 +1875,7 @@ function EditBookingModal({ booking, state, setState, onClose, toast }) {
           <label>សេវាកម្ម · SERVICE</label>
           <input className="input" value={service} onChange={e => setService(e.target.value)} autoFocus />
         </div>
+        <div className="field"><label>កាល​បរិច្ឆេទ · DATE</label><input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
         <div className="field"><label>ម៉ោង · TIME</label><input className="input" type="time" value={time} onChange={e => setTime(e.target.value)} /></div>
         <div className="field"><label>រយៈពេល (ម៉ោង)</label><input className="input" type="number" step="0.5" value={duration} onChange={e => setDuration(e.target.value)} /></div>
         <div className="field">
