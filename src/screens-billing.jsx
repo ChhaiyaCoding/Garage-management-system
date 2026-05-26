@@ -214,10 +214,12 @@ function ReorderModal({ part, state, setState, onClose, toast }) {
       reorders: [reorder, ...(s.reorders || [])],
     }));
     setWorking(false);
-    if (sendTg && tgResult && !tgResult.ok) {
+    if (sendTg && tgResult && tgResult.ok) {
+      toast(`✅ បាន​បញ្ជា​ទិញ ${orderQty} × ${part.name} ($${totalCost.toFixed(2)}) · Telegram ​បាន​ផ្ញើ`, "ok");
+    } else if (sendTg && tgResult && !tgResult.ok) {
       toast(`បន្ថែម​ស្តុក ${orderQty} × ${part.name} · Telegram បរាជ័យ: ${tgResult.description}`, "info");
     } else if (sendTg && !telegramConfigured(state?.config)) {
-      toast(`បន្ថែម​ស្តុក ${orderQty} × ${part.name} · Telegram មិន​បាន​ភ្ជាប់`, "info");
+      toast(`បន្ថែម​ស្តុក ${orderQty} × ${part.name} · Telegram មិន​បាន​ភ្ជាប់ — ភ្ជាប់​នៅ Settings`, "info");
     } else {
       toast(`បាន​បញ្ជា​ទិញ ${orderQty} × ${part.name} ($${totalCost.toFixed(2)})`, "ok");
     }
