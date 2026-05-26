@@ -3,7 +3,7 @@ import GARAGE from './data';
 import { Icon } from './icons';
 import { Modal } from './shell';
 import { Money, Row, exportCsv, lookupCustomer, lookupVehicle, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
-import { buildShareUrl, invoiceShareMessage, quoteShareMessage, sendMessage, ownerForwardMessage, isConfigured as telegramConfigured } from './lib/telegram';
+import { buildShareUrl, invoiceShareMessage, quoteShareMessage, sendMessage, ownerForwardMessage, reorderMessage, isConfigured as telegramConfigured } from './lib/telegram';
 import { generateId } from './data';
 // ─── Parts, Quotation, Invoices screens ───
 const G = GARAGE;
@@ -19,13 +19,8 @@ function PartsScreen({ state, setState, currency, toast, onNewPart }) {
   const [editPart, setEditPart] = React.useState(null);
   const [delPart, setDelPart] = React.useState(null);
   const [reportOpen, setReportOpen] = React.useState(false);
+  const [reorderOpen, setReorderOpen] = React.useState(null);
   const allParts = state.parts;
-  function reorderPart(p) {
-    if (!setState) { toast(`Reorder request sent to ${p.supplier}`, "info"); return; }
-    const qty = Math.max(10, (p.reorder || 5) * 2);
-    setState(s => ({ ...s, parts: s.parts.map(x => x.id === p.id ? { ...x, stock: (x.stock || 0) + qty } : x) }));
-    toast(`បញ្ជា​ទិញ ${qty} × ${p.name} ពី ${p.supplier} · ស្តុក​ឡើង​វិញ`, "ok");
-  }
   const filtered = allParts.filter(p => {
     if (tab === "low" && p.stock > p.reorder) return false;
     if (tab === "out" && p.stock > 0) return false;
@@ -141,7 +136,7 @@ function PartsScreen({ state, setState, currency, toast, onNewPart }) {
                   <td className="num" style={{ fontWeight: 700 }}>${(p.price || 0).toFixed(2)}</td>
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn btn-sm btn-ghost" title="Reorder · បញ្ជា​ទិញ​ស្តុក" onClick={() => reorderPart(p)}>
+                      <button className="btn btn-sm btn-ghost" title="Reorder · បញ្ជា​ទិញ​ស្តុក" onClick={() => setReorderOpen(p)}>
                         <Icon.Plus size={14} />
                       </button>
                       <button className="btn btn-sm btn-ghost" title="កែ" onClick={() => setEditPart(p)}>
@@ -177,7 +172,89 @@ function PartsScreen({ state, setState, currency, toast, onNewPart }) {
       {editPart && <EditPartModal part={editPart} setState={setState} onClose={() => setEditPart(null)} toast={toast} />}
       {delPart && <ConfirmModal title="លុប Part?" message={`លុប ${delPart.name} (${delPart.sku}) ឬ​ទេ?`} danger onClose={() => setDelPart(null)} onConfirm={() => { setState(s => ({ ...s, parts: s.parts.filter(x => x.id !== delPart.id) })); toast(`លុប ${delPart.name} ជោគជ័យ`, "ok"); setDelPart(null); }} />}
       {reportOpen && <PartsReportModal parts={allParts} currency={currency} onClose={() => setReportOpen(false)} toast={toast} />}
+      {reorderOpen && <ReorderModal part={reorderOpen} state={state} setState={setState} onClose={() => setReorderOpen(null)} toast={toast} />}
     </div>
+  );
+}
+
+// ── Reorder Modal ──
+function ReorderModal({ part, state, setState, onClose, toast }) {
+  const suggestedQty = Math.max(10, (part.reorder || 5) * 2);
+  const [qty, setQty] = React.useState(suggestedQty);
+  const [sendTg, setSendTg] = React.useState(true);
+  const [working, setWorking] = React.useState(false);
+  const orderQty = +qty || 0;
+  const totalCost = orderQty * (part.cost || 0);
+
+  async function confirm() {
+    if (orderQty <= 0) { toast("ចំនួន​ត្រូវ​តែ​ច្រើន​ជាង 0", "error"); return; }
+    setWorking(true);
+    // 1. Send Telegram if requested
+    let tgResult = null;
+    if (sendTg && telegramConfigured(state?.config)) {
+      const tg = state.config.telegram;
+      const garageName = (state.config && state.config.garageName) || "Garage";
+      tgResult = await sendMessage(tg.botToken, tg.ownerChatId, reorderMessage(part, orderQty, totalCost, garageName));
+    }
+    // 2. Add stock + log reorder
+    const reorder = {
+      id: generateId("RO", state?.reorders || []),
+      partId: part.id,
+      partName: part.name,
+      sku: part.sku,
+      qty: orderQty,
+      unitCost: part.cost || 0,
+      totalCost,
+      supplier: part.supplier || "—",
+      createdAt: new Date().toISOString(),
+    };
+    setState(s => ({
+      ...s,
+      parts: s.parts.map(p => p.id === part.id ? { ...p, stock: (p.stock || 0) + orderQty } : p),
+      reorders: [reorder, ...(s.reorders || [])],
+    }));
+    setWorking(false);
+    if (sendTg && tgResult && !tgResult.ok) {
+      toast(`បន្ថែម​ស្តុក ${orderQty} × ${part.name} · Telegram បរាជ័យ: ${tgResult.description}`, "info");
+    } else if (sendTg && !telegramConfigured(state?.config)) {
+      toast(`បន្ថែម​ស្តុក ${orderQty} × ${part.name} · Telegram មិន​បាន​ភ្ជាប់`, "info");
+    } else {
+      toast(`បាន​បញ្ជា​ទិញ ${orderQty} × ${part.name} ($${totalCost.toFixed(2)})`, "ok");
+    }
+    onClose();
+  }
+
+  return (
+    <Modal title={`Reorder · ${part.name}`} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={confirm} disabled={working}>
+          <Icon.Check size={14} /> {working ? "កំពុង​ផ្ញើ..." : "បញ្ជា​ទិញ + ​បន្ថែម​ស្តុក"}
+        </button>
+      </>}>
+      <div style={{ display: 'grid', gap: 12 }}>
+        <div style={{ background: 'var(--bg-2)', padding: 12, borderRadius: 8, fontSize: 13 }}>
+          <div><span className="muted">SKU: </span><code>{part.sku}</code></div>
+          <div><span className="muted">Supplier: </span>{part.supplier || "—"}</div>
+          <div><span className="muted">ស្តុក​បច្ចុប្បន្ន: </span><b>{part.stock || 0}</b> · Reorder ≤ {part.reorder || 0}</div>
+          <div><span className="muted">តម្លៃ​ដើម: </span>${(part.cost || 0).toFixed(2)} / ឯកតា</div>
+        </div>
+        <div className="field">
+          <label>ចំនួន​បញ្ជា​ទិញ</label>
+          <input className="input" type="number" min="1" value={qty} onChange={e => setQty(e.target.value)} autoFocus />
+          <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>​ ​ ​ ​ ​ ​ ​ ​ ​ស្តុក​ថ្មី: {(part.stock || 0)} → <b>{(part.stock || 0) + orderQty}</b></div>
+        </div>
+        <div className="field">
+          <label>តម្លៃ​សរុប</label>
+          <div className="num" style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent-text)' }}>${totalCost.toFixed(2)}</div>
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+          <input type="checkbox" checked={sendTg} onChange={e => setSendTg(e.target.checked)} />
+          ផ្ញើ​សារ​បញ្ជា​ទិញ​តាម Telegram
+          {!telegramConfigured(state?.config) && <span className="muted" style={{ fontSize: 11 }}>(Telegram មិន​បាន​ភ្ជាប់)</span>}
+        </label>
+      </div>
+    </Modal>
   );
 }
 

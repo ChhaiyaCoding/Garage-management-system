@@ -54,6 +54,7 @@ function defaultState() {
     vehicles: G.vehicles.slice(),
     members: G.members.slice(),
     dvis: [],
+    reorders: [],
     branches: [
       { id: "BR-01", name: "សាខាមេ · ភ្នំពេញ", addr: "St. 271, Toul Tom Pong", bays: 8, staff: 12, status: "active", main: true },
       { id: "BR-02", name: "សាខា ខ. កែវ", addr: "St. 2004, Sen Sok", bays: 5, staff: 7, status: "active" },

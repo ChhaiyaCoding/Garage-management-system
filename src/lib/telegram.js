@@ -117,6 +117,21 @@ export function newBookingMessage(booking, customer, vehicle) {
   );
 }
 
+export function reorderMessage(part, qty, totalCost, garageName) {
+  return (
+    `<b>🛒 ${garageName || 'Garage'} · Reorder</b>\n` +
+    `\n` +
+    `<b>${part.name}</b>\n` +
+    `SKU: <code>${part.sku}</code>\n` +
+    `ចំនួន: <b>${qty}</b>\n` +
+    `តម្លៃ​ដើម: $${(part.cost || 0).toFixed(2)}/${part.unit || 'ឯកតា'}\n` +
+    `សរុប: <b>$${totalCost.toFixed(2)}</b>\n` +
+    `Supplier: ${part.supplier || '—'}\n` +
+    `\n` +
+    `ស្តុក​បច្ចុប្បន្ន: ${part.stock || 0} → ${(part.stock || 0) + qty}`
+  );
+}
+
 export function lowStockMessage(part) {
   return (
     `<b>⚠️ Parts ស្ទើរ​អស់</b>\n` +
