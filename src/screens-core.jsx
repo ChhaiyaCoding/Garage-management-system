@@ -613,7 +613,10 @@ function CustomerDrawer({ id, state, setState, onClose, currency, onNewJob, onNe
           <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
             <div className="avatar av-lg" style={{ background: c.color, color: '#0b0b0b' }}>{c.initials}</div>
             <div>
-              <div style={{ fontSize: 22, fontWeight: 700 }}>{c.name}</div>
+              <div style={{ fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                {c.name}
+                {c.telegramChatId && <span title={`Telegram Chat ID: ${c.telegramChatId}`} style={{ fontSize: 11, padding: '2px 8px', background: 'var(--success-soft)', color: 'var(--success)', borderRadius: 6, fontWeight: 600 }}>📱 Telegram</span>}
+              </div>
               <div className="muted" style={{ fontSize: 13 }}>{c.id} · {c.phone}</div>
             </div>
           </div>
@@ -717,6 +720,7 @@ function AddCustomerModal({ onClose, state, setState, toast }) {
   const [phone, setPhone] = React.useState("");
   const [address, setAddress] = React.useState("");
   const [type, setType] = React.useState("personal");
+  const [telegramChatId, setTelegramChatId] = React.useState("");
   // Optional vehicle
   const [addVeh, setAddVeh] = React.useState(true);
   const [plate, setPlate] = React.useState("");
@@ -745,7 +749,8 @@ function AddCustomerModal({ onClose, state, setState, toast }) {
 
     const newC = {
       id: cid, name: name.trim(), initials, color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
-      type, phone: phone.trim() || "—", telegram: false,
+      type, phone: phone.trim() || "—", telegram: !!telegramChatId.trim(),
+      telegramChatId: telegramChatId.trim() || undefined,
       address: address.trim() || "—", since: new Date().toISOString().slice(0, 10),
       tags: ["NEW"], points: 0,
       vehicles: newVeh ? [newVeh.id] : [],
@@ -786,6 +791,13 @@ function AddCustomerModal({ onClose, state, setState, toast }) {
         <div className="field" style={{ gridColumn: '1 / -1' }}>
           <label>អាសយដ្ឋាន · ADDRESS</label>
           <AddressPicker value={address} onChange={setAddress} />
+        </div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>Telegram Chat ID <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>(មិនបង្ខំ · ​ឱ្យ Bot ​ផ្ញើ​សារ​ផ្ទាល់​ទៅ​អតិថិជន)</span></label>
+          <input className="input mono" value={telegramChatId} onChange={e => setTelegramChatId(e.target.value)} placeholder="ឧ. 8270854278" />
+          <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+            ​អតិថិជន​ត្រូវ: (1) ​ផ្ញើ <code>/start</code> ​ទៅ @userinfobot ដើម្បី​យក ID, (2) ​ផ្ញើ <code>/start</code> ទៅ bot ​អ្នក
+          </div>
         </div>
 
         <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border-0)', paddingTop: 14, marginTop: 4 }}>
@@ -828,7 +840,7 @@ function EditCustomerModal({ customer, state, setState, onClose, toast }) {
   const [phone, setPhone] = React.useState(customer.phone === "—" ? "" : (customer.phone || ""));
   const [address, setAddress] = React.useState(customer.address === "—" ? "" : (customer.address || ""));
   const [type, setType] = React.useState(customer.type || "personal");
-  const [telegram, setTelegram] = React.useState(!!customer.telegram);
+  const [telegramChatId, setTelegramChatId] = React.useState(customer.telegramChatId || "");
 
   function save() {
     if (!name.trim()) { toast("សូមបញ្ចូលឈ្មោះ", "error"); return; }
@@ -843,7 +855,8 @@ function EditCustomerModal({ customer, state, setState, onClose, toast }) {
         phone: phone.trim() || "—",
         address: address.trim() || "—",
         type,
-        telegram,
+        telegram: !!telegramChatId.trim(),
+        telegramChatId: telegramChatId.trim() || undefined,
       } : c),
     }));
     toast(`រក្សាទុក ${name} ជោគជ័យ`, "ok");
@@ -877,10 +890,11 @@ function EditCustomerModal({ customer, state, setState, onClose, toast }) {
           <AddressPicker value={address} onChange={setAddress} />
         </div>
         <div className="field" style={{ gridColumn: '1 / -1' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-            <input type="checkbox" checked={telegram} onChange={e => setTelegram(e.target.checked)} />
-            មាន Telegram
-          </label>
+          <label>Telegram Chat ID <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>(មិនបង្ខំ · ​ឱ្យ Bot ​ផ្ញើ​ផ្ទាល់)</span></label>
+          <input className="input mono" value={telegramChatId} onChange={e => setTelegramChatId(e.target.value)} placeholder="ឧ. 8270854278" />
+          <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+            ​អតិថិជន: (1) ផ្ញើ <code>/start</code> ​ទៅ​ @userinfobot ​យក ID, (2) ផ្ញើ <code>/start</code> ​ទៅ bot ​អ្នក
+          </div>
         </div>
       </div>
     </Modal>
