@@ -199,7 +199,43 @@ function Sidebar({ active, onNav }) {
   );
 }
 
+// Derive notifications from current state — no separate Supabase table needed
+function deriveNotifications(state) {
+  if (!state) return [];
+  const notifs = [];
+  const today = new Date().toISOString().slice(0, 10);
+  // Low stock parts
+  (state.parts || []).forEach(p => {
+    if ((p.stock || 0) <= (p.reorder || 0) && (p.stock || 0) > 0) {
+      notifs.push({ id: `lowstock-${p.id}`, kind: 'lowstock', icon: '⚠️', title: `${p.name} ស្ទើរ​អស់`, sub: `សល់ ${p.stock} (reorder ≤ ${p.reorder})`, route: 'parts' });
+    } else if ((p.stock || 0) === 0) {
+      notifs.push({ id: `outstock-${p.id}`, kind: 'outstock', icon: '❌', title: `${p.name} អស់​ស្តុក`, sub: `SKU ${p.sku}`, route: 'parts' });
+    }
+  });
+  // Due/overdue invoices
+  (state.invoices || []).forEach(inv => {
+    if (inv.status === 'overdue') {
+      notifs.push({ id: `overdue-${inv.id}`, kind: 'overdue', icon: '🔴', title: `Invoice ${inv.id} ហួស​ការ​បង់`, sub: `$${(inv.total || 0).toFixed(2)}`, route: 'invoices' });
+    }
+  });
+  // Today's bookings
+  (state.bookings || []).forEach(b => {
+    if (b.date === today && b.status !== 'in-progress' && b.status !== 'done') {
+      notifs.push({ id: `booking-${b.id}`, kind: 'booking', icon: '📅', title: `ការ​កក់​ថ្ងៃ​នេះ`, sub: `${b.time} · ${b.service}`, route: 'booking' });
+    }
+  });
+  // Vehicle service due (mileage-based or date — only show if nextService is set and not "—")
+  (state.vehicles || []).forEach(v => {
+    if (v.nextService && v.nextService !== '—' && v.nextService <= today) {
+      notifs.push({ id: `service-${v.id}`, kind: 'service', icon: '🔧', title: `${v.plate} ត្រូវ​ការ Service`, sub: `Due ${v.nextService}`, route: 'customers' });
+    }
+  });
+  return notifs;
+}
+
 function Topbar({ search, setSearch, onOpenTweaks, currency, setCurrency, userEmail, onSignOut, saveStatus, theme, onToggleTheme, state, onNavigate }) {
+  const notifications = React.useMemo(() => deriveNotifications(state), [state]);
+  const [notifOpen, setNotifOpen] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const { canInstall, isStandalone, promptInstall } = useInstallPrompt();
   const localName = userEmail ? userEmail.split("@")[0] : "លោក សុខ ភារុណ";
@@ -231,10 +267,35 @@ function Topbar({ search, setSearch, onOpenTweaks, currency, setCurrency, userEm
             <Icon.Down size={14} /> ដំឡើង​ជា App
           </button>
         )}
-        <button className="icon-btn" title="Notifications">
-          <Icon.Bell size={16} />
-          <span className="badge">3</span>
-        </button>
+        <div style={{ position: 'relative' }}>
+          <button className="icon-btn" title="Notifications" onClick={() => setNotifOpen(o => !o)}>
+            <Icon.Bell size={16} />
+            {notifications.length > 0 && <span className="badge">{notifications.length > 99 ? '99+' : notifications.length}</span>}
+          </button>
+          {notifOpen && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 49 }} onClick={() => setNotifOpen(false)} />
+              <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 340, maxHeight: 480, overflowY: 'auto', background: 'var(--bg-1)', border: '1px solid var(--border-1)', borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', zIndex: 50 }}>
+                <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border-0)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>Notifications</div>
+                  <span className="muted" style={{ fontSize: 11 }}>{notifications.length} ​ថ្មី</span>
+                </div>
+                {notifications.length === 0 ? (
+                  <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: 'var(--text-2)' }}>គ្មាន​សារ​ថ្មី 🎉</div>
+                ) : notifications.map(n => (
+                  <button key={n.id} onClick={() => { onNavigate && onNavigate(n.route); setNotifOpen(false); }}
+                    style={{ display: 'flex', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--border-0)', background: 'transparent', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', alignItems: 'flex-start' }}>
+                    <div style={{ fontSize: 18, lineHeight: 1 }}>{n.icon}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-1)' }}>{n.title}</div>
+                      <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{n.sub}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
         {onToggleTheme && (
           <button className="icon-btn" onClick={onToggleTheme} title={theme === "light" ? "ប្ដូរ​ទៅ Dark mode" : "ប្ដូរ​ទៅ Light mode"}>
             {theme === "light" ? <Icon.Moon size={16} /> : <Icon.Sun size={16} />}
