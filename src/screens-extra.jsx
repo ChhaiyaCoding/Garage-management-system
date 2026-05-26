@@ -69,6 +69,8 @@ const { customers, vehicles, parts, jobs, invoices, quotations, bookings, techni
 function BookingScreen({ state, setState, currency, onAddBooking, onConvertBooking, toast }) {
   const [editBk, setEditBk] = React.useState(null);
   const [delBk, setDelBk] = React.useState(null);
+  const [view, setView] = React.useState("list"); // list | week | month
+  const [anchor, setAnchor] = React.useState(() => new Date());
   function checkIn(bId) {
     if (!setState) return;
     setState(s => ({ ...s, bookings: s.bookings.map(b => b.id === bId ? { ...b, status: "checked-in" } : b) }));
@@ -78,16 +80,54 @@ function BookingScreen({ state, setState, currency, onAddBooking, onConvertBooki
     else toast("គ្មានលេខទូរស័ព្ទ", "info");
   }
   const slots = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
-  const days = ["ច័ន្ទ 18", "អង្គារ 19", "ពុធ 17", "ព្រ. 20", "សុក្រ 21", "សៅរ៍ 22"];
-  const todayCol = 2;
+  const todayStr = new Date().toISOString().slice(0, 10);
 
-  const bays = ["Bay 1", "Bay 2", "Bay 3", "Bay 4"];
-  const slotBookings = {};
-  state.bookings.forEach(b => {
-    const key = b.time.slice(0, 2);
-    slotBookings[key] = slotBookings[key] || [];
-    slotBookings[key].push(b);
+  // ── Week view dates (Monday → Saturday) ──
+  function fmt(d) { return d.toISOString().slice(0, 10); }
+  function startOfWeek(d) {
+    const x = new Date(d);
+    const day = x.getDay(); // 0=Sun, 1=Mon, ...
+    const diff = day === 0 ? -6 : 1 - day;
+    x.setDate(x.getDate() + diff);
+    x.setHours(0, 0, 0, 0);
+    return x;
+  }
+  const weekStart = startOfWeek(anchor);
+  const weekDays = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    return d;
   });
+  const DAY_KM = ["ច័ន្ទ", "អង្គារ", "ពុធ", "ព្រ.", "សុក្រ", "សៅរ៍"];
+
+  // ── Month view (6 weeks × 7 days) ──
+  function startOfMonth(d) { const x = new Date(d); x.setDate(1); x.setHours(0, 0, 0, 0); return x; }
+  const monthStart = startOfMonth(anchor);
+  const monthGridStart = startOfWeek(monthStart);
+  const monthDays = Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(monthGridStart);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+  const monthName = anchor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  function getBookingsAt(dateStr, hour) {
+    return state.bookings.filter(b => b.date === dateStr && b.time && b.time.startsWith(hour));
+  }
+  function getBookingsForDay(dateStr) {
+    return state.bookings.filter(b => b.date === dateStr);
+  }
+
+  function moveAnchor(deltaDays) {
+    const d = new Date(anchor);
+    d.setDate(d.getDate() + deltaDays);
+    setAnchor(d);
+  }
+  function moveMonth(delta) {
+    const d = new Date(anchor);
+    d.setMonth(d.getMonth() + delta);
+    setAnchor(d);
+  }
 
   return (
     <div className="page">
@@ -97,7 +137,11 @@ function BookingScreen({ state, setState, currency, onAddBooking, onConvertBooki
           <div className="page-sub">កាលវិភាគការកក់ · {state.bookings.length} ការកក់ថ្ងៃនេះ · 4 Bays សកម្ម</div>
         </div>
         <div className="page-actions">
-          <button className="btn" onClick={() => toast("Calendar View · ការមើលប្រតិទិន (ឆាប់ៗ)", "info")}><Icon.Cal size={14} /> Calendar View</button>
+          <div style={{ display: 'inline-flex', background: 'var(--bg-2)', borderRadius: 8, padding: 3, gap: 2 }}>
+            <button className={"btn btn-sm" + (view === "list" ? " btn-primary" : " btn-ghost")} style={{ padding: '6px 12px' }} onClick={() => setView("list")}>បញ្ជី</button>
+            <button className={"btn btn-sm" + (view === "week" ? " btn-primary" : " btn-ghost")} style={{ padding: '6px 12px' }} onClick={() => setView("week")}>សប្ដាហ៍</button>
+            <button className={"btn btn-sm" + (view === "month" ? " btn-primary" : " btn-ghost")} style={{ padding: '6px 12px' }} onClick={() => setView("month")}>ខែ</button>
+          </div>
           <button className="btn" onClick={() => { navigator.clipboard?.writeText("https://garage-os.app/book"); toast("បាន copy តំណកក់ Online", "ok"); }}><Icon.Tag size={14} /> Booking Link</button>
           <button className="btn btn-primary" onClick={onAddBooking}><Icon.Plus size={14} /> បន្ថែមការកក់</button>
         </div>
@@ -126,38 +170,89 @@ function BookingScreen({ state, setState, currency, onAddBooking, onConvertBooki
         </div>
       </div>
 
-      {/* Week strip */}
-      <div className="card">
-        <h3 className="card-title">សប្តាហ៍នេះ · WEEK · 17–22 ឧសភា 2026 <span className="meta">VIEW BY HOUR</span></h3>
-        <div style={{ overflow: 'auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '64px repeat(6, 1fr)', gap: 4, minWidth: 800 }}>
-            <div></div>
-            {days.map((d, i) => (
-              <div key={i} style={{ textAlign: 'center', padding: '8px 0', borderRadius: 6, background: i === todayCol ? 'var(--accent-soft)' : 'var(--bg-2)', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: i === todayCol ? 'var(--accent)' : 'var(--text-1)', letterSpacing: '0.08em' }}>{d}</div>
-            ))}
-            {slots.map(s => (
-              <React.Fragment key={s}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-2)', textAlign: 'right', paddingRight: 8, paddingTop: 10 }}>{s}</div>
-                {days.map((_, di) => {
-                  const isToday = di === todayCol;
-                  const hourKey = s.slice(0, 2);
-                  const booked = isToday && slotBookings[hourKey];
-                  return (
-                    <div key={di} style={{ height: 56, borderRadius: 4, background: booked ? 'var(--info-soft)' : 'var(--bg-2)', border: '1px solid ' + (booked ? 'rgba(56,189,248,0.3)' : 'var(--border-0)'), padding: 6, fontSize: 10, color: 'var(--text-1)' }}>
-                      {booked && booked.map(b => {
-                        const c = lookupCustomer(b.customer, state) || MISSING_C;
-                        return <div key={b.id} style={{ fontWeight: 600 }}>{(c.name || "—").split(" ")[0]} · {b.service.slice(0, 14)}</div>;
-                      })}
-                    </div>
-                  );
-                })}
-              </React.Fragment>
-            ))}
+      {/* Week view */}
+      {view === "week" && (
+        <div className="card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <button className="btn btn-sm" onClick={() => moveAnchor(-7)}>◀</button>
+            <button className="btn btn-sm" onClick={() => setAnchor(new Date())}>ថ្ងៃ​នេះ</button>
+            <button className="btn btn-sm" onClick={() => moveAnchor(7)}>▶</button>
+            <h3 className="card-title" style={{ margin: 0 }}>{weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {weekDays[5].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</h3>
+          </div>
+          <div style={{ overflow: 'auto' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '64px repeat(6, 1fr)', gap: 4, minWidth: 800 }}>
+              <div></div>
+              {weekDays.map((d, i) => {
+                const isToday = fmt(d) === todayStr;
+                return (
+                  <div key={i} style={{ textAlign: 'center', padding: '8px 0', borderRadius: 6, background: isToday ? 'var(--accent-soft)' : 'var(--bg-2)', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: isToday ? 'var(--accent)' : 'var(--text-1)', letterSpacing: '0.08em' }}>
+                    {DAY_KM[i]} {d.getDate()}
+                  </div>
+                );
+              })}
+              {slots.map(s => (
+                <React.Fragment key={s}>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-2)', textAlign: 'right', paddingRight: 8, paddingTop: 10 }}>{s}</div>
+                  {weekDays.map((d, di) => {
+                    const dateStr = fmt(d);
+                    const isToday = dateStr === todayStr;
+                    const hourKey = s.slice(0, 2);
+                    const booked = getBookingsAt(dateStr, hourKey);
+                    return (
+                      <div key={di} style={{ height: 56, borderRadius: 4, background: booked.length ? 'var(--info-soft)' : (isToday ? 'var(--bg-3)' : 'var(--bg-2)'), border: '1px solid ' + (booked.length ? 'rgba(56,189,248,0.3)' : 'var(--border-0)'), padding: 6, fontSize: 10, color: 'var(--text-1)', cursor: booked.length ? 'pointer' : 'default', overflow: 'hidden' }} onClick={() => booked.length && setEditBk(booked[0])}>
+                        {booked.map(b => {
+                          const c = lookupCustomer(b.customer, state) || MISSING_C;
+                          return <div key={b.id} style={{ fontWeight: 600, lineHeight: 1.3 }} title={`${b.id} · ${b.time} · ${c.name} · ${b.service}`}>{b.time} · {(c.name || "—").split(" ")[0]} · {(b.service || "").slice(0, 12)}</div>;
+                        })}
+                      </div>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Month view */}
+      {view === "month" && (
+        <div className="card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <button className="btn btn-sm" onClick={() => moveMonth(-1)}>◀</button>
+            <button className="btn btn-sm" onClick={() => setAnchor(new Date())}>ខែ​នេះ</button>
+            <button className="btn btn-sm" onClick={() => moveMonth(1)}>▶</button>
+            <h3 className="card-title" style={{ margin: 0 }}>{monthName}</h3>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+            {DAY_KM.concat(["អា."]).map((d, i) => (
+              <div key={i} style={{ textAlign: 'center', padding: '8px 0', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: 'var(--text-2)', letterSpacing: '0.08em' }}>{d}</div>
+            ))}
+            {monthDays.map((d, i) => {
+              const dateStr = fmt(d);
+              const isToday = dateStr === todayStr;
+              const inMonth = d.getMonth() === anchor.getMonth();
+              const dayBookings = getBookingsForDay(dateStr);
+              return (
+                <div key={i} style={{ minHeight: 80, padding: 6, borderRadius: 6, background: isToday ? 'var(--accent-soft)' : 'var(--bg-2)', border: '1px solid ' + (isToday ? 'var(--accent)' : 'var(--border-0)'), opacity: inMonth ? 1 : 0.45, fontSize: 11 }}>
+                  <div style={{ fontWeight: isToday ? 700 : 600, color: isToday ? 'var(--accent)' : 'var(--text-1)', marginBottom: 4 }}>{d.getDate()}</div>
+                  {dayBookings.slice(0, 3).map(b => {
+                    const c = lookupCustomer(b.customer, state) || MISSING_C;
+                    return (
+                      <div key={b.id} onClick={() => setEditBk(b)} style={{ background: 'var(--info-soft)', color: 'var(--text-1)', padding: '2px 4px', borderRadius: 3, marginBottom: 2, fontSize: 10, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`${b.time} · ${c.name} · ${b.service}`}>
+                        {b.time} {(c.name || "—").split(" ")[0]}
+                      </div>
+                    );
+                  })}
+                  {dayBookings.length > 3 && <div className="muted" style={{ fontSize: 10 }}>+{dayBookings.length - 3} ​ផ្សេង​ទៀត</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Today list */}
+      {view === "list" && <>
       <div className="section-heading">
         <h2>ការកក់ថ្ងៃនេះ · TODAY'S APPOINTMENTS</h2>
         <span className="sub">{state.bookings.length} នាក់</span>
@@ -195,6 +290,7 @@ function BookingScreen({ state, setState, currency, onAddBooking, onConvertBooki
           );
         })}
       </div>
+      </>}
       {editBk && <EditBookingModal booking={editBk} state={state} setState={setState} onClose={() => setEditBk(null)} toast={toast} />}
       {delBk && <ConfirmModal title="លុបការកក់?" message={`លុប ${delBk.id} · ${delBk.time} · ${delBk.service} ឬ​ទេ?`} danger onClose={() => setDelBk(null)} onConfirm={() => { setState(s => ({ ...s, bookings: s.bookings.filter(x => x.id !== delBk.id) })); toast(`លុប ${delBk.id} ជោគជ័យ`, "ok"); setDelBk(null); }} />}
     </div>
