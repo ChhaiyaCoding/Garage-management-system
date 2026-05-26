@@ -422,8 +422,9 @@ function RevenueBars({ currency }) {
 // ════════════════════════════════════════════════════════════
 // CUSTOMERS & VEHICLES
 // ════════════════════════════════════════════════════════════
-function CustomersScreen({ state, search, currency, onOpenCustomer, onNav, onAddCustomer, toast }) {
+function CustomersScreen({ state, setState, search, currency, onOpenCustomer, onNav, onAddCustomer, toast }) {
   const [filter, setFilter] = React.useState("all");
+  const [remindersOpen, setRemindersOpen] = React.useState(false);
   const customers = state.customers;
   const vehicles = state.vehicles || G.vehicles;
   const filtered = customers.filter(c => {
@@ -445,30 +446,14 @@ function CustomersScreen({ state, search, currency, onOpenCustomer, onNav, onAdd
           <div className="page-sub">អតិថិជន & រថយន្ត · សរុប {customers.length} នាក់ · {vehicles.length} រថយន្ត</div>
         </div>
         <div className="page-actions">
-          <button className="btn" onClick={async () => {
-            const today = new Date().toISOString().slice(0, 10);
-            const cutoff = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-            const due = vehicles.filter(v => v.nextService && v.nextService !== '—' && v.nextService <= cutoff);
-            if (due.length === 0) { toast && toast("គ្មាន​រថយន្ត​ដល់​ពេល​សេវាកម្ម​នៅ 7 ​ថ្ងៃ​ខាង​មុខ", "info"); return; }
-            const garageName = (state?.config && state.config.garageName) || "Garage";
-            const tg = state?.config && state.config.telegram;
-            if (!telegramConfigured(state?.config)) { toast && toast("Telegram មិន​បាន​ភ្ជាប់ · ​សុំ​ភ្ជាប់​នៅ Settings", "info"); return; }
-            let sent = 0, failed = 0;
-            for (const v of due) {
-              const c = customers.find(x => x.id === v.owner);
-              const msg = serviceReminderMessage(v, c, garageName);
-              const target = c?.telegramChatId || tg.ownerChatId;
-              const finalMsg = c?.telegramChatId ? msg : ownerForwardMessage(c?.name || v.plate, msg);
-              const res = await sendMessage(tg.botToken, target, finalMsg);
-              if (res.ok) sent++; else failed++;
-            }
-            toast && toast(`បាន​ផ្ញើ ${sent}/${due.length} ​សារ​រំលឹក${failed ? ` · ${failed} បរាជ័យ` : ''}`, sent > 0 ? "ok" : "error");
-          }}><Icon.Bell size={14} /> ផ្ញើ​​សារ​រំលឹក​សេវាកម្ម</button>
+          <button className="btn" onClick={() => setRemindersOpen(true)}><Icon.Bell size={14} /> ​សារ​រំលឹក​សេវាកម្ម</button>
           <button className="btn" onClick={() => { exportCsv("customers.csv", customers.map(c => ({ id: c.id, name: c.name, type: c.type, phone: c.phone, address: c.address, since: c.since, points: c.points, lifetime: c.lifetime, jobs: c.jobs }))); toast && toast(`នាំចេញ ${customers.length} អតិថិជន (CSV)`, "ok"); }}><Icon.Download size={14} /> នាំចេញ</button>
           <button className="btn" onClick={() => toast && toast("នាំចូល Excel (ឆាប់ៗ)", "info")}><Icon.Up size={14} /> នាំចូល Excel</button>
           <button className="btn btn-primary" onClick={onAddCustomer}><Icon.Plus size={14} /> បន្ថែមអតិថិជន</button>
         </div>
       </div>
+
+      {remindersOpen && <ServiceRemindersModal state={state} setState={setState} customers={customers} vehicles={vehicles} onClose={() => setRemindersOpen(false)} toast={toast} />}
 
       <div className="kpi-grid">
         <div className="kpi">
@@ -610,6 +595,130 @@ function CustomersScreen({ state, search, currency, onOpenCustomer, onNav, onAdd
         </table>
       </div>
     </div>
+  );
+}
+
+// ── Service Reminders Modal ──
+function ServiceRemindersModal({ state, setState, customers, vehicles, onClose, toast }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const cutoff = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  // Pre-fill local edits + selected
+  const initial = vehicles.map(v => {
+    const c = customers.find(x => x.id === v.owner);
+    const due = v.nextService && v.nextService !== '—' && v.nextService <= cutoff;
+    return { id: v.id, plate: v.plate, make: v.make, model: v.model, nextService: v.nextService === '—' ? '' : (v.nextService || ''), customer: c, selected: due };
+  });
+  const [rows, setRows] = React.useState(initial);
+  const [sending, setSending] = React.useState(false);
+  const [filter, setFilter] = React.useState("due"); // due | all
+  const tgReady = telegramConfigured(state?.config);
+
+  function updateRow(id, patch) {
+    setRows(r => r.map(x => x.id === id ? { ...x, ...patch } : x));
+  }
+
+  const visible = rows.filter(r => filter === "all" ? true : (r.nextService && r.nextService <= cutoff));
+  const selectedCount = rows.filter(r => r.selected && r.nextService).length;
+
+  function selectAllVisible(value) {
+    const ids = new Set(visible.map(v => v.id));
+    setRows(r => r.map(x => ids.has(x.id) ? { ...x, selected: value && !!x.nextService } : x));
+  }
+
+  async function send() {
+    if (!tgReady) { toast("Telegram មិន​បាន​ភ្ជាប់ · ​សុំ​ភ្ជាប់​នៅ Settings", "info"); return; }
+    const toSend = rows.filter(r => r.selected && r.nextService);
+    if (toSend.length === 0) { toast("សូម​ជ្រើស​យ៉ាង​តិច​មួយ", "error"); return; }
+    setSending(true);
+    // First save any nextService date edits back to state
+    setState(s => ({
+      ...s,
+      vehicles: s.vehicles.map(v => {
+        const r = rows.find(x => x.id === v.id);
+        if (!r) return v;
+        return r.nextService !== (v.nextService === '—' ? '' : (v.nextService || '')) ? { ...v, nextService: r.nextService || '—' } : v;
+      }),
+    }));
+    const garageName = (state?.config && state.config.garageName) || "Garage";
+    const tg = state.config.telegram;
+    let sent = 0, failed = 0;
+    for (const r of toSend) {
+      const vehicleObj = { plate: r.plate, make: r.make, model: r.model, nextService: r.nextService };
+      const msg = serviceReminderMessage(vehicleObj, r.customer, garageName);
+      const direct = !!r.customer?.telegramChatId;
+      const target = direct ? r.customer.telegramChatId : tg.ownerChatId;
+      const finalMsg = direct ? msg : ownerForwardMessage(r.customer?.name || r.plate, msg);
+      const res = await sendMessage(tg.botToken, target, finalMsg);
+      if (res.ok) sent++; else failed++;
+    }
+    setSending(false);
+    toast(`បាន​ផ្ញើ ${sent}/${toSend.length} ​សារ​រំលឹក${failed ? ` · ${failed} ​បរាជ័យ` : ''}`, sent > 0 ? "ok" : "error");
+    onClose();
+  }
+
+  return (
+    <Modal wide title="ផ្ញើ​សារ​រំលឹក​សេវាកម្ម · Service Reminders" onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={send} disabled={sending || selectedCount === 0}>
+          <Icon.Send size={14} /> {sending ? "កំពុង​ផ្ញើ..." : `ផ្ញើ ${selectedCount} ​សារ​តាម Telegram`}
+        </button>
+      </>}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center' }}>
+        <button className={"btn btn-sm" + (filter === "due" ? " btn-primary" : "")} onClick={() => setFilter("due")}>ដល់​ពេល 7 ​ថ្ងៃ</button>
+        <button className={"btn btn-sm" + (filter === "all" ? " btn-primary" : "")} onClick={() => setFilter("all")}>ទាំង​អស់ ({rows.length})</button>
+        <div style={{ flex: 1 }} />
+        <button className="btn btn-sm" onClick={() => selectAllVisible(true)}>ជ្រើស​ទាំង​អស់</button>
+        <button className="btn btn-sm" onClick={() => selectAllVisible(false)}>លុប​ជ្រើស</button>
+      </div>
+      {!tgReady && <div style={{ padding: 10, background: 'var(--warn-soft)', color: 'var(--warn)', borderRadius: 8, marginBottom: 12, fontSize: 12 }}>⚠️ Telegram មិន​បាន​ភ្ជាប់ · ​សុំ​ភ្ជាប់​នៅ Settings → Integrations ​មុន</div>}
+      <div style={{ maxHeight: 420, overflowY: 'auto', border: '1px solid var(--border-0)', borderRadius: 8 }}>
+        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+          <thead style={{ background: 'var(--bg-2)', position: 'sticky', top: 0 }}>
+            <tr>
+              <th style={{ padding: 10, width: 40 }}></th>
+              <th style={{ padding: 10, textAlign: 'left' }}>រថយន្ត</th>
+              <th style={{ padding: 10, textAlign: 'left' }}>អតិថិជន</th>
+              <th style={{ padding: 10, textAlign: 'left', width: 160 }}>Next Service</th>
+              <th style={{ padding: 10, textAlign: 'left', width: 100 }}>ផ្ញើ​ទៅ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.length === 0 && <tr><td colSpan="5" style={{ padding: 24, textAlign: 'center', color: 'var(--text-2)' }}>គ្មាន​រថយន្ត{filter === "due" ? "​ដល់​ពេល​ក្នុង 7 ​ថ្ងៃ" : ""}</td></tr>}
+            {visible.map(r => {
+              const isDue = r.nextService && r.nextService <= today;
+              const isUpcoming = r.nextService && r.nextService <= cutoff && !isDue;
+              return (
+                <tr key={r.id} style={{ borderTop: '1px solid var(--border-0)' }}>
+                  <td style={{ padding: 8, textAlign: 'center' }}>
+                    <input type="checkbox" checked={r.selected} onChange={e => updateRow(r.id, { selected: e.target.checked })} disabled={!r.nextService} />
+                  </td>
+                  <td style={{ padding: 8 }}>
+                    <div className="mono" style={{ fontWeight: 700 }}>{r.plate}</div>
+                    <div className="muted" style={{ fontSize: 11 }}>{r.make} {r.model}</div>
+                  </td>
+                  <td style={{ padding: 8 }}>
+                    <div>{r.customer?.name || '—'}</div>
+                    <div className="muted" style={{ fontSize: 11 }}>{r.customer?.phone || '—'}</div>
+                  </td>
+                  <td style={{ padding: 8 }}>
+                    <input type="date" className="input" style={{ padding: '4px 6px', fontSize: 12 }} value={r.nextService} onChange={e => updateRow(r.id, { nextService: e.target.value, selected: !!e.target.value && r.selected })} />
+                    {isDue && <div style={{ fontSize: 10, color: 'var(--danger)', marginTop: 2 }}>🔴 ហួស​ពេល</div>}
+                    {isUpcoming && <div style={{ fontSize: 10, color: 'var(--warn)', marginTop: 2 }}>⚠️ ​ឆាប់​ៗ</div>}
+                  </td>
+                  <td style={{ padding: 8, fontSize: 11 }}>
+                    {r.customer?.telegramChatId ? <span style={{ color: 'var(--success)' }}>📱 ផ្ទាល់</span> : <span className="muted">↪️ Forward</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-2)' }}>
+        💡 ​អតិថិជន​មាន Chat ID → ​សារ​ផ្ញើ​ផ្ទាល់ · ​​​​មិន​មាន → ​ផ្ញើ​ទៅ​អ្នក ​ + ​ឱ្យ​អ្នក forward
+      </div>
+    </Modal>
   );
 }
 
