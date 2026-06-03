@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 
 const T = {
@@ -107,12 +106,12 @@ export default function CustomerPortal() {
         .logo{display:flex;align-items:center;gap:10px;}
         .logo-box{width:40px;height:40px;border-radius:10px;background:#F5B400;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;color:#111110;flex-shrink:0;}
         .logo-name{color:#FAFAF8;font-size:16px;font-weight:700;letter-spacing:0.01em;}
-        .logo-sub{color:#666663;font-size:12px;margin-top:1px;}
+        .logo-sub{color:#888884;font-size:12px;margin-top:1px;}
         .lang-btn{background:#1E1E1C;border:1px solid #333330;color:#FAFAF8;font-size:13px;font-weight:600;padding:7px 16px;border-radius:20px;cursor:pointer;font-family:'Kantumruy Pro',sans-serif;}
         .car-row{display:flex;border-top:1px solid #1E1E1C;padding:12px 0;}
         .car-col{flex:1;}
         .car-col:not(:last-child){border-right:1px solid #1E1E1C;padding-right:12px;margin-right:12px;}
-        .car-lbl{font-size:11px;color:#555552;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;}
+        .car-lbl{font-size:11px;color:#333331;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;}
         .car-val{font-size:14px;font-weight:700;color:#FAFAF8;margin-top:3px;}
         /* CONTENT */
         .content{
@@ -145,34 +144,34 @@ export default function CustomerPortal() {
         }
         .tab-btn.on{border-top-color:#F5B400;}
         .tab-ico{font-size:22px;line-height:1;}
-        .tab-lbl{font-size:11px;color:#AAAAА5;font-family:'Kantumruy Pro',sans-serif;font-weight:400;}
+        .tab-lbl{font-size:11px;color:#666663;font-family:'Kantumruy Pro',sans-serif;font-weight:400;}
         .tab-btn.on .tab-lbl{color:#111110;font-weight:700;}
         /* CARDS */
         .card{background:#FFF;border-radius:16px;padding:18px;margin-bottom:12px;}
-        .card-ttl{font-size:11px;font-weight:600;color:#AAAAА5;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:14px;}
+        .card-ttl{font-size:11px;font-weight:600;color:#555552;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:14px;}
         /* STATUS */
         .badge{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;}
         .job-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:18px;}
         .job-id{font-size:20px;font-weight:800;color:#111110;}
-        .job-svc{font-size:14px;color:#777774;margin-top:4px;}
+        .job-svc{font-size:14px;color:#444442;margin-top:4px;}
         .timeline{display:flex;align-items:center;margin:18px 0;overflow-x:auto;padding-bottom:6px;scrollbar-width:none;}
         .timeline::-webkit-scrollbar{display:none;}
         .tl-col{display:flex;flex-direction:column;align-items:center;min-width:54px;}
         .tl-dot{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid #E5E5E0;background:#F2F1EE;}
         .tl-dot.on{border-color:transparent;}
         .tl-dot.active{box-shadow:0 0 0 5px rgba(245,180,0,0.18);}
-        .tl-lbl{font-size:10px;color:#AAAAА5;margin-top:5px;text-align:center;line-height:1.3;white-space:nowrap;font-family:'Kantumruy Pro',sans-serif;}
+        .tl-lbl{font-size:10px;color:#555552;margin-top:5px;text-align:center;line-height:1.3;white-space:nowrap;font-family:'Kantumruy Pro',sans-serif;}
         .tl-lbl.on{font-weight:700;}
         .tl-line{flex:1;height:2px;background:#E5E5E0;margin-bottom:22px;}
         .tl-line.on{background:#F5B400;}
         .info2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px;}
-        .info-lbl{font-size:11px;color:#AAAAА5;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;}
+        .info-lbl{font-size:11px;color:#444442;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;}
         .info-val{font-size:15px;font-weight:700;color:#111110;margin-top:3px;}
-        .note-box{margin-top:14px;padding:12px 14px;background:#F8F7F4;border-radius:10px;font-size:14px;color:#777774;line-height:1.6;}
+        .note-box{margin-top:14px;padding:12px 14px;background:#F8F7F4;border-radius:10px;font-size:14px;color:#444442;line-height:1.6;}
         .item-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #F0F0EB;}
         .item-row:last-of-type{border-bottom:none;}
         .item-name{font-size:15px;font-weight:500;color:#111110;}
-        .item-qty{font-size:12px;color:#AAAAА5;margin-top:3px;}
+        .item-qty{font-size:12px;color:#555552;margin-top:3px;}
         .item-price{font-size:15px;font-weight:700;color:#F5B400;}
         .total-row{display:flex;justify-content:space-between;align-items:center;padding-top:14px;border-top:2px solid #F0F0EB;margin-top:2px;}
         .total-lbl{font-size:16px;font-weight:700;color:#111110;}
@@ -181,12 +180,12 @@ export default function CustomerPortal() {
         .inv-row{display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid #F0F0EB;cursor:pointer;}
         .inv-row:last-child{border-bottom:none;}
         .inv-id{font-size:16px;font-weight:700;color:#111110;}
-        .inv-date{font-size:13px;color:#AAAAА5;margin-top:3px;}
+        .inv-date{font-size:13px;color:#555552;margin-top:3px;}
         .inv-amt{font-size:18px;font-weight:800;color:#F5B400;}
         .inv-detail{padding:10px 0 6px;background:#F8F7F4;border-radius:10px;margin-top:4px;padding:12px;}
-        .inv-detail-row{display:flex;justify-content:space-between;font-size:14px;padding:5px 0;color:#555552;}
+        .inv-detail-row{display:flex;justify-content:space-between;font-size:14px;padding:5px 0;color:#333331;}
         /* BOOKING */
-        .field-lbl{display:block;font-size:13px;font-weight:600;color:#555552;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.04em;}
+        .field-lbl{display:block;font-size:13px;font-weight:600;color:#333331;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.04em;}
         .field-in{width:100%;padding:14px;border:1.5px solid #E5E5E0;border-radius:12px;background:#F8F7F4;color:#111110;font-family:'Kantumruy Pro',sans-serif;font-size:15px;outline:none;margin-bottom:16px;}
         .field-in:focus{border-color:#F5B400;}
         .time-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;}
@@ -200,24 +199,24 @@ export default function CustomerPortal() {
         .hist-row{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid #F0F0EB;}
         .hist-row:last-child{border-bottom:none;}
         .hist-svc{font-size:15px;font-weight:600;color:#111110;}
-        .hist-meta{font-size:13px;color:#AAAAА5;margin-top:4px;}
+        .hist-meta{font-size:13px;color:#555552;margin-top:4px;}
         .hist-amt{font-size:17px;font-weight:800;color:#F5B400;}
         /* POINTS */
         .pts-hero{background:#111110;border-radius:20px;padding:28px 24px;text-align:center;margin-bottom:12px;}
-        .pts-lbl{font-size:12px;color:#666663;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;}
+        .pts-lbl{font-size:12px;color:#444442;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;}
         .pts-num{font-size:72px;font-weight:800;color:#F5B400;line-height:1;margin:8px 0;}
-        .pts-note{font-size:13px;color:#555552;margin-top:6px;}
+        .pts-note{font-size:13px;color:#333331;margin-top:6px;}
         .pts-bar-bg{background:#1E1E1C;border-radius:20px;height:7px;margin:16px 0 8px;overflow:hidden;}
         .pts-bar{height:100%;background:#F5B400;border-radius:20px;}
-        .pts-sub{font-size:12px;color:#555552;}
+        .pts-sub{font-size:12px;color:#333331;}
         .pts-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
         .pts-card{background:#FFF;border-radius:14px;padding:18px;text-align:center;}
         .pts-n{font-size:28px;font-weight:800;}
-        .pts-l{font-size:12px;color:#AAAAА5;margin-top:4px;text-transform:uppercase;letter-spacing:0.04em;}
+        .pts-l{font-size:12px;color:#555552;margin-top:4px;text-transform:uppercase;letter-spacing:0.04em;}
         .txn-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #F0F0EB;}
         .txn-row:last-child{border-bottom:none;}
         .txn-name{font-size:15px;font-weight:500;color:#111110;}
-        .txn-date{font-size:12px;color:#AAAAА5;margin-top:3px;}
+        .txn-date{font-size:12px;color:#555552;margin-top:3px;}
         .redeem-btn{width:100%;padding:16px;background:#F5B400;color:#111110;border:none;border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;font-family:'Kantumruy Pro',sans-serif;}
       `}</style>
 
