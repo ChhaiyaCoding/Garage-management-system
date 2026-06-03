@@ -203,12 +203,12 @@ export default function CustomerPortal() {
         .hist-amt{font-size:17px;font-weight:800;color:#F5B400;}
         /* POINTS */
         .pts-hero{background:#111110;border-radius:20px;padding:28px 24px;text-align:center;margin-bottom:12px;}
-        .pts-lbl{font-size:12px;color:#444442;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;}
+        .pts-lbl{font-size:12px;color:#BBBBB8;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;}
         .pts-num{font-size:72px;font-weight:800;color:#F5B400;line-height:1;margin:8px 0;}
-        .pts-note{font-size:13px;color:#333331;margin-top:6px;}
+        .pts-note{font-size:13px;color:#CCCCС8;margin-top:6px;}
         .pts-bar-bg{background:#1E1E1C;border-radius:20px;height:7px;margin:16px 0 8px;overflow:hidden;}
         .pts-bar{height:100%;background:#F5B400;border-radius:20px;}
-        .pts-sub{font-size:12px;color:#333331;}
+        .pts-sub{font-size:12px;color:#CCCCС8;}
         .pts-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
         .pts-card{background:#FFF;border-radius:14px;padding:18px;text-align:center;}
         .pts-n{font-size:28px;font-weight:800;}
