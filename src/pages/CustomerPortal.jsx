@@ -1,265 +1,408 @@
-import { useState, useEffect } from "react";
+
+import { useState } from "react";
 
 const T = {
   km: {
     subtitle:"តាមដានរថយន្តរបស់អ្នក",plate:"ផ្លាកលេខ",cust:"អតិថិជន",phone:"ទូរស័ព្ទ",
     tabStatus:"ស្ថានភាព",tabInvoice:"វិក្កយបត្រ",tabBooking:"ណាត់ជួប",tabHistory:"ប្រវត្តិ",tabPoints:"ពិន្ទុ",
-    currentJob:"ការងារបច្ចុប្បន្ន",mechanic:"មេការ",estDone:"ព្រំថ្ងៃ",items:"សេវា/គ្រឿង",total:"សរុប",
+    currentJob:"ការងារបច្ចុប្បន្ន",mechanic:"មេការ",estDone:"ព្រំថ្ងៃ",items:"សេវា / គ្រឿង",total:"សរុប",
     selectService:"ជ្រើសសេវា",selectTime:"ជ្រើសម៉ោង",note:"កំណត់សម្គាល់",confirm:"បញ្ជាក់ណាត់ជួប",
     bookSuccess:"ណាត់ជួបជោគជ័យ!",newBook:"ណាត់ជួបថ្មី",selectDate:"ជ្រើសកាលបរិច្ឆេទ",
-    histTitle:"ប្រវត្តិជួសជុល",ptsBalance:"ពិន្ទុសរុប",ptsEarned:"ទទួលបាន",ptsUsed:"ប្រើប្រាស់",
-    redeem:"ប្ដូរពិន្ទុ",paid:"បានបង់",unpaid:"មិនទាន់បង់",loading:"កំពុងផ្ទុក...",
-    ptsnote:"ចំណាយ $1 = 1 ពិន្ទុ · 100 ពិន្ទុ = $1 បញ្ចុះ",noJob:"គ្មានការងារបច្ចុប្បន្នទេ",
+    ptsBalance:"ពិន្ទុសរុប",ptsEarned:"ទទួលបាន",ptsUsed:"ប្រើប្រាស់",redeem:"ប្ដូរពិន្ទុ",
+    paid:"បានបង់",noJob:"គ្មានការងារបច្ចុប្បន្នទេ",
+    ptsnote:"$1 = 1 ពិន្ទុ · 100 ពិន្ទុ = $1 បញ្ចុះ",
     statusMap:{pending:"រង់ចាំ",checked_in:"បានចូល",in_progress:"កំពុងជួសជុល",qc:"ត្រួតពិនិត្យ",ready:"រួចរាល់",completed:"ចប់"},
-    services:["ប្ដូរប្រេង","ពិនិត្យទូទៅ","Brake","Tyre","AC Service","Engine","Other"],
+    services:["ប្ដូរប្រេង","ពិនិត្យទូទៅ","ជួសជុល Brake","ប្ដូរ Tyre","AC Service","Engine Check","Other"],
   },
   en: {
     subtitle:"Track your vehicle service",plate:"Plate",cust:"Customer",phone:"Phone",
     tabStatus:"Status",tabInvoice:"Invoice",tabBooking:"Booking",tabHistory:"History",tabPoints:"Points",
-    currentJob:"Current Job",mechanic:"Mechanic",estDone:"Est. Done",items:"Services/Parts",total:"Total",
+    currentJob:"Current Job",mechanic:"Mechanic",estDone:"Est. Done",items:"Services / Parts",total:"Total",
     selectService:"Select Service",selectTime:"Select Time",note:"Notes",confirm:"Confirm Booking",
     bookSuccess:"Booking Confirmed!",newBook:"New Appointment",selectDate:"Select Date",
-    histTitle:"Service History",ptsBalance:"Points Balance",ptsEarned:"Earned",ptsUsed:"Used",
-    redeem:"Redeem Points",paid:"Paid",unpaid:"Unpaid",loading:"Loading...",
-    ptsnote:"Spend $1 = 1 pt · 100 pts = $1 off",noJob:"No active job",
+    ptsBalance:"Points Balance",ptsEarned:"Earned",ptsUsed:"Used",redeem:"Redeem Points",
+    paid:"Paid",noJob:"No active job",
+    ptsnote:"$1 = 1 pt · 100 pts = $1 off",
     statusMap:{pending:"Pending",checked_in:"Checked In",in_progress:"In Progress",qc:"QC Check",ready:"Ready",completed:"Completed"},
     services:["Oil Change","General Check","Brake Repair","Tyre Change","AC Service","Engine Check","Other"],
   },
 };
 
 const STATUS_CFG = {
-  pending:{color:"#888780",bg:"#F1EFE8",icon:"⏳"},
-  checked_in:{color:"#185FA5",bg:"#E6F1FB",icon:"🔑"},
-  in_progress:{color:"#854F0B",bg:"#FAEEDA",icon:"🔧"},
-  qc:{color:"#534AB7",bg:"#EEEDFE",icon:"🔍"},
-  ready:{color:"#3B6D11",bg:"#EAF3DE",icon:"✅"},
-  completed:{color:"#0F6E56",bg:"#E1F5EE",icon:"🎉"},
+  pending:    {color:"#92400E",bg:"#FEF3C7",icon:"⏳",bar:"#F59E0B"},
+  checked_in: {color:"#1E40AF",bg:"#DBEAFE",icon:"🔑",bar:"#3B82F6"},
+  in_progress:{color:"#92400E",bg:"#FEF3C7",icon:"🔧",bar:"#F59E0B"},
+  qc:         {color:"#5B21B6",bg:"#EDE9FE",icon:"🔍",bar:"#8B5CF6"},
+  ready:      {color:"#065F46",bg:"#D1FAE5",icon:"✅",bar:"#10B981"},
+  completed:  {color:"#065F46",bg:"#D1FAE5",icon:"🎉",bar:"#10B981"},
 };
 const STATUS_ORDER = ["pending","checked_in","in_progress","qc","ready","completed"];
 
 const MOCK = {
   customer:{name:"លោក សុខ ដារ៉ា",phone:"012 345 678",plate:"1AA-2202",points:245},
-  currentJob:{id:"JC-2026-0042",status:"in_progress",mechanic:"Sok Pheap",service:"Engine Check + Oil Change",estDone:"03/06/2026 17:00",notes:"Found oil leak at gasket",items:[{name:"Oil Filter",qty:1,price:8},{name:"Engine Oil 5W30",qty:4,price:12},{name:"Labour",qty:1,price:25}]},
+  currentJob:{id:"JC-2026-0042",status:"in_progress",mechanic:"Sok Pheap",service:"Engine Check + Oil Change",estDone:"03/06 17:00",notes:"Found oil leak at gasket",items:[{name:"Oil Filter",qty:1,price:8},{name:"Engine Oil 5W30",qty:4,price:12},{name:"Labour",qty:1,price:25}]},
   invoices:[
-    {id:"INV-2026-0038",date:"2026-05-28",status:"paid",total:85,items:[{name:"Brake Pad",qty:2,price:18},{name:"Labour",qty:1,price:30},{name:"Brake Fluid",qty:1,price:7}]},
-    {id:"INV-2026-0031",date:"2026-05-10",status:"paid",total:45,items:[{name:"Oil Change",qty:1,price:30},{name:"Filter",qty:1,price:15}]},
+    {id:"INV-0038",date:"28 May 2026",status:"paid",total:85,items:[{name:"Brake Pad",qty:2,price:18},{name:"Labour",qty:1,price:30},{name:"Brake Fluid",qty:1,price:7}]},
+    {id:"INV-0031",date:"10 May 2026",status:"paid",total:45,items:[{name:"Oil Change",qty:1,price:30},{name:"Filter",qty:1,price:15}]},
   ],
   history:[
-    {id:"JC-2026-0038",date:"2026-05-28",service:"Brake Repair",mechanic:"Chea Vannak",total:85,status:"completed"},
-    {id:"JC-2026-0031",date:"2026-05-10",service:"Oil Change",mechanic:"Sok Pheap",total:45,status:"completed"},
-    {id:"JC-2026-0018",date:"2026-04-15",service:"Tyre Change x2",mechanic:"Sok Pheap",total:120,status:"completed"},
+    {date:"28 May",service:"Brake Repair",mechanic:"Chea Vannak",total:85,status:"completed"},
+    {date:"10 May",service:"Oil Change",mechanic:"Sok Pheap",total:45,status:"completed"},
+    {date:"15 Apr",service:"Tyre Change x2",mechanic:"Sok Pheap",total:120,status:"completed"},
   ],
   ptsHistory:[
-    {date:"2026-05-28",desc:"Brake Repair",delta:+85},{date:"2026-05-10",desc:"Oil Change",delta:+45},
-    {date:"2026-04-15",desc:"Redeem",delta:-100},{date:"2026-04-15",desc:"Tyre Change",delta:+120},
+    {date:"28 May",desc:"Brake Repair",delta:+85},
+    {date:"10 May",desc:"Oil Change",delta:+45},
+    {date:"15 Apr",desc:"Redeem discount",delta:-100},
+    {date:"15 Apr",desc:"Tyre Change",delta:+120},
   ],
 };
 
-function Badge({status,t}){
-  const c=STATUS_CFG[status]||STATUS_CFG.pending;
-  return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:600,color:c.color,background:c.bg}}>{c.icon} {t.statusMap[status]||status}</span>;
-}
+export default function CustomerPortal() {
+  const [lang, setLang] = useState("km");
+  const [tab, setTab] = useState("status");
+  const [openInv, setOpenInv] = useState(null);
+  const [selTime, setSelTime] = useState("");
+  const [date, setDate] = useState("");
+  const [svc, setSvc] = useState("");
+  const [note, setNote] = useState("");
+  const [booked, setBooked] = useState(false);
+  const t = T[lang];
+  const d = MOCK;
+  const times = ["08:00","09:00","10:00","11:00","13:00","14:00","15:00","16:00"];
+  const cur = STATUS_ORDER.indexOf(d.currentJob.status);
+  const jobTotal = d.currentJob.items.reduce((s,i)=>s+i.qty*i.price,0);
+  const earned = d.ptsHistory.filter(p=>p.delta>0).reduce((s,p)=>s+p.delta,0);
+  const used = Math.abs(d.ptsHistory.filter(p=>p.delta<0).reduce((s,p)=>s+p.delta,0));
 
-export default function CustomerPortal(){
-  const [lang,setLang]=useState("km");
-  const [tab,setTab]=useState("status");
-  const [openInv,setOpenInv]=useState(null);
-  const [selTime,setSelTime]=useState("");
-  const [date,setDate]=useState("");
-  const [svc,setSvc]=useState("");
-  const [note,setNote]=useState("");
-  const [booked,setBooked]=useState(false);
-  const t=T[lang];
-  const d=MOCK;
-  const times=["08:00","09:00","10:00","11:00","13:00","14:00","15:00","16:00"];
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;500;600;700&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+        html,body,#root{
+          height:100%;
+          height:100dvh;
+          overflow:hidden;
+          background:#111110;
+        }
+        .wrap{
+          font-family:'Kantumruy Pro',sans-serif;
+          max-width:430px;
+          margin:0 auto;
+          height:100%;
+          height:100dvh;
+          display:flex;
+          flex-direction:column;
+          background:#F2F1EE;
+          overflow:hidden;
+        }
+        /* HEADER */
+        .hdr{
+          background:#111110;
+          padding:16px 16px 0;
+          flex-shrink:0;
+        }
+        .hdr-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+        .logo{display:flex;align-items:center;gap:10px;}
+        .logo-box{width:40px;height:40px;border-radius:10px;background:#F5B400;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;color:#111110;flex-shrink:0;}
+        .logo-name{color:#FAFAF8;font-size:16px;font-weight:700;letter-spacing:0.01em;}
+        .logo-sub{color:#666663;font-size:12px;margin-top:1px;}
+        .lang-btn{background:#1E1E1C;border:1px solid #333330;color:#FAFAF8;font-size:13px;font-weight:600;padding:7px 16px;border-radius:20px;cursor:pointer;font-family:'Kantumruy Pro',sans-serif;}
+        .car-row{display:flex;border-top:1px solid #1E1E1C;padding:12px 0;}
+        .car-col{flex:1;}
+        .car-col:not(:last-child){border-right:1px solid #1E1E1C;padding-right:12px;margin-right:12px;}
+        .car-lbl{font-size:11px;color:#555552;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;}
+        .car-val{font-size:14px;font-weight:700;color:#FAFAF8;margin-top:3px;}
+        /* CONTENT */
+        .content{
+          flex:1;
+          overflow-y:auto;
+          -webkit-overflow-scrolling:touch;
+          overscroll-behavior:contain;
+          padding:14px 14px 20px;
+        }
+        /* TAB BAR - sticky bottom using flex */
+        .tabbar{
+          flex-shrink:0;
+          display:flex;
+          background:#FFFFFF;
+          border-top:1px solid #E5E5E0;
+          padding-bottom:env(safe-area-inset-bottom,0px);
+        }
+        .tab-btn{
+          flex:1;
+          padding:12px 4px 10px;
+          border:none;
+          background:transparent;
+          cursor:pointer;
+          display:flex;
+          flex-direction:column;
+          align-items:center;
+          gap:4px;
+          border-top:2.5px solid transparent;
+          transition:border-color 0.15s;
+        }
+        .tab-btn.on{border-top-color:#F5B400;}
+        .tab-ico{font-size:22px;line-height:1;}
+        .tab-lbl{font-size:11px;color:#AAAAА5;font-family:'Kantumruy Pro',sans-serif;font-weight:400;}
+        .tab-btn.on .tab-lbl{color:#111110;font-weight:700;}
+        /* CARDS */
+        .card{background:#FFF;border-radius:16px;padding:18px;margin-bottom:12px;}
+        .card-ttl{font-size:11px;font-weight:600;color:#AAAAА5;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:14px;}
+        /* STATUS */
+        .badge{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;}
+        .job-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:18px;}
+        .job-id{font-size:20px;font-weight:800;color:#111110;}
+        .job-svc{font-size:14px;color:#777774;margin-top:4px;}
+        .timeline{display:flex;align-items:center;margin:18px 0;overflow-x:auto;padding-bottom:6px;scrollbar-width:none;}
+        .timeline::-webkit-scrollbar{display:none;}
+        .tl-col{display:flex;flex-direction:column;align-items:center;min-width:54px;}
+        .tl-dot{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid #E5E5E0;background:#F2F1EE;}
+        .tl-dot.on{border-color:transparent;}
+        .tl-dot.active{box-shadow:0 0 0 5px rgba(245,180,0,0.18);}
+        .tl-lbl{font-size:10px;color:#AAAAА5;margin-top:5px;text-align:center;line-height:1.3;white-space:nowrap;font-family:'Kantumruy Pro',sans-serif;}
+        .tl-lbl.on{font-weight:700;}
+        .tl-line{flex:1;height:2px;background:#E5E5E0;margin-bottom:22px;}
+        .tl-line.on{background:#F5B400;}
+        .info2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px;}
+        .info-lbl{font-size:11px;color:#AAAAА5;font-weight:500;text-transform:uppercase;letter-spacing:0.04em;}
+        .info-val{font-size:15px;font-weight:700;color:#111110;margin-top:3px;}
+        .note-box{margin-top:14px;padding:12px 14px;background:#F8F7F4;border-radius:10px;font-size:14px;color:#777774;line-height:1.6;}
+        .item-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #F0F0EB;}
+        .item-row:last-of-type{border-bottom:none;}
+        .item-name{font-size:15px;font-weight:500;color:#111110;}
+        .item-qty{font-size:12px;color:#AAAAА5;margin-top:3px;}
+        .item-price{font-size:15px;font-weight:700;color:#F5B400;}
+        .total-row{display:flex;justify-content:space-between;align-items:center;padding-top:14px;border-top:2px solid #F0F0EB;margin-top:2px;}
+        .total-lbl{font-size:16px;font-weight:700;color:#111110;}
+        .total-amt{font-size:24px;font-weight:800;color:#F5B400;}
+        /* INVOICE */
+        .inv-row{display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid #F0F0EB;cursor:pointer;}
+        .inv-row:last-child{border-bottom:none;}
+        .inv-id{font-size:16px;font-weight:700;color:#111110;}
+        .inv-date{font-size:13px;color:#AAAAА5;margin-top:3px;}
+        .inv-amt{font-size:18px;font-weight:800;color:#F5B400;}
+        .inv-detail{padding:10px 0 6px;background:#F8F7F4;border-radius:10px;margin-top:4px;padding:12px;}
+        .inv-detail-row{display:flex;justify-content:space-between;font-size:14px;padding:5px 0;color:#555552;}
+        /* BOOKING */
+        .field-lbl{display:block;font-size:13px;font-weight:600;color:#555552;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.04em;}
+        .field-in{width:100%;padding:14px;border:1.5px solid #E5E5E0;border-radius:12px;background:#F8F7F4;color:#111110;font-family:'Kantumruy Pro',sans-serif;font-size:15px;outline:none;margin-bottom:16px;}
+        .field-in:focus{border-color:#F5B400;}
+        .time-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;}
+        .time-btn{padding:11px 4px;border-radius:10px;border:1.5px solid #E5E5E0;background:#F8F7F4;color:#111110;font-size:14px;font-weight:500;cursor:pointer;font-family:'Kantumruy Pro',sans-serif;}
+        .time-btn.on{border-color:#F5B400;background:#FFFBEB;color:#92400E;font-weight:700;}
+        .confirm-btn{width:100%;padding:16px;background:#111110;color:#FFF;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;font-family:'Kantumruy Pro',sans-serif;margin-top:4px;}
+        .confirm-btn:disabled{opacity:0.3;cursor:not-allowed;}
+        .success-box{text-align:center;padding:60px 20px;}
+        .new-btn{margin-top:24px;padding:14px 32px;background:#111110;color:#FFF;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:'Kantumruy Pro',sans-serif;}
+        /* HISTORY */
+        .hist-row{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid #F0F0EB;}
+        .hist-row:last-child{border-bottom:none;}
+        .hist-svc{font-size:15px;font-weight:600;color:#111110;}
+        .hist-meta{font-size:13px;color:#AAAAА5;margin-top:4px;}
+        .hist-amt{font-size:17px;font-weight:800;color:#F5B400;}
+        /* POINTS */
+        .pts-hero{background:#111110;border-radius:20px;padding:28px 24px;text-align:center;margin-bottom:12px;}
+        .pts-lbl{font-size:12px;color:#666663;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;}
+        .pts-num{font-size:72px;font-weight:800;color:#F5B400;line-height:1;margin:8px 0;}
+        .pts-note{font-size:13px;color:#555552;margin-top:6px;}
+        .pts-bar-bg{background:#1E1E1C;border-radius:20px;height:7px;margin:16px 0 8px;overflow:hidden;}
+        .pts-bar{height:100%;background:#F5B400;border-radius:20px;}
+        .pts-sub{font-size:12px;color:#555552;}
+        .pts-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+        .pts-card{background:#FFF;border-radius:14px;padding:18px;text-align:center;}
+        .pts-n{font-size:28px;font-weight:800;}
+        .pts-l{font-size:12px;color:#AAAAА5;margin-top:4px;text-transform:uppercase;letter-spacing:0.04em;}
+        .txn-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #F0F0EB;}
+        .txn-row:last-child{border-bottom:none;}
+        .txn-name{font-size:15px;font-weight:500;color:#111110;}
+        .txn-date{font-size:12px;color:#AAAAА5;margin-top:3px;}
+        .redeem-btn{width:100%;padding:16px;background:#F5B400;color:#111110;border:none;border-radius:14px;font-size:16px;font-weight:800;cursor:pointer;font-family:'Kantumruy Pro',sans-serif;}
+      `}</style>
 
-  const s={
-    wrap:{fontFamily:"'Kantumruy Pro',sans-serif",background:"#F8F7F4",minHeight:"100vh",maxWidth:480,margin:"0 auto"},
-    hdr:{background:"#1A1A18",padding:"14px 14px 0"},
-    logoRow:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12},
-    logoBox:{width:32,height:32,borderRadius:7,background:"#F5B400",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:16,color:"#1A1A18"},
-    carInfo:{background:"rgba(255,255,255,0.07)",borderRadius:10,padding:"10px 12px",display:"flex",gap:16,marginBottom:12},
-    tabs:{display:"flex",background:"#fff",borderTop:"1px solid #E3E1D8",position:"sticky",bottom:0},
-    tab:(active)=>({flex:1,padding:"9px 4px 10px",border:"none",background:"transparent",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderTop:active?"2.5px solid #E09000":"2.5px solid transparent",fontFamily:"'Kantumruy Pro',sans-serif"}),
-    card:{background:"#fff",border:"1px solid #E3E1D8",borderRadius:12,padding:14,marginBottom:10},
-    btn:{width:"100%",padding:12,background:"#E09000",color:"#fff",border:"none",borderRadius:10,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'Kantumruy Pro',sans-serif"},
-    input:{width:"100%",padding:"9px 10px",border:"1.5px solid #E3E1D8",borderRadius:8,background:"#F8F7F4",color:"#2C2C2A",fontFamily:"'Kantumruy Pro',sans-serif",fontSize:13,outline:"none",marginBottom:10,boxSizing:"border-box"},
-    lbl:{display:"block",fontSize:11,fontWeight:600,color:"#888",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:5},
-  };
-
-  const cur=STATUS_ORDER.indexOf(d.currentJob.status);
-
-  return(
-    <div style={s.wrap}>
-      <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;600;700&display=swap" rel="stylesheet"/>
-      <div style={s.hdr}>
-        <div style={s.logoRow}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <div style={s.logoBox}>G</div>
-            <div>
-              <div style={{color:"#fff",fontWeight:700,fontSize:14}}>GARAGE OS</div>
-              <div style={{color:"#888",fontSize:11}}>{t.subtitle}</div>
-            </div>
-          </div>
-          <button onClick={()=>setLang(lang==="km"?"en":"km")} style={{padding:"4px 10px",borderRadius:20,border:"1.5px solid #3A3A36",background:"transparent",color:"#E8E6DF",fontSize:11,fontWeight:600,cursor:"pointer"}}>
-            {lang==="km"?"EN":"ខ្មែរ"}
-          </button>
-        </div>
-        <div style={s.carInfo}>
-          {[["plate","1AA-2202"],["cust",d.customer.name],["phone",d.customer.phone]].map(([k,v])=>(
-            <div key={k}><div style={{fontSize:9,color:"rgba(255,255,255,0.45)",fontWeight:600,textTransform:"uppercase"}}>{t[k]}</div><div style={{fontSize:12,fontWeight:700,color:"#fff"}}>{v}</div></div>
-          ))}
-        </div>
-      </div>
-
-      <div style={{padding:"12px 14px 80px"}}>
-        {tab==="status"&&(
-          <div>
-            <div style={{...s.card,borderLeft:"4px solid #854F0B"}}>
-              <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
-                <div>
-                  <div style={{fontSize:12,color:"#888"}}>{t.currentJob}</div>
-                  <div style={{fontSize:17,fontWeight:800,color:"#2C2C2A"}}>{d.currentJob.id}</div>
-                  <div style={{fontSize:13,color:"#2C2C2A",marginTop:2}}>{d.currentJob.service}</div>
-                </div>
-                <Badge status={d.currentJob.status} t={t}/>
+      <div className="wrap">
+        {/* HEADER */}
+        <div className="hdr">
+          <div className="hdr-top">
+            <div className="logo">
+              <div className="logo-box">G</div>
+              <div>
+                <div className="logo-name">GARAGE OS</div>
+                <div className="logo-sub">{t.subtitle}</div>
               </div>
-              <div style={{display:"flex",alignItems:"center",margin:"14px 0",overflowX:"auto",paddingBottom:2}}>
-                {STATUS_ORDER.map((s2,i)=>{
-                  const cfg=STATUS_CFG[s2];const done=i<=cur;const active=i===cur;
+            </div>
+            <button className="lang-btn" onClick={()=>setLang(lang==="km"?"en":"km")}>
+              {lang==="km"?"EN":"ខ្មែរ"}
+            </button>
+          </div>
+          <div className="car-row">
+            <div className="car-col"><div className="car-lbl">{t.plate}</div><div className="car-val">{d.customer.plate}</div></div>
+            <div className="car-col"><div className="car-lbl">{t.cust}</div><div className="car-val">{d.customer.name}</div></div>
+            <div className="car-col"><div className="car-lbl">{t.phone}</div><div className="car-val">{d.customer.phone}</div></div>
+          </div>
+        </div>
+
+        {/* SCROLLABLE CONTENT */}
+        <div className="content">
+
+          {tab==="status" && <>
+            <div className="card" style={{borderLeft:`4px solid ${STATUS_CFG[d.currentJob.status]?.bar}`}}>
+              <div className="job-top">
+                <div>
+                  <div className="card-ttl">{t.currentJob}</div>
+                  <div className="job-id">{d.currentJob.id}</div>
+                  <div className="job-svc">{d.currentJob.service}</div>
+                </div>
+                <span className="badge" style={{color:STATUS_CFG[d.currentJob.status]?.color,background:STATUS_CFG[d.currentJob.status]?.bg}}>
+                  {STATUS_CFG[d.currentJob.status]?.icon} {t.statusMap[d.currentJob.status]}
+                </span>
+              </div>
+              <div className="timeline">
+                {STATUS_ORDER.map((s,i)=>{
+                  const cfg=STATUS_CFG[s];const done=i<=cur;const active=i===cur;
                   return(
-                    <div key={s2} style={{display:"flex",alignItems:"center",flex:i<STATUS_ORDER.length-1?1:0}}>
-                      <div style={{display:"flex",flexDirection:"column",alignItems:"center",minWidth:46}}>
-                        <div style={{width:30,height:30,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,border:`2px solid ${done?cfg.color:"#ccc"}`,background:done?cfg.bg:"#F1EFE8",boxShadow:active?`0 0 0 4px ${cfg.bg}`:"none"}}>{done?cfg.icon:"○"}</div>
-                        <div style={{fontSize:9,color:done?cfg.color:"#888",marginTop:3,textAlign:"center",lineHeight:1.2}}>{t.statusMap[s2]}</div>
+                    <div key={s} style={{display:"flex",alignItems:"center",flex:i<STATUS_ORDER.length-1?1:0}}>
+                      <div className="tl-col">
+                        <div className={`tl-dot${done?" on":""}${active?" active":""}`} style={done?{background:cfg.bg,borderColor:cfg.bar}:{}}>
+                          {done?cfg.icon:"○"}
+                        </div>
+                        <div className={`tl-lbl${done?" on":""}`} style={done?{color:cfg.color}:{}}>{t.statusMap[s]}</div>
                       </div>
-                      {i<STATUS_ORDER.length-1&&<div style={{flex:1,height:2,margin:"0 2px",marginBottom:16,background:i<cur?"#1D9E75":"#E3E1D8"}}/>}
+                      {i<STATUS_ORDER.length-1&&<div className={`tl-line${i<cur?" on":""}`}/>}
                     </div>
                   );
                 })}
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                {[[t.mechanic,d.currentJob.mechanic],[t.estDone,d.currentJob.estDone]].map(([l,v])=>(
-                  <div key={l}><div style={{fontSize:10,color:"#888",fontWeight:600,textTransform:"uppercase"}}>{l}</div><div style={{fontSize:13,fontWeight:600,color:"#2C2C2A",marginTop:2}}>{v}</div></div>
-                ))}
+              <div className="info2">
+                <div><div className="info-lbl">{t.mechanic}</div><div className="info-val">{d.currentJob.mechanic}</div></div>
+                <div><div className="info-lbl">{t.estDone}</div><div className="info-val">{d.currentJob.estDone}</div></div>
               </div>
-              {d.currentJob.notes&&<div style={{marginTop:10,padding:"8px 10px",background:"#F8F7F4",borderRadius:8,fontSize:12,color:"#888",fontStyle:"italic"}}>💬 {d.currentJob.notes}</div>}
+              {d.currentJob.notes&&<div className="note-box">💬 {d.currentJob.notes}</div>}
             </div>
-            <div style={s.card}>
-              <div style={{fontWeight:600,marginBottom:8,color:"#2C2C2A"}}>{t.items}</div>
+            <div className="card">
+              <div className="card-ttl">{t.items}</div>
               {d.currentJob.items.map((item,i)=>(
-                <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:i<d.currentJob.items.length-1?"1px solid #F1EFE8":"none",fontSize:13}}>
-                  <span style={{color:"#2C2C2A"}}>{item.name}</span>
-                  <span style={{color:"#888"}}>x{item.qty} · <strong style={{color:"#E09000"}}>${(item.qty*item.price).toFixed(2)}</strong></span>
+                <div className="item-row" key={i}>
+                  <div><div className="item-name">{item.name}</div><div className="item-qty">x{item.qty}</div></div>
+                  <div className="item-price">${(item.qty*item.price).toFixed(2)}</div>
                 </div>
               ))}
-              <div style={{display:"flex",justifyContent:"space-between",marginTop:10,paddingTop:10,borderTop:"2px solid #E3E1D8",fontWeight:700}}>
-                <span style={{color:"#2C2C2A"}}>{t.total}</span>
-                <span style={{color:"#E09000",fontSize:17}}>${d.currentJob.items.reduce((s,i)=>s+i.qty*i.price,0).toFixed(2)}</span>
+              <div className="total-row">
+                <div className="total-lbl">{t.total}</div>
+                <div className="total-amt">${jobTotal.toFixed(2)}</div>
               </div>
             </div>
-          </div>
-        )}
+          </>}
 
-        {tab==="invoice"&&(
-          <div style={s.card}>
-            {d.invoices.map((inv)=>(
+          {tab==="invoice" && <div className="card">
+            <div className="card-ttl">{t.tabInvoice}</div>
+            {d.invoices.map(inv=>(
               <div key={inv.id}>
-                <div onClick={()=>setOpenInv(openInv===inv.id?null:inv.id)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid #F1EFE8",cursor:"pointer"}}>
-                  <div><div style={{fontWeight:700,fontSize:14,color:"#2C2C2A"}}>{inv.id}</div><div style={{fontSize:11,color:"#888",marginTop:2}}>{inv.date}</div></div>
-                  <div style={{textAlign:"right"}}><Badge status={inv.status} t={t}/><div style={{fontWeight:700,color:"#E09000",marginTop:4}}>${inv.total}</div></div>
+                <div className="inv-row" onClick={()=>setOpenInv(openInv===inv.id?null:inv.id)}>
+                  <div><div className="inv-id">{inv.id}</div><div className="inv-date">{inv.date}</div></div>
+                  <div style={{textAlign:"right"}}>
+                    <span className="badge" style={{color:"#065F46",background:"#D1FAE5",fontSize:12}}>✅ {t.paid}</span>
+                    <div className="inv-amt">${inv.total}</div>
+                  </div>
                 </div>
                 {openInv===inv.id&&(
-                  <div style={{padding:"10px 0"}}>
+                  <div className="inv-detail">
                     {inv.items.map((it,i)=>(
-                      <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"4px 0"}}>
-                        <span style={{color:"#2C2C2A"}}>{it.name}</span>
-                        <span style={{color:"#E09000",fontWeight:600}}>${(it.qty*it.price).toFixed(2)}</span>
+                      <div className="inv-detail-row" key={i}>
+                        <span>{it.name} x{it.qty}</span>
+                        <span style={{color:"#F5B400",fontWeight:700}}>${(it.qty*it.price).toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
             ))}
-          </div>
-        )}
+          </div>}
 
-        {tab==="booking"&&(
-          booked?(
-            <div style={{textAlign:"center",padding:"40px 20px"}}>
-              <div style={{fontSize:52}}>🎉</div>
-              <div style={{fontSize:18,fontWeight:800,color:"#2C2C2A",margin:"10px 0 6px"}}>{t.bookSuccess}</div>
-              <button className="portal-btn" style={{...s.btn,maxWidth:200,marginTop:20}} onClick={()=>{setBooked(false);setDate("");setSvc("");setSelTime("");setNote("");}}>+ {t.newBook}</button>
+          {tab==="booking" && (booked?(
+            <div className="success-box">
+              <div style={{fontSize:68}}>🎉</div>
+              <div style={{fontSize:24,fontWeight:800,color:"#111110",margin:"16px 0 8px"}}>{t.bookSuccess}</div>
+              <div style={{fontSize:15,color:"#777774"}}>{date} · {selTime}</div>
+              <div style={{fontSize:15,fontWeight:600,color:"#F5B400",marginTop:4}}>{svc}</div>
+              <button className="new-btn" onClick={()=>{setBooked(false);setDate("");setSvc("");setSelTime("");setNote("");}}>
+                + {t.newBook}
+              </button>
             </div>
           ):(
-            <div style={s.card}>
-              <div style={{fontWeight:700,fontSize:15,color:"#2C2C2A",marginBottom:14}}>{t.newBook}</div>
-              <label style={s.lbl}>{t.selectDate}</label>
-              <input type="date" style={s.input} value={date} onChange={e=>setDate(e.target.value)} min={new Date().toISOString().split("T")[0]}/>
-              <label style={s.lbl}>{t.selectService}</label>
-              <select style={s.input} value={svc} onChange={e=>setSvc(e.target.value)}>
+            <div className="card">
+              <div className="card-ttl">{t.newBook}</div>
+              <label className="field-lbl">{t.selectDate}</label>
+              <input type="date" className="field-in" value={date} onChange={e=>setDate(e.target.value)} min={new Date().toISOString().split("T")[0]}/>
+              <label className="field-lbl">{t.selectService}</label>
+              <select className="field-in" value={svc} onChange={e=>setSvc(e.target.value)}>
                 <option value="">—</option>
-                {t.services.map(sv=><option key={sv}>{sv}</option>)}
+                {t.services.map(s=><option key={s}>{s}</option>)}
               </select>
-              <label style={s.lbl}>{t.selectTime}</label>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:10}}>
+              <label className="field-lbl">{t.selectTime}</label>
+              <div className="time-grid">
                 {times.map(tm=>(
-                  <button key={tm} onClick={()=>setSelTime(tm)} style={{padding:"7px 4px",borderRadius:7,border:`1.5px solid ${selTime===tm?"#E09000":"#E3E1D8"}`,background:selTime===tm?"#FAEEDA":"#F8F7F4",color:selTime===tm?"#633806":"#2C2C2A",fontWeight:selTime===tm?700:400,cursor:"pointer",fontSize:12}}>{tm}</button>
+                  <button key={tm} className={`time-btn${selTime===tm?" on":""}`} onClick={()=>setSelTime(tm)}>{tm}</button>
                 ))}
               </div>
-              <label style={s.lbl}>{t.note}</label>
-              <textarea style={{...s.input,resize:"none"}} rows={2} value={note} onChange={e=>setNote(e.target.value)}/>
-              <button style={{...s.btn,opacity:(!date||!svc||!selTime)?0.45:1}} disabled={!date||!svc||!selTime} onClick={()=>setBooked(true)}>{t.confirm}</button>
+              <label className="field-lbl">{t.note}</label>
+              <textarea className="field-in" rows={3} value={note} onChange={e=>setNote(e.target.value)} style={{resize:"none"}}/>
+              <button className="confirm-btn" disabled={!date||!svc||!selTime} onClick={()=>setBooked(true)}>{t.confirm}</button>
             </div>
-          )
-        )}
+          ))}
 
-        {tab==="history"&&(
-          <div style={s.card}>
-            {d.history.map((j)=>(
-              <div key={j.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid #F1EFE8"}}>
-                <div><div style={{fontWeight:600,fontSize:13,color:"#2C2C2A"}}>{j.service}</div><div style={{fontSize:11,color:"#888",marginTop:2}}>{j.date} · {j.mechanic}</div></div>
-                <div style={{textAlign:"right"}}><Badge status={j.status} t={t}/><div style={{fontWeight:700,color:"#E09000",marginTop:4}}>${j.total}</div></div>
+          {tab==="history" && <div className="card">
+            <div className="card-ttl">{t.tabHistory}</div>
+            {d.history.map((j,i)=>(
+              <div className="hist-row" key={i}>
+                <div><div className="hist-svc">{j.service}</div><div className="hist-meta">{j.date} · {j.mechanic}</div></div>
+                <div style={{textAlign:"right"}}>
+                  <div className="hist-amt">${j.total}</div>
+                  <span className="badge" style={{color:"#065F46",background:"#D1FAE5",fontSize:11,marginTop:4,display:"inline-flex"}}>🎉 {t.statusMap[j.status]}</span>
+                </div>
               </div>
             ))}
-          </div>
-        )}
+          </div>}
 
-        {tab==="points"&&(
-          <div>
-            <div style={{background:"linear-gradient(135deg,#F5B400,#E09000)",borderRadius:12,padding:18,textAlign:"center",marginBottom:10}}>
-              <div style={{fontSize:11,color:"rgba(255,255,255,0.8)",fontWeight:500}}>{t.ptsBalance}</div>
-              <div style={{fontSize:46,fontWeight:800,color:"#fff",lineHeight:1}}>{d.customer.points}</div>
-              <div style={{fontSize:11,color:"rgba(255,255,255,0.75)",marginTop:4}}>{t.ptsnote}</div>
-              <div style={{background:"rgba(255,255,255,0.3)",borderRadius:20,height:7,marginTop:10,overflow:"hidden"}}>
-                <div style={{width:`${Math.min((d.customer.points/500)*100,100)}%`,height:"100%",background:"#fff",borderRadius:20}}/>
+          {tab==="points" && <>
+            <div className="pts-hero">
+              <div className="pts-lbl">{t.ptsBalance}</div>
+              <div className="pts-num">{d.customer.points}</div>
+              <div className="pts-note">{t.ptsnote}</div>
+              <div className="pts-bar-bg">
+                <div className="pts-bar" style={{width:`${Math.min((d.customer.points/500)*100,100)}%`}}/>
               </div>
+              <div className="pts-sub">{d.customer.points} / 500 pts</div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-              <div style={s.card}><div style={{fontSize:22,fontWeight:700,color:"#3B6D11",textAlign:"center"}}>+{d.ptsHistory.filter(p=>p.delta>0).reduce((s,p)=>s+p.delta,0)}</div><div style={{fontSize:11,color:"#888",textAlign:"center"}}>{t.ptsEarned}</div></div>
-              <div style={s.card}><div style={{fontSize:22,fontWeight:700,color:"#A32D2D",textAlign:"center"}}>-{Math.abs(d.ptsHistory.filter(p=>p.delta<0).reduce((s,p)=>s+p.delta,0))}</div><div style={{fontSize:11,color:"#888",textAlign:"center"}}>{t.ptsUsed}</div></div>
+            <div className="pts-grid">
+              <div className="pts-card"><div className="pts-n" style={{color:"#065F46"}}>+{earned}</div><div className="pts-l">{t.ptsEarned}</div></div>
+              <div className="pts-card"><div className="pts-n" style={{color:"#DC2626"}}>-{used}</div><div className="pts-l">{t.ptsUsed}</div></div>
             </div>
-            <div style={s.card}>
+            <div className="card">
+              <div className="card-ttl">Transactions</div>
               {d.ptsHistory.map((p,i)=>(
-                <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:i<d.ptsHistory.length-1?"1px solid #F1EFE8":"none",fontSize:12}}>
-                  <div><div style={{color:"#2C2C2A",fontWeight:500}}>{p.desc}</div><div style={{color:"#888",fontSize:10}}>{p.date}</div></div>
-                  <div style={{fontWeight:700,color:p.delta>0?"#3B6D11":"#A32D2D"}}>{p.delta>0?"+":""}{p.delta}</div>
+                <div className="txn-row" key={i}>
+                  <div><div className="txn-name">{p.desc}</div><div className="txn-date">{p.date}</div></div>
+                  <div style={{fontWeight:800,fontSize:17,color:p.delta>0?"#065F46":"#DC2626"}}>{p.delta>0?"+":""}{p.delta}</div>
                 </div>
               ))}
             </div>
-            <button style={{...s.btn,background:"#F5B400",color:"#412402"}}>🎁 {t.redeem} ({d.customer.points} pts = ${(d.customer.points/100).toFixed(2)})</button>
-          </div>
-        )}
-      </div>
+            <button className="redeem-btn">🎁 {t.redeem} · {d.customer.points} pts = ${(d.customer.points/100).toFixed(2)}</button>
+          </>}
 
-      <div style={s.tabs}>
-        {[["status","🔧",t.tabStatus],["invoice","🧾",t.tabInvoice],["booking","📅",t.tabBooking],["history","📋",t.tabHistory],["points","⭐",t.tabPoints]].map(([key,icon,label])=>(
-          <button key={key} onClick={()=>setTab(key)} style={s.tab(tab===key)}>
-            <span style={{fontSize:16}}>{icon}</span>
-            <span style={{fontSize:9,fontWeight:tab===key?700:400,color:tab===key?"#E09000":"#888"}}>{label}</span>
-          </button>
-        ))}
+        </div>
+
+        {/* TAB BAR - flex bottom, never moves */}
+        <div className="tabbar">
+          {[["status","🔧",t.tabStatus],["invoice","🧾",t.tabInvoice],["booking","📅",t.tabBooking],["history","📋",t.tabHistory],["points","⭐",t.tabPoints]].map(([key,icon,label])=>(
+            <button key={key} className={`tab-btn${tab===key?" on":""}`} onClick={()=>setTab(key)}>
+              <span className="tab-ico">{icon}</span>
+              <span className="tab-lbl">{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
