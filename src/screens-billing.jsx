@@ -850,16 +850,41 @@ function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
   const inv = state.invoices.find(i => i.id === id);
   const sheetRef = React.useRef(null);
   const [downloading, setDownloading] = React.useState(false);
+  const [payOpen, setPayOpen] = React.useState(false);
   if (!inv) return null;
   const c = lookupCustomer(inv.customer, state) || MISSING_C;
   const v = lookupVehicle(inv.vehicle, state) || MISSING_V;
-  function acceptPayment() {
+  // Payment history: derive a display list. Legacy invoices (paid>0, no payments[])
+  // get a synthetic "opening" row so the balance always reconciles.
+  const history = inv.payments && inv.payments.length
+    ? inv.payments
+    : ((inv.paid || 0) > 0 ? [{ id: "opening", amount: inv.paid, method: inv.method || "—", date: inv.issued, note: "កត់​ទុក​មុន" }] : []);
+  const totalPaid = inv.paid || 0;
+  const balance = (inv.total || 0) - totalPaid;
+
+  function recordPayment({ amount, method, date, note }) {
+    const amt = +amount || 0;
+    if (amt <= 0) { toast("ចំនួន​ត្រូវ​តែ​ច្រើន​ជាង 0", "error"); return; }
     setState && setState(s => ({
       ...s,
-      invoices: s.invoices.map(i => i.id === inv.id ? { ...i, paid: i.total, status: "paid", method: "ABA Pay" } : i),
+      invoices: s.invoices.map(i => {
+        if (i.id !== inv.id) return i;
+        let payments = i.payments ? [...i.payments] : [];
+        // Seed an opening entry for legacy invoices that already had a paid amount
+        if (payments.length === 0 && (i.paid || 0) > 0) {
+          payments.push({ id: "PMT-open", amount: i.paid, method: i.method || "—", date: i.issued, note: "កត់​ទុក​មុន" });
+        }
+        payments.push({ id: generateId("PMT", payments), amount: amt, method, date, note: note || "" });
+        const newPaid = payments.reduce((a, p) => a + (p.amount || 0), 0);
+        const status = newPaid >= (i.total || 0) ? "paid" : newPaid > 0 ? "partial" : i.status;
+        return { ...i, payments, paid: newPaid, status, method };
+      }),
     }));
-    toast(`Invoice ${inv.id} · ទទួលបាន ${moneyUSD(inv.total)} (ABA Pay)`, "ok");
-    onClose();
+    const newBalance = balance - amt;
+    toast(newBalance > 0
+      ? `ទទួល ${moneyUSD(amt)} · នៅ​ជំពាក់ ${moneyUSD(newBalance)}`
+      : `Invoice ${inv.id} · បង់​ពេញ ✓`, "ok");
+    setPayOpen(false);
   }
   async function downloadPdf() {
     if (!sheetRef.current) return;
@@ -895,9 +920,9 @@ function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
             window.open(buildShareUrl(msg), "_blank");
           }
         }}><Icon.Send size={14} /> ផ្ញើ​តាម Telegram</button>
-        {inv.status !== "paid" && (
-          <button className="btn btn-primary" onClick={acceptPayment}>
-            <Icon.Money size={14} /> ទទួលការទូទាត់
+        {inv.status !== "paid" && balance > 0 && (
+          <button className="btn btn-primary" onClick={() => setPayOpen(true)}>
+            <Icon.Money size={14} /> ទទួល​ការ​ទូទាត់ · ​នៅ {moneyUSD(balance)}
           </button>
         )}
       </>}>
@@ -977,6 +1002,91 @@ function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
 
         <div style={{ fontSize: 10, color: '#888', borderTop: '1px solid #eee', paddingTop: 12, textAlign: 'center', letterSpacing: '0.04em' }}>
           THANK YOU FOR YOUR BUSINESS · សូមអរគុណចំពោះការគាំទ្ររបស់លោកអ្នក
+        </div>
+      </div>
+
+      {/* Payment history (not part of printable sheet) */}
+      <div style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>ប្រវត្តិ​ការ​បង់ · PAYMENT HISTORY</h3>
+          <div style={{ fontSize: 13 }}>
+            <span className="muted">នៅ​ជំពាក់: </span>
+            <strong className="num" style={{ color: balance > 0 ? 'var(--danger)' : 'var(--success)' }}><Money value={balance} currency={currency} /></strong>
+          </div>
+        </div>
+        {history.length === 0 ? (
+          <div className="empty" style={{ padding: 14, fontSize: 12 }}>មិន​ទាន់​មាន​ការ​បង់</div>
+        ) : (
+          <div style={{ border: '1px solid var(--border-0)', borderRadius: 8, overflow: 'hidden' }}>
+            {history.map((p, i) => (
+              <div key={p.id || i} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, padding: '8px 12px', borderTop: i ? '1px solid var(--border-0)' : 'none', alignItems: 'center', fontSize: 13 }}>
+                <div className="mono muted" style={{ fontSize: 11 }}>{p.date || '—'}</div>
+                <div>{p.method || '—'}{p.note ? <span className="muted" style={{ fontSize: 11 }}> · {p.note}</span> : null}</div>
+                <div className="num" style={{ fontWeight: 700, color: 'var(--success)' }}><Money value={p.amount || 0} currency={currency} /></div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {payOpen && <PaymentModal inv={inv} balance={balance} currency={currency} onClose={() => setPayOpen(false)} onConfirm={recordPayment} toast={toast} />}
+    </Modal>
+  );
+}
+
+// ── Payment Modal (partial payment + method + date) ──
+function PaymentModal({ inv, balance, currency, onClose, onConfirm, toast }) {
+  const [amount, setAmount] = React.useState(balance > 0 ? balance.toFixed(2) : "");
+  const [method, setMethod] = React.useState("Cash");
+  const [date, setDate] = React.useState(new Date().toISOString().slice(0, 10));
+  const [note, setNote] = React.useState("");
+  const amt = +amount || 0;
+  const over = amt > balance + 0.001;
+
+  function submit() {
+    if (amt <= 0) { toast("ចំនួន​ត្រូវ​តែ​ច្រើន​ជាង 0", "error"); return; }
+    if (over) { toast(`ចំនួន​លើស​ការ​ជំពាក់ (${moneyUSD(balance)}) · សូម​កែ`, "error"); return; }
+    onConfirm({ amount: amt, method, date, note });
+  }
+
+  return (
+    <Modal title={`ទទួល​ការ​ទូទាត់ · ${inv.id}`} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={submit} disabled={amt <= 0 || over}><Icon.Money size={14} /> រក្សា​ការ​បង់</button>
+      </>}>
+      <div style={{ background: 'var(--bg-2)', padding: 12, borderRadius: 8, marginBottom: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13 }}>
+        <div><span className="muted">សរុប: </span><strong className="num"><Money value={inv.total} currency={currency} /></strong></div>
+        <div><span className="muted">នៅ​ជំពាក់: </span><strong className="num" style={{ color: 'var(--danger)' }}><Money value={balance} currency={currency} /></strong></div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>ចំនួន​ទទួល ($)</label>
+          <input className="input num" type="number" step="0.01" min="0" value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            <button className="btn btn-sm btn-ghost" onClick={() => setAmount(balance.toFixed(2))}>ពេញ ({moneyUSD(balance)})</button>
+            <button className="btn btn-sm btn-ghost" onClick={() => setAmount((balance / 2).toFixed(2))}>ពាក់​កណ្ដាល</button>
+          </div>
+          {over && <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4 }}>⚠️ លើស​ការ​ជំពាក់</div>}
+        </div>
+        <div className="field">
+          <label>វិធី​បង់ · METHOD</label>
+          <select className="select" value={method} onChange={e => setMethod(e.target.value)}>
+            <option>Cash</option>
+            <option>ABA Pay</option>
+            <option>Wing</option>
+            <option>Bakong KHQR</option>
+            <option>Bank Transfer</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div className="field">
+          <label>កាល​បរិច្ឆេទ · DATE</label>
+          <input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} />
+        </div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>កំណត់​ចំណាំ <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>(មិន​បង្ខំ)</span></label>
+          <input className="input" value={note} onChange={e => setNote(e.target.value)} placeholder="ឧ. បង់​មុន​ខ្លះ" />
         </div>
       </div>
     </Modal>
