@@ -129,7 +129,17 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
   }
 
   function removePart(idx) {
-    setState(s => ({ ...s, jobs: s.jobs.map(j => j.id === id ? { ...j, partsUsed: j.partsUsed.filter((_, i) => i !== idx) } : j) }));
+    const removed = job.partsUsed[idx];
+    setState(s => ({
+      ...s,
+      jobs: s.jobs.map(j => j.id === id ? { ...j, partsUsed: j.partsUsed.filter((_, i) => i !== idx) } : j),
+      // Restore the removed quantity back to stock
+      parts: removed ? s.parts.map(pp => pp.id === removed.id ? { ...pp, stock: (pp.stock || 0) + (removed.qty || 0) } : pp) : s.parts,
+    }));
+    if (removed) {
+      const p = (state.parts || []).find(pp => pp.id === removed.id);
+      toast(`ដក ${removed.qty || 0} × ${p?.name || removed.id} · ស្តុក​ត្រឡប់​វិញ`, "info");
+    }
   }
   function removeService(idx) {
     setState(s => ({ ...s, jobs: s.jobs.map(j => j.id === id ? { ...j, services: j.services.filter((_, i) => i !== idx) } : j) }));
@@ -734,20 +744,36 @@ function JobPrintModal({ job, state, currency, onClose, toast }) {
 function AddPartRow({ jobId, state, setState, toast }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  const [qty, setQty] = React.useState(1);
   const sourceParts = (state && state.parts) || parts;
   const filtered = sourceParts.filter(p =>
     !query || (p.name || "").toLowerCase().includes(query.toLowerCase()) || (p.sku || "").toLowerCase().includes(query.toLowerCase())
   ).slice(0, 5);
 
   function addPart(p) {
+    const n = Math.max(1, Math.floor(+qty || 1));
+    const avail = p.stock || 0;
     setState(s => ({
       ...s,
-      jobs: s.jobs.map(j => j.id === jobId ? { ...j, partsUsed: [...j.partsUsed, { id: p.id, qty: 1, price: p.price || 0 }] } : j),
-      parts: s.parts.map(pp => pp.id === p.id ? { ...pp, stock: Math.max(0, (pp.stock || 0) - 1) } : pp),
+      jobs: s.jobs.map(j => {
+        if (j.id !== jobId) return j;
+        const existing = j.partsUsed.find(x => x.id === p.id);
+        // Merge into existing row if same part already used
+        const partsUsed = existing
+          ? j.partsUsed.map(x => x.id === p.id ? { ...x, qty: (x.qty || 0) + n } : x)
+          : [...j.partsUsed, { id: p.id, qty: n, price: p.price || 0 }];
+        return { ...j, partsUsed };
+      }),
+      parts: s.parts.map(pp => pp.id === p.id ? { ...pp, stock: Math.max(0, (pp.stock || 0) - n) } : pp),
     }));
-    toast(`+ ${p.name} · ស្តុកថយ 1`, "ok");
+    if (n > avail) {
+      toast(`+ ${n} × ${p.name} · ⚠️ ស្តុក​មាន​តែ ${avail} (ស្តុក = 0)`, "info");
+    } else {
+      toast(`+ ${n} × ${p.name} · ស្តុក​ថយ ${n}`, "ok");
+    }
     setOpen(false);
     setQuery("");
+    setQty(1);
   }
 
   if (!open) return (
@@ -757,13 +783,20 @@ function AddPartRow({ jobId, state, setState, toast }) {
   );
   return (
     <div style={{ background: 'var(--bg-2)', borderRadius: 'var(--radius)', padding: 10, marginTop: 6 }}>
-      <input
-        className="input"
-        placeholder="ស្វែងរក Part តាមឈ្មោះ ឬ SKU..."
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        autoFocus
-      />
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          className="input"
+          placeholder="ស្វែងរក Part តាមឈ្មោះ ឬ SKU..."
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          autoFocus
+          style={{ flex: 1 }}
+        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} title="ចំនួន">
+          <span className="muted" style={{ fontSize: 11 }}>Qty</span>
+          <input className="input num" type="number" min="1" value={qty} onChange={e => setQty(e.target.value)} style={{ width: 64, textAlign: 'center', padding: '6px 4px' }} />
+        </div>
+      </div>
       <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
         {filtered.map(p => (
           <button
