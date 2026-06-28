@@ -71,6 +71,7 @@ npm run lint
 - Roles/permissions: src/lib/permissions.js (owner/manager/cashier/mechanic), RoleContext in App, resolveRole by staff email, useCan/IfCan gates. Staff modal assigns email+accessRole. Gates: delete buttons, payment button, Settings tabs. Unassigned email = owner (never locks out)
 - Supplier/Vendor CRUD: state.suppliers[] {id,name,contact,phone,telegramChatId,address,note}. SupplierManagerModal from Parts screen. Part forms use <datalist> of supplier names. ReorderModal sends order to supplier's Telegram if chat ID set (else owner). Delete logged to audit (entity "supplier")
 - KHQR (Bakong): src/lib/khqr.js builds EMVCo MPM string + CRC16-CCITT, renders via `qrcode` pkg. Config in Settings → Tax & Invoice (bakongAccountId/bakongMerchantName/bakongCity). InvoiceModal shows KhqrBlock (scan-to-pay) when balance>0 + account set, else a config hint. USD amount. NOTE: verify with real Bakong app before production
+- Expenses module: state.expenses[] {id,date,category,amount,payee,method,note}. ExpensesScreen (route "expenses", nav in Grow). Monthly view + revenue/expense/net-profit KPIs (revenue = invoices.paid where issued in month), by-category breakdown. ExpenseModal CRUD. Gated by "expenses" perm (owner/manager). Delete logged to audit (entity "expense")
 
 ---
 
@@ -89,7 +90,6 @@ npm run lint
 # Features ដែលមិនទាន់ build — reference សម្រាប់ future work
 # ✏️ MOVE TO Working Features នៅពេល build ហើយ
 
-- Expenses tracking module
 - Purchase Orders for parts
 - Customer Portal (self-service)
 - Technician time tracking + shift management

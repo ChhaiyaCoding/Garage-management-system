@@ -7,7 +7,7 @@ import { Sidebar, Topbar, useToasts } from './shell';
 import { DashboardScreen, CustomersScreen, CustomerDrawer, AddCustomerModal } from './screens-core';
 import { JobsScreen, JobDrawer, NewJobModal, EditJobModal } from './screens-jobs';
 import { PartsScreen, QuotationScreen, NewQuoteModal, QuoteModal, InvoicesScreen, InvoiceModal, NewPartModal, NewInvoiceModal } from './screens-billing';
-import { BookingScreen, DVIScreen, MembersScreen, ReportsScreen, SettingsScreen, AddBookingModal, AddMemberModal } from './screens-extra';
+import { BookingScreen, DVIScreen, MembersScreen, ReportsScreen, ExpensesScreen, SettingsScreen, AddBookingModal, AddMemberModal } from './screens-extra';
 import { LoginScreen, LoadingScreen } from './screens-auth';
 import { supabase, isConfigured } from './lib/supabase';
 import { loadWorkspace, queueSave, flushSave } from './lib/storage';
@@ -58,6 +58,7 @@ function defaultState() {
     reorders: [],
     auditLog: [],
     suppliers: [],
+    expenses: [],
     branches: [
       { id: "BR-01", name: "សាខាមេ · ភ្នំពេញ", addr: "St. 271, Toul Tom Pong", bays: 8, staff: 12, status: "active", main: true },
       { id: "BR-02", name: "សាខា ខ. កែវ", addr: "St. 2004, Sen Sok", bays: 5, staff: 7, status: "active" },
@@ -356,6 +357,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
         {route === "booking" && <BookingScreen state={state} setState={setState} currency={tweaks.currency} onAddBooking={() => setAddBookingOpen(true)} onConvertBooking={convertBookingToJob} toast={toast} />}
         {route === "dvi" && <DVIScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} />}
         {route === "members" && <MembersScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} onAddMember={() => setAddMemberOpen(true)} />}
+        {route === "expenses" && <ExpensesScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} />}
         {route === "reports" && <ReportsScreen state={state} currency={tweaks.currency} toast={toast} />}
         {route === "settings" && <SettingsScreen state={state} setState={setState} tweaks={tweaks} setTweak={setTweak} toast={toast} />}
       </main>

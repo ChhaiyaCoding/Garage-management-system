@@ -12,7 +12,7 @@ export const ROLE_LABEL = Object.fromEntries(ACCESS_ROLES.map(r => [r.id, r.labe
 // Permission matrix.  "*" = everything.
 const MATRIX = {
   owner: ["*"],
-  manager: ["delete", "payments", "billing", "inventory", "reports", "jobs", "customers", "audit"],
+  manager: ["delete", "payments", "billing", "inventory", "reports", "jobs", "customers", "audit", "expenses"],
   cashier: ["payments", "billing", "customers", "jobs", "reports"],
   mechanic: ["jobs", "customers", "inventory"],
 };

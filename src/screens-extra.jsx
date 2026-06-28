@@ -1269,7 +1269,7 @@ function AuditLogSettings({ state, setState, toast }) {
 
   function restore(e) {
     if (!e.snapshot) { toast("គ្មាន​ទិន្នន័យ​ដើម​សម្រាប់​ស្ដារ", "err"); return; }
-    const map = { invoice: "invoices", customer: "customers", vehicle: "vehicles", job: "jobs", part: "parts", member: "members", quote: "quotations", booking: "bookings", supplier: "suppliers" };
+    const map = { invoice: "invoices", customer: "customers", vehicle: "vehicles", job: "jobs", part: "parts", member: "members", quote: "quotations", booking: "bookings", supplier: "suppliers", expense: "expenses" };
     const key = map[e.entity];
     if (!key) { toast("មិន​អាច​ស្ដារ​ប្រភេទ​នេះ", "err"); return; }
     setState(s => {
@@ -2046,4 +2046,186 @@ function EditMemberModal({ member, setState, onClose, toast }) {
   );
 }
 
-export { BookingScreen, DVIScreen, MembersScreen, ReportsScreen, SettingsScreen, AddBookingModal, AddMemberModal, EditMemberModal };
+// ════════════════════════════════════════════════════════════
+// EXPENSES
+// ════════════════════════════════════════════════════════════
+const EXPENSE_CATEGORIES = [
+  "ប្រាក់ខែ · Salary",
+  "ជួល · Rent",
+  "ទឹក​ភ្លើង · Utilities",
+  "ស្តុក/គ្រឿងបន្លាស់ · Parts",
+  "ឧបករណ៍ · Tools",
+  "ដឹកជញ្ជូន · Transport",
+  "ទីផ្សារ · Marketing",
+  "ពន្ធ/អាជ្ញាបណ្ណ · Tax/License",
+  "ផ្សេងៗ · Other",
+];
+
+function ExpensesScreen({ state, setState, currency, toast }) {
+  const canExp = useCan("expenses");
+  const [edit, setEdit] = React.useState(null); // null | "new" | expense
+  const [delExp, setDelExp] = React.useState(null);
+  const now = new Date();
+  const [month, setMonth] = React.useState(now.toISOString().slice(0, 7)); // YYYY-MM
+  const all = state.expenses || [];
+
+  if (!canExp) {
+    return <div className="page"><div className="page-head"><div><h1 className="page-title">ចំណាយ · Expenses</h1></div></div>
+      <div className="card"><p className="muted">អ្នក​មិន​មាន​សិទ្ធិ​មើល​ផ្នែក​ចំណាយ​ទេ។</p></div></div>;
+  }
+
+  const monthExp = all.filter(e => (e.date || "").slice(0, 7) === month);
+  const total = monthExp.reduce((s, e) => s + (e.amount || 0), 0);
+  // Revenue for the same month (from invoice payments / paid amount on issued date)
+  const revenue = (state.invoices || []).filter(i => (i.issued || "").slice(0, 7) === month).reduce((s, i) => s + (i.paid || 0), 0);
+  const profit = revenue - total;
+  // By-category breakdown
+  const byCat = {};
+  monthExp.forEach(e => { const k = e.category || "ផ្សេងៗ · Other"; byCat[k] = (byCat[k] || 0) + (e.amount || 0); });
+  const catList = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+  const sorted = [...monthExp].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+  // Month options: last 12 months
+  const months = [];
+  for (let i = 0; i < 12; i++) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); months.push(d.toISOString().slice(0, 7)); }
+
+  return (
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">ចំណាយ · Expenses</h1>
+          <div className="page-sub">កត់ត្រា​ចំណាយ​ប្រចាំ​ខែ · ផ្គូផ្គង​នឹង​ចំណូល​ដើម្បី​ឃើញ​ប្រាក់​ចំណេញ</div>
+        </div>
+        <div className="page-actions">
+          <select className="select" value={month} onChange={e => setMonth(e.target.value)}>
+            {months.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <button className="btn btn-primary" onClick={() => setEdit("new")}><Icon.Plus size={14} /> ចំណាយ​ថ្មី</button>
+        </div>
+      </div>
+
+      <div className="kpi-grid">
+        <div className="kpi">
+          <div className="kpi-label">ចំណូល​ខែ​នេះ · REVENUE</div>
+          <div className="kpi-value num" style={{ color: 'var(--success)' }}><Money value={revenue} currency={currency} /></div>
+          <div className="kpi-delta neutral">ប្រាក់​ទទួល​ក្នុង {month}</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">ចំណាយ​ខែ​នេះ · EXPENSES</div>
+          <div className="kpi-value num" style={{ color: 'var(--danger)' }}><Money value={total} currency={currency} /></div>
+          <div className="kpi-delta neutral">{monthExp.length} ប្រតិបត្តិការ</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">ប្រាក់​ចំណេញ · NET PROFIT</div>
+          <div className="kpi-value num" style={{ color: profit >= 0 ? 'var(--success)' : 'var(--danger)' }}><Money value={profit} currency={currency} /></div>
+          <div className="kpi-delta neutral">{revenue > 0 ? Math.round((profit / revenue) * 100) : 0}% margin</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-label">ប្រភេទ​ច្រើន​បំផុត</div>
+          <div className="kpi-value" style={{ fontSize: 16 }}>{catList[0] ? catList[0][0].split(" · ")[0] : "—"}</div>
+          <div className="kpi-delta neutral">{catList[0] ? moneyUSD(catList[0][1]) : "—"}</div>
+        </div>
+      </div>
+
+      {catList.length > 0 && (
+        <>
+          <div className="section-heading"><h2>តាម​ប្រភេទ · BY CATEGORY</h2></div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, marginBottom: 8 }}>
+            {catList.map(([cat, amt]) => (
+              <div key={cat} className="card" style={{ padding: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{cat}</div>
+                <div className="num" style={{ fontSize: 18, fontWeight: 800, marginTop: 4 }}>{moneyUSD(amt)}</div>
+                <div className="muted" style={{ fontSize: 11 }}>{total > 0 ? Math.round((amt / total) * 100) : 0}% នៃ​ចំណាយ</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div className="section-heading"><h2>បញ្ជី​ចំណាយ · {month}</h2></div>
+      {sorted.length === 0 ? (
+        <div className="card"><p className="muted">មិន​ទាន់​មាន​ចំណាយ​ក្នុង​ខែ​នេះ — ចុច "ចំណាយ​ថ្មី" ដើម្បី​បន្ថែម។</p></div>
+      ) : (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <table className="table">
+            <thead><tr><th>កាលបរិច្ឆេទ</th><th>ប្រភេទ</th><th>បរិយាយ</th><th>អ្នកទទួល</th><th>វិធី</th><th style={{ textAlign: 'right' }}>ចំនួន</th><th></th></tr></thead>
+            <tbody>
+              {sorted.map(e => (
+                <tr key={e.id}>
+                  <td className="mono" style={{ fontSize: 12 }}>{e.date}</td>
+                  <td>{e.category}</td>
+                  <td>{e.note || "—"}</td>
+                  <td className="muted">{e.payee || "—"}</td>
+                  <td className="muted">{e.method || "—"}</td>
+                  <td className="num" style={{ textAlign: 'right', fontWeight: 700 }}>{moneyUSD(e.amount || 0)}</td>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <button className="btn btn-sm btn-ghost" title="កែ" onClick={() => setEdit(e)}><Icon.Pen size={12} /></button>
+                    <IfCan perm="delete"><button className="btn btn-sm btn-ghost" title="លុប" onClick={() => setDelExp(e)}><Icon.X size={12} /></button></IfCan>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {edit && <ExpenseModal expense={edit === "new" ? null : edit} defaultMonth={month} setState={setState} toast={toast} onClose={() => setEdit(null)} />}
+      {delExp && <ConfirmModal title="លុបចំណាយ?" message={`លុប ${e_label(delExp)} ឬ​ទេ?`} danger onClose={() => setDelExp(null)}
+        onConfirm={() => { setState(s => ({ ...s, expenses: (s.expenses || []).filter(x => x.id !== delExp.id), auditLog: pushAudit(s, auditEntry("delete", "expense", delExp.id, `លុប ចំណាយ ${e_label(delExp)}`, delExp)) })); toast("លុប​ចំណាយ​ជោគជ័យ", "ok"); setDelExp(null); }} />}
+    </div>
+  );
+}
+
+function e_label(e) { return `${e.category ? e.category.split(" · ")[0] : "ចំណាយ"} ${moneyUSD(e.amount || 0)}`; }
+
+function ExpenseModal({ expense, defaultMonth, setState, toast, onClose }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [date, setDate] = React.useState(expense ? expense.date : (defaultMonth ? `${defaultMonth}-${String(Math.min(new Date().getDate(), 28)).padStart(2, "0")}` : today));
+  const [category, setCategory] = React.useState(expense ? expense.category : EXPENSE_CATEGORIES[0]);
+  const [amount, setAmount] = React.useState(expense ? expense.amount : "");
+  const [payee, setPayee] = React.useState(expense ? (expense.payee || "") : "");
+  const [method, setMethod] = React.useState(expense ? (expense.method || "Cash") : "Cash");
+  const [note, setNote] = React.useState(expense ? (expense.note || "") : "");
+
+  function submit() {
+    const amt = +amount || 0;
+    if (amt <= 0) { toast("ចំនួន​ត្រូវ​តែ​ច្រើន​ជាង 0", "error"); return; }
+    if (!date) { toast("បំពេញ​កាលបរិច្ឆេទ", "error"); return; }
+    const data = { date, category, amount: amt, payee: payee.trim() || undefined, method, note: note.trim() || undefined };
+    if (expense) {
+      setState(s => ({ ...s, expenses: (s.expenses || []).map(x => x.id === expense.id ? { ...x, ...data } : x) }));
+      toast("រក្សាទុក​ចំណាយ​ជោគជ័យ", "ok");
+    } else {
+      setState(s => { const id = generateId("EXP", s.expenses || []); return { ...s, expenses: [{ id, ...data }, ...(s.expenses || [])] }; });
+      toast("បន្ថែម​ចំណាយ​ជោគជ័យ", "ok");
+    }
+    onClose();
+  }
+
+  return (
+    <Modal title={expense ? "កែ​ចំណាយ" : "ចំណាយ​ថ្មី · NEW EXPENSE"} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={submit}><Icon.Check size={14} /> រក្សាទុក</button>
+      </>}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field"><label>កាលបរិច្ឆេទ · DATE</label><input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
+        <div className="field"><label>ចំនួន · AMOUNT ($)</label><input className="input" type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} autoFocus /></div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>ប្រភេទ · CATEGORY</label>
+          <select className="select" value={category} onChange={e => setCategory(e.target.value)}>
+            {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="field"><label>អ្នកទទួល · PAYEE</label><input className="input" value={payee} onChange={e => setPayee(e.target.value)} placeholder="ឧ. ម្ចាស់​ផ្ទះ​ជួល" /></div>
+        <div className="field"><label>វិធី · METHOD</label>
+          <select className="select" value={method} onChange={e => setMethod(e.target.value)}>
+            {["Cash", "ABA Pay", "Wing", "Bakong KHQR", "Bank Transfer", "Other"].map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>បរិយាយ · NOTE</label><input className="input" value={note} onChange={e => setNote(e.target.value)} /></div>
+      </div>
+    </Modal>
+  );
+}
+
+export { BookingScreen, DVIScreen, MembersScreen, ReportsScreen, ExpensesScreen, SettingsScreen, AddBookingModal, AddMemberModal, EditMemberModal };

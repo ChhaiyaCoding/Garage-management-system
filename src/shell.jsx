@@ -142,6 +142,7 @@ const NAV_CORE = [
 
 const NAV_GROW = [
   { id: "members", icon: "Star", label: "Members", labelKm: "សមាជិក" },
+  { id: "expenses", icon: "Money", label: "Expenses", labelKm: "ចំណាយ" },
   { id: "reports", icon: "Chart", label: "Reports / BI", labelKm: "របាយការណ៍" },
   { id: "settings", icon: "Cog", label: "Settings", labelKm: "ការកំណត់" },
 ];
