@@ -1554,9 +1554,12 @@ function BillingSettings({ state, setState, toast }) {
   const [prefix, setPrefix] = React.useState(cfg.invoicePrefix || "INV-2406-");
   const [terms, setTerms] = React.useState(cfg.paymentTerms || "Due on receipt");
   const [footer, setFooter] = React.useState(cfg.invoiceFooter || "");
+  const [bakongId, setBakongId] = React.useState(cfg.bakongAccountId || "");
+  const [bakongName, setBakongName] = React.useState(cfg.bakongMerchantName || "");
+  const [bakongCity, setBakongCity] = React.useState(cfg.bakongCity || "");
 
   function save() {
-    setState(s => ({ ...s, config: { ...s.config, vatRate, vatTin: tin, invoicePrefix: prefix, paymentTerms: terms, invoiceFooter: footer } }));
+    setState(s => ({ ...s, config: { ...s.config, vatRate, vatTin: tin, invoicePrefix: prefix, paymentTerms: terms, invoiceFooter: footer, bakongAccountId: bakongId.trim(), bakongMerchantName: bakongName.trim(), bakongCity: bakongCity.trim() } }));
     toast("Tax & Invoice settings បានរក្សាទុក", "ok");
   }
 
@@ -1575,6 +1578,12 @@ function BillingSettings({ state, setState, toast }) {
             </select>
           </div>
           <div className="field" style={{ marginTop: 12 }}><label>Footer Note</label><textarea className="textarea" value={footer} onChange={e => setFooter(e.target.value)} /></div>
+        </SettingsCard>
+        <SettingsCard title="Bakong KHQR · បង់​តាម QR">
+          <p className="muted" style={{ fontSize: 11, marginTop: -4 }}>បំពេញ Bakong Account ID ដើម្បី​បង្ហាញ KHQR លើ​វិក្កយបត្រ ឲ្យ​អតិថិជន​ស្កេន​បង់​ប្រាក់។</p>
+          <div className="field"><label>Bakong Account ID</label><input className="input mono" value={bakongId} onChange={e => setBakongId(e.target.value)} placeholder="sok_dara@aclb" /></div>
+          <div className="field" style={{ marginTop: 12 }}><label>ឈ្មោះ​អ្នកទទួល · MERCHANT NAME</label><input className="input" value={bakongName} onChange={e => setBakongName(e.target.value)} placeholder="GARAGE OS (≤25 តួ)" /></div>
+          <div className="field" style={{ marginTop: 12 }}><label>ទីក្រុង · CITY</label><input className="input" value={bakongCity} onChange={e => setBakongCity(e.target.value)} placeholder="Phnom Penh" /></div>
         </SettingsCard>
       </div>
       <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>

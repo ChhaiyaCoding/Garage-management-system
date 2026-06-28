@@ -7,6 +7,7 @@ import { buildShareUrl, invoiceShareMessage, quoteShareMessage, sendMessage, own
 import { generateId } from './data';
 import { auditEntry, pushAudit } from './lib/audit';
 import { IfCan } from './lib/permissions';
+import { khqrDataUrl } from './lib/khqr';
 // ─── Parts, Quotation, Invoices screens ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -1171,8 +1172,54 @@ function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
         )}
       </div>
 
+      {/* Bakong KHQR — pay the outstanding balance by scanning */}
+      {balance > 0 && <KhqrBlock config={state.config || {}} amount={balance} billNumber={inv.id} />}
+
       {payOpen && <PaymentModal inv={inv} balance={balance} currency={currency} onClose={() => setPayOpen(false)} onConfirm={recordPayment} toast={toast} />}
     </Modal>
+  );
+}
+
+// ── Bakong KHQR block (renders a scannable QR for the balance) ──
+function KhqrBlock({ config, amount, billNumber }) {
+  const accountId = config.bakongAccountId;
+  const [qr, setQr] = React.useState(null);
+  React.useEffect(() => {
+    if (!accountId) { setQr(null); return; }
+    let alive = true;
+    khqrDataUrl({
+      accountId,
+      merchantName: config.bakongMerchantName || config.garageName,
+      merchantCity: config.bakongCity,
+      amount,
+      currency: "USD",
+      billNumber,
+    }).then(r => { if (alive) setQr(r); });
+    return () => { alive = false; };
+  }, [accountId, config.bakongMerchantName, config.garageName, config.bakongCity, amount, billNumber]);
+
+  if (!accountId) {
+    return (
+      <div style={{ marginTop: 16, padding: 14, border: '1px dashed var(--border-0)', borderRadius: 8, fontSize: 12 }} className="muted">
+        💳 KHQR (Bakong) មិន​ទាន់​បាន​កំណត់ — បំពេញ <b>Bakong Account ID</b> នៅ Settings → Tax &amp; Invoice ដើម្បី​បង្ហាញ QR ឲ្យ​អតិថិជន​ស្កេន​បង់​ប្រាក់។
+      </div>
+    );
+  }
+  return (
+    <div style={{ marginTop: 16 }}>
+      <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 8px' }}>បង់​តាម KHQR · SCAN TO PAY</h3>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, border: '1px solid var(--border-0)', borderRadius: 8, padding: 14 }}>
+        {qr && qr.ok
+          ? <img src={qr.dataUrl} alt="KHQR" width={140} height={140} style={{ background: '#fff', borderRadius: 6, padding: 6 }} />
+          : <div style={{ width: 140, height: 140, display: 'grid', placeItems: 'center' }} className="muted">{qr ? "QR error" : "..."}</div>}
+        <div style={{ fontSize: 13 }}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>{config.bakongMerchantName || config.garageName || "GARAGE"}</div>
+          <div className="mono muted" style={{ fontSize: 11 }}>{accountId}</div>
+          <div style={{ marginTop: 8 }}>ចំនួន: <b className="num">{moneyUSD(amount)}</b></div>
+          <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>ស្កេន​ដោយ​កម្មវិធី​ធនាគារ​ណាមួយ​ដែល​ប្រើ Bakong / KHQR</div>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -9,6 +9,7 @@
 - Custom CSS only (no Tailwind, no UI library)
 - Deploy: Vercel (auto on push to main)
 - PWA enabled
+- Deps: `qrcode` (KHQR/Bakong QR generation, lazy-imported)
 
 ## Architecture
 # រចនាសម្ព័ន្ធ Code — Claude Code ត្រូវដឹងដើម្បីកុំ rebuild ខុស
@@ -69,6 +70,7 @@ npm run lint
 - Duplicate prevention: customer phone + vehicle plate (normPhone/normPlate/findDupPhone/findDupPlate in screens-core)
 - Roles/permissions: src/lib/permissions.js (owner/manager/cashier/mechanic), RoleContext in App, resolveRole by staff email, useCan/IfCan gates. Staff modal assigns email+accessRole. Gates: delete buttons, payment button, Settings tabs. Unassigned email = owner (never locks out)
 - Supplier/Vendor CRUD: state.suppliers[] {id,name,contact,phone,telegramChatId,address,note}. SupplierManagerModal from Parts screen. Part forms use <datalist> of supplier names. ReorderModal sends order to supplier's Telegram if chat ID set (else owner). Delete logged to audit (entity "supplier")
+- KHQR (Bakong): src/lib/khqr.js builds EMVCo MPM string + CRC16-CCITT, renders via `qrcode` pkg. Config in Settings → Tax & Invoice (bakongAccountId/bakongMerchantName/bakongCity). InvoiceModal shows KhqrBlock (scan-to-pay) when balance>0 + account set, else a config hint. USD amount. NOTE: verify with real Bakong app before production
 
 ---
 
@@ -89,7 +91,6 @@ npm run lint
 
 - Expenses tracking module
 - Purchase Orders for parts
-- KHQR (Bakong) QR code on invoice
 - Customer Portal (self-service)
 - Technician time tracking + shift management
 - SLA tracking — overdue job indicator
