@@ -30,6 +30,7 @@ export const ENTITY_KM = {
   member: "សមាជិក",
   quote: "តម្លៃប៉ាន់ស្មាន",
   booking: "ការកក់",
+  supplier: "អ្នកផ្គត់ផ្គង់",
 };
 
 export const ACTION_KM = {

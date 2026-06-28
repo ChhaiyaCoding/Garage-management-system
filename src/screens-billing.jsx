@@ -22,7 +22,9 @@ function PartsScreen({ state, setState, currency, toast, onNewPart }) {
   const [delPart, setDelPart] = React.useState(null);
   const [reportOpen, setReportOpen] = React.useState(false);
   const [reorderOpen, setReorderOpen] = React.useState(null);
+  const [supplierMgrOpen, setSupplierMgrOpen] = React.useState(false);
   const allParts = state.parts;
+  const supplierList = state.suppliers || [];
   const filtered = allParts.filter(p => {
     if (tab === "low" && p.stock > p.reorder) return false;
     if (tab === "out" && p.stock > 0) return false;
@@ -157,25 +159,146 @@ function PartsScreen({ state, setState, currency, toast, onNewPart }) {
       </div>
 
       {/* Suppliers */}
-      <div className="section-heading"><h2>អ្នកផ្គត់ផ្គង់ · SUPPLIERS</h2></div>
+      <div className="section-heading" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2>អ្នកផ្គត់ផ្គង់ · SUPPLIERS</h2>
+        {setState && <IfCan perm="inventory"><button className="btn btn-sm" onClick={() => setSupplierMgrOpen(true)}><Icon.Plus size={12} /> គ្រប់គ្រង​អ្នកផ្គត់ផ្គង់</button></IfCan>}
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
-        {suppliers.map(s => {
+        {supplierList.length === 0 && suppliers.filter(s => s !== "—").length === 0 && (
+          <div className="muted" style={{ fontSize: 13 }}>មិន​ទាន់​មាន​អ្នកផ្គត់ផ្គង់ — ចុច "គ្រប់គ្រង​អ្នកផ្គត់ផ្គង់" ដើម្បី​បន្ថែម។</div>
+        )}
+        {/* Managed suppliers (with contact) */}
+        {supplierList.map(sup => {
+          const sParts = allParts.filter(p => (p.supplier || "") === sup.name);
+          const sLow = sParts.filter(p => p.stock <= p.reorder).length;
+          return (
+            <div key={sup.id} className="card" style={{ padding: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>{sup.name}</div>
+              {sup.contact && <div className="muted" style={{ fontSize: 11 }}>{sup.contact}</div>}
+              {sup.phone && <div className="mono muted" style={{ fontSize: 11 }}>{sup.phone}</div>}
+              <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>{sParts.length} SKUs{sup.telegramChatId ? " · 📱 Telegram" : ""}</div>
+              {sLow > 0 && <div style={{ marginTop: 8 }}><span className="chip chip-orange">{sLow} LOW STOCK</span></div>}
+            </div>
+          );
+        })}
+        {/* Unmanaged supplier names found on parts (legacy / quick entry) */}
+        {suppliers.filter(s => s !== "—" && !supplierList.some(x => x.name === s)).map(s => {
           const sParts = allParts.filter(p => p.supplier === s);
           const sLow = sParts.filter(p => p.stock <= p.reorder).length;
           return (
-            <div key={s} className="card" style={{ padding: 16 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{s}</div>
+            <div key={s} className="card" style={{ padding: 16, opacity: 0.85 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{s} <span className="chip chip-gray" style={{ fontSize: 9 }}>មិន​ទាន់​រក្សាទុក</span></div>
               <div className="muted" style={{ fontSize: 12 }}>{sParts.length} SKUs</div>
               {sLow > 0 && <div style={{ marginTop: 8 }}><span className="chip chip-orange">{sLow} LOW STOCK</span></div>}
             </div>
           );
         })}
       </div>
-      {editPart && <EditPartModal part={editPart} setState={setState} onClose={() => setEditPart(null)} toast={toast} />}
+      {editPart && <EditPartModal part={editPart} state={state} setState={setState} onClose={() => setEditPart(null)} toast={toast} />}
       {delPart && <ConfirmModal title="លុប Part?" message={`លុប ${delPart.name} (${delPart.sku}) ឬ​ទេ?`} danger onClose={() => setDelPart(null)} onConfirm={() => { setState(s => ({ ...s, parts: s.parts.filter(x => x.id !== delPart.id), auditLog: pushAudit(s, auditEntry("delete", "part", delPart.id, `លុប Part ${delPart.name} (${delPart.sku})`, delPart)) })); toast(`លុប ${delPart.name} ជោគជ័យ`, "ok"); setDelPart(null); }} />}
       {reportOpen && <PartsReportModal parts={allParts} currency={currency} onClose={() => setReportOpen(false)} toast={toast} />}
       {reorderOpen && <ReorderModal part={reorderOpen} state={state} setState={setState} onClose={() => setReorderOpen(null)} toast={toast} />}
+      {supplierMgrOpen && <SupplierManagerModal state={state} setState={setState} onClose={() => setSupplierMgrOpen(false)} toast={toast} />}
     </div>
+  );
+}
+
+// ── Supplier / Vendor Manager ──
+function SupplierManagerModal({ state, setState, onClose, toast }) {
+  const suppliers = state.suppliers || [];
+  const [edit, setEdit] = React.useState(null); // null | "new" | supplier
+  const [delSup, setDelSup] = React.useState(null);
+
+  return (
+    <Modal wide title="អ្នកផ្គត់ផ្គង់ · SUPPLIERS / VENDORS" onClose={onClose}
+      footer={<button className="btn" onClick={onClose}>បិទ</button>}>
+      <div style={{ marginBottom: 12 }}>
+        <button className="btn btn-sm btn-primary" onClick={() => setEdit("new")}><Icon.Plus size={12} /> បន្ថែម​អ្នកផ្គត់ផ្គង់</button>
+      </div>
+      {suppliers.length === 0 ? (
+        <p className="muted">មិន​ទាន់​មាន​អ្នកផ្គត់ផ្គង់​នៅ​ឡើយ។</p>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ textAlign: "left", color: "var(--muted)" }}>
+                <th style={{ padding: "6px 8px" }}>ឈ្មោះ</th>
+                <th style={{ padding: "6px 8px" }}>ទំនាក់ទំនង</th>
+                <th style={{ padding: "6px 8px" }}>ទូរស័ព្ទ</th>
+                <th style={{ padding: "6px 8px" }}>Telegram</th>
+                <th style={{ padding: "6px 8px" }}>SKUs</th>
+                <th style={{ padding: "6px 8px" }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {suppliers.map(sup => {
+                const n = (state.parts || []).filter(p => (p.supplier || "") === sup.name).length;
+                return (
+                  <tr key={sup.id} style={{ borderTop: "1px solid var(--border)" }}>
+                    <td style={{ padding: "6px 8px", fontWeight: 600 }}>{sup.name}</td>
+                    <td style={{ padding: "6px 8px" }}>{sup.contact || "—"}</td>
+                    <td style={{ padding: "6px 8px" }} className="mono">{sup.phone || "—"}</td>
+                    <td style={{ padding: "6px 8px" }}>{sup.telegramChatId ? "📱" : "—"}</td>
+                    <td style={{ padding: "6px 8px" }} className="mono">{n}</td>
+                    <td style={{ padding: "6px 8px", textAlign: "right", whiteSpace: "nowrap" }}>
+                      <button className="btn btn-sm btn-ghost" title="កែ" onClick={() => setEdit(sup)}><Icon.Pen size={12} /></button>
+                      <IfCan perm="delete"><button className="btn btn-sm btn-ghost" title="លុប" onClick={() => setDelSup(sup)}><Icon.X size={12} /></button></IfCan>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {edit && <SupplierEditModal supplier={edit === "new" ? null : edit} state={state} setState={setState} toast={toast} onClose={() => setEdit(null)} />}
+      {delSup && <ConfirmModal title="លុបអ្នកផ្គត់ផ្គង់?" message={`លុប ${delSup.name} ឬ​ទេ? (Parts នឹង​នៅ​ដដែល​តែ​បាត់​ការ​ភ្ជាប់)`} danger onClose={() => setDelSup(null)}
+        onConfirm={() => { setState(s => ({ ...s, suppliers: (s.suppliers || []).filter(x => x.id !== delSup.id), auditLog: pushAudit(s, auditEntry("delete", "supplier", delSup.id, `លុប អ្នកផ្គត់ផ្គង់ ${delSup.name}`, delSup)) })); toast(`លុប ${delSup.name} ជោគជ័យ`, "ok"); setDelSup(null); }} />}
+    </Modal>
+  );
+}
+
+function SupplierEditModal({ supplier, state, setState, toast, onClose }) {
+  const [name, setName] = React.useState(supplier ? supplier.name : "");
+  const [contact, setContact] = React.useState(supplier ? (supplier.contact || "") : "");
+  const [phone, setPhone] = React.useState(supplier ? (supplier.phone || "") : "");
+  const [telegramChatId, setTelegramChatId] = React.useState(supplier ? (supplier.telegramChatId || "") : "");
+  const [address, setAddress] = React.useState(supplier ? (supplier.address || "") : "");
+  const [note, setNote] = React.useState(supplier ? (supplier.note || "") : "");
+
+  function submit() {
+    if (!name.trim()) { toast("បំពេញ​ឈ្មោះ​អ្នកផ្គត់ផ្គង់", "error"); return; }
+    const dup = (state.suppliers || []).find(x => x.name.trim().toLowerCase() === name.trim().toLowerCase() && (!supplier || x.id !== supplier.id));
+    if (dup) { toast(`ឈ្មោះ "${dup.name}" មាន​រួច​ហើយ`, "error"); return; }
+    const data = { name: name.trim(), contact: contact.trim() || undefined, phone: phone.trim() || undefined, telegramChatId: telegramChatId.trim() || undefined, address: address.trim() || undefined, note: note.trim() || undefined };
+    if (supplier) {
+      setState(s => ({ ...s, suppliers: (s.suppliers || []).map(x => x.id === supplier.id ? { ...x, ...data } : x) }));
+      toast(`រក្សាទុក ${name} ជោគជ័យ`, "ok");
+    } else {
+      setState(s => {
+        const id = generateId("SUP", s.suppliers || []);
+        return { ...s, suppliers: [{ id, ...data }, ...(s.suppliers || [])] };
+      });
+      toast(`បន្ថែម ${name} ជោគជ័យ`, "ok");
+    }
+    onClose();
+  }
+
+  return (
+    <Modal title={supplier ? "កែ​អ្នកផ្គត់ផ្គង់" : "អ្នកផ្គត់ផ្គង់​ថ្មី"} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={submit}><Icon.Check size={14} /> រក្សាទុក</button>
+      </>}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>ឈ្មោះ · NAME</label><input className="input" value={name} onChange={e => setName(e.target.value)} placeholder="ឧ. Cambo Auto Parts" autoFocus /></div>
+        <div className="field"><label>អ្នកទំនាក់ទំនង · CONTACT</label><input className="input" value={contact} onChange={e => setContact(e.target.value)} placeholder="ឧ. Lok Dara" /></div>
+        <div className="field"><label>ទូរស័ព្ទ · PHONE</label><input className="input mono" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+855 ..." /></div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>Telegram Chat ID <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>(មិនបង្ខំ · ​ផ្ញើ​បញ្ជា​ទិញ​ផ្ទាល់)</span></label><input className="input mono" value={telegramChatId} onChange={e => setTelegramChatId(e.target.value)} placeholder="ឧ. 8270854278" /></div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>អាសយដ្ឋាន · ADDRESS</label><input className="input" value={address} onChange={e => setAddress(e.target.value)} /></div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>កំណត់​សម្គាល់ · NOTE</label><input className="input" value={note} onChange={e => setNote(e.target.value)} /></div>
+      </div>
+    </Modal>
   );
 }
 
@@ -187,16 +310,20 @@ function ReorderModal({ part, state, setState, onClose, toast }) {
   const [working, setWorking] = React.useState(false);
   const orderQty = +qty || 0;
   const totalCost = orderQty * (part.cost || 0);
+  // Match a managed supplier by name → enables sending the order straight to them.
+  const supplier = (state?.suppliers || []).find(x => x.name === part.supplier);
+  const toSupplier = !!(supplier && supplier.telegramChatId);
 
   async function confirm() {
     if (orderQty <= 0) { toast("ចំនួន​ត្រូវ​តែ​ច្រើន​ជាង 0", "error"); return; }
     setWorking(true);
-    // 1. Send Telegram if requested
+    // 1. Send Telegram if requested — to the supplier directly when we have their chat ID, else to the owner
     let tgResult = null;
     if (sendTg && telegramConfigured(state?.config)) {
       const tg = state.config.telegram;
       const garageName = (state.config && state.config.garageName) || "Garage";
-      tgResult = await sendMessage(tg.botToken, tg.ownerChatId, reorderMessage(part, orderQty, totalCost, garageName));
+      const chatId = toSupplier ? supplier.telegramChatId : tg.ownerChatId;
+      tgResult = await sendMessage(tg.botToken, chatId, reorderMessage(part, orderQty, totalCost, garageName));
     }
     // 2. Add stock + log reorder
     const reorder = {
@@ -208,6 +335,8 @@ function ReorderModal({ part, state, setState, onClose, toast }) {
       unitCost: part.cost || 0,
       totalCost,
       supplier: part.supplier || "—",
+      supplierId: supplier ? supplier.id : undefined,
+      sentTo: sendTg ? (toSupplier ? "supplier" : "owner") : undefined,
       createdAt: new Date().toISOString(),
     };
     setState(s => ({
@@ -217,7 +346,7 @@ function ReorderModal({ part, state, setState, onClose, toast }) {
     }));
     setWorking(false);
     if (sendTg && tgResult && tgResult.ok) {
-      toast(`✅ បាន​បញ្ជា​ទិញ ${orderQty} × ${part.name} ($${totalCost.toFixed(2)}) · Telegram ​បាន​ផ្ញើ`, "ok");
+      toast(`✅ បាន​បញ្ជា​ទិញ ${orderQty} × ${part.name} ($${totalCost.toFixed(2)}) · ផ្ញើ​ទៅ ${toSupplier ? supplier.name : "ម្ចាស់"}`, "ok");
     } else if (sendTg && tgResult && !tgResult.ok) {
       toast(`បន្ថែម​ស្តុក ${orderQty} × ${part.name} · Telegram បរាជ័យ: ${tgResult.description}`, "info");
     } else if (sendTg && !telegramConfigured(state?.config)) {
@@ -257,6 +386,13 @@ function ReorderModal({ part, state, setState, onClose, toast }) {
           ផ្ញើ​សារ​បញ្ជា​ទិញ​តាម Telegram
           {!telegramConfigured(state?.config) && <span className="muted" style={{ fontSize: 11 }}>(Telegram មិន​បាន​ភ្ជាប់)</span>}
         </label>
+        {sendTg && telegramConfigured(state?.config) && (
+          <div className="muted" style={{ fontSize: 11, marginTop: -4 }}>
+            {toSupplier
+              ? <>📱 ផ្ញើ​ផ្ទាល់​ទៅ <b>{supplier.name}</b></>
+              : <>ផ្ញើ​ទៅ​ម្ចាស់ (Owner) · {part.supplier && part.supplier !== "—" ? `${part.supplier} គ្មាន Telegram ID — បន្ថែម​នៅ "គ្រប់គ្រង​អ្នកផ្គត់ផ្គង់"` : "Part នេះ​គ្មាន​អ្នកផ្គត់ផ្គង់"}</>}
+          </div>
+        )}
       </div>
     </Modal>
   );
@@ -447,7 +583,8 @@ function PartsReportModal({ parts, currency, onClose, toast }) {
 }
 
 // ── Edit Part Modal ──
-function EditPartModal({ part, setState, onClose, toast }) {
+function EditPartModal({ part, state, setState, onClose, toast }) {
+  const supplierNames = (state?.suppliers || []).map(x => x.name);
   const [sku, setSku] = React.useState(part.sku || "");
   const [name, setName] = React.useState(part.name || "");
   const [nameEn, setNameEn] = React.useState(part.nameEn || "");
@@ -497,7 +634,7 @@ function EditPartModal({ part, setState, onClose, toast }) {
         </div>
         <div className="field"><label>ឈ្មោះ (ខ្មែរ)</label><input className="input" value={name} onChange={e => setName(e.target.value)} /></div>
         <div className="field"><label>ឈ្មោះ (English)</label><input className="input" value={nameEn} onChange={e => setNameEn(e.target.value)} /></div>
-        <div className="field"><label>អ្នកផ្គត់ផ្គង់</label><input className="input" value={supplier} onChange={e => setSupplier(e.target.value)} /></div>
+        <div className="field"><label>អ្នកផ្គត់ផ្គង់</label><input className="input" list="supplier-names" value={supplier} onChange={e => setSupplier(e.target.value)} /><datalist id="supplier-names">{supplierNames.map(n => <option key={n} value={n} />)}</datalist></div>
         <div className="field"><label>ទីតាំង</label><input className="input" value={location} onChange={e => setLocation(e.target.value)} placeholder="A-01" /></div>
         <div className="field"><label>ស្តុក · STOCK</label><input className="input" type="number" value={stock} onChange={e => setStock(e.target.value)} /></div>
         <div className="field"><label>Reorder Level</label><input className="input" type="number" value={reorder} onChange={e => setReorder(e.target.value)} /></div>
@@ -1109,6 +1246,7 @@ function NewPartModal({ onClose, state, setState, toast }) {
   const [cost, setCost] = React.useState(0);
   const [price, setPrice] = React.useState(0);
   const [location, setLocation] = React.useState("");
+  const supplierNames = (state?.suppliers || []).map(x => x.name);
 
   function submit() {
     if (!name.trim()) { toast("សូមបញ្ចូលឈ្មោះ Part", "error"); return; }
@@ -1140,7 +1278,7 @@ function NewPartModal({ onClose, state, setState, toast }) {
         </div>
         <div className="field"><label>ឈ្មោះ (ខ្មែរ)</label><input className="input" value={name} onChange={e => setName(e.target.value)} /></div>
         <div className="field"><label>ឈ្មោះ (English)</label><input className="input" value={nameEn} onChange={e => setNameEn(e.target.value)} /></div>
-        <div className="field"><label>អ្នកផ្គត់ផ្គង់</label><input className="input" value={supplier} onChange={e => setSupplier(e.target.value)} /></div>
+        <div className="field"><label>អ្នកផ្គត់ផ្គង់</label><input className="input" list="supplier-names" value={supplier} onChange={e => setSupplier(e.target.value)} /><datalist id="supplier-names">{supplierNames.map(n => <option key={n} value={n} />)}</datalist></div>
         <div className="field"><label>ទីតាំង</label><input className="input" value={location} onChange={e => setLocation(e.target.value)} placeholder="A-01" /></div>
         <div className="field"><label>ស្តុក · STOCK</label><input className="input" type="number" value={stock} onChange={e => setStock(e.target.value)} /></div>
         <div className="field"><label>Reorder Level</label><input className="input" type="number" value={reorder} onChange={e => setReorder(e.target.value)} /></div>

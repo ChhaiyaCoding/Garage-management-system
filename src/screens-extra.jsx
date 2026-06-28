@@ -1269,7 +1269,7 @@ function AuditLogSettings({ state, setState, toast }) {
 
   function restore(e) {
     if (!e.snapshot) { toast("គ្មាន​ទិន្នន័យ​ដើម​សម្រាប់​ស្ដារ", "err"); return; }
-    const map = { invoice: "invoices", customer: "customers", vehicle: "vehicles", job: "jobs", part: "parts", member: "members", quote: "quotations", booking: "bookings" };
+    const map = { invoice: "invoices", customer: "customers", vehicle: "vehicles", job: "jobs", part: "parts", member: "members", quote: "quotations", booking: "bookings", supplier: "suppliers" };
     const key = map[e.entity];
     if (!key) { toast("មិន​អាច​ស្ដារ​ប្រភេទ​នេះ", "err"); return; }
     setState(s => {

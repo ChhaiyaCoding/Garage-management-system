@@ -68,6 +68,7 @@ npm run lint
 - Soft delete + Audit Log: all deletes (customer/vehicle/job/part/quote/invoice/booking/member) + payments logged to state.auditLog[]; Settings → Audit Log tab with Restore
 - Duplicate prevention: customer phone + vehicle plate (normPhone/normPlate/findDupPhone/findDupPlate in screens-core)
 - Roles/permissions: src/lib/permissions.js (owner/manager/cashier/mechanic), RoleContext in App, resolveRole by staff email, useCan/IfCan gates. Staff modal assigns email+accessRole. Gates: delete buttons, payment button, Settings tabs. Unassigned email = owner (never locks out)
+- Supplier/Vendor CRUD: state.suppliers[] {id,name,contact,phone,telegramChatId,address,note}. SupplierManagerModal from Parts screen. Part forms use <datalist> of supplier names. ReorderModal sends order to supplier's Telegram if chat ID set (else owner). Delete logged to audit (entity "supplier")
 
 ---
 
@@ -88,7 +89,6 @@ npm run lint
 
 - Expenses tracking module
 - Purchase Orders for parts
-- Vendor/Supplier CRUD
 - KHQR (Bakong) QR code on invoice
 - Customer Portal (self-service)
 - Technician time tracking + shift management
