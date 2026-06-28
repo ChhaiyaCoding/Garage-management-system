@@ -1,6 +1,7 @@
 import React from 'react';
 import GARAGE, { generateId } from './data';
 import { auditEntry, pushAudit, ENTITY_KM, ACTION_KM } from './lib/audit';
+import { ACCESS_ROLES, ROLE_LABEL, useCan, useRole, IfCan } from './lib/permissions';
 import { Icon } from './icons';
 import { Modal } from './shell';
 import { Money, Stat, lookupCustomer, lookupVehicle, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
@@ -285,7 +286,7 @@ function BookingScreen({ state, setState, currency, onAddBooking, onConvertBooki
                 <button className="btn btn-sm" title="បង្កើតជា Job" onClick={() => onConvertBooking(b.id)}><Icon.Wrench size={12} /></button>
                 <button className={"btn btn-sm" + (b.status === "checked-in" ? " btn-primary" : " btn-ghost")} title="Check-in" onClick={() => { checkIn(b.id); toast(`${c.name} · Checked-in ✓`, "ok"); }} disabled={b.status === "checked-in"}><Icon.Check size={12} /></button>
                 {setState && <button className="btn btn-sm btn-ghost" title="កែ" onClick={() => setEditBk(b)}><Icon.Pen size={12} /></button>}
-                {setState && <button className="btn btn-sm btn-ghost" title="លុប" onClick={() => setDelBk(b)}><Icon.X size={12} /></button>}
+                {setState && <IfCan perm="delete"><button className="btn btn-sm btn-ghost" title="លុប" onClick={() => setDelBk(b)}><Icon.X size={12} /></button></IfCan>}
               </div>
             </div>
           );
@@ -695,7 +696,7 @@ function MembersScreen({ state, setState, currency, toast, onAddMember }) {
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm" onClick={() => addPoints(m.id, 50)}>+ 50 pts</button>
                       <button className="btn btn-sm btn-ghost" title="កែ" onClick={() => setEditMem(m)}><Icon.Pen size={12} /></button>
-                      <button className="btn btn-sm btn-ghost" title="លុប" onClick={() => setDelMem(m)}><Icon.X size={12} /></button>
+                      <IfCan perm="delete"><button className="btn btn-sm btn-ghost" title="លុប" onClick={() => setDelMem(m)}><Icon.X size={12} /></button></IfCan>
                     </div>
                   </td>
                 </tr>
@@ -1215,37 +1216,48 @@ function SalesReportModal({ state, currency, onClose, toast }) {
 // SETTINGS
 // ════════════════════════════════════════════════════════════
 function SettingsScreen({ state, setState, tweaks, setTweak, toast }) {
-  const [tab, setTab] = React.useState("garage");
+  const role = useRole();
+  const canSettings = useCan("settings"); // owner only
+  const canAudit = useCan("audit");        // owner + manager
+  const ALL = [
+    { id: "garage", label: "ហ្គារ៉ាស់", show: canSettings },
+    { id: "branches", label: "សាខា", show: canSettings },
+    { id: "staff", label: "បុគ្គលិក", show: canSettings },
+    { id: "billing", label: "Tax & Invoice", show: canSettings },
+    { id: "integrations", label: "Integrations", show: canSettings },
+    { id: "loyalty", label: "Loyalty Program", show: canSettings },
+    { id: "audit", label: "កំណត់ហេតុ · Audit Log", show: canAudit },
+  ];
+  const tabs = ALL.filter(t => t.show);
+  const [tab, setTab] = React.useState(tabs[0] ? tabs[0].id : "none");
   return (
     <div className="page">
       <div className="page-head">
         <div>
           <h1 className="page-title">Settings</h1>
-          <div className="page-sub">ការកំណត់ប្រព័ន្ធ · Garage OS · v2.4.1</div>
+          <div className="page-sub">ការកំណត់ប្រព័ន្ធ · Garage OS · v2.4.1 · សិទ្ធិ: {ROLE_LABEL[role] || role}</div>
         </div>
       </div>
 
-      <div className="tabs">
-        {[
-          { id: "garage", label: "ហ្គារ៉ាស់" },
-          { id: "branches", label: "សាខា" },
-          { id: "staff", label: "បុគ្គលិក" },
-          { id: "billing", label: "Tax & Invoice" },
-          { id: "integrations", label: "Integrations" },
-          { id: "loyalty", label: "Loyalty Program" },
-          { id: "audit", label: "កំណត់ហេតុ · Audit Log" },
-        ].map(t => (
-          <button key={t.id} className={"tab" + (tab === t.id ? " active" : "")} onClick={() => setTab(t.id)}>{t.label}</button>
-        ))}
-      </div>
+      {tabs.length === 0 ? (
+        <div className="card"><p className="muted">អ្នក​មិន​មាន​សិទ្ធិ​ចូល​ផ្នែក Settings ទេ។ សូម​ទាក់ទង​ម្ចាស់​ហ្គារ៉ាស់។</p></div>
+      ) : (
+        <>
+          <div className="tabs">
+            {tabs.map(t => (
+              <button key={t.id} className={"tab" + (tab === t.id ? " active" : "")} onClick={() => setTab(t.id)}>{t.label}</button>
+            ))}
+          </div>
 
-      {tab === "garage" && <GarageSettings state={state} setState={setState} toast={toast} />}
-      {tab === "branches" && <BranchSettings state={state} setState={setState} toast={toast} />}
-      {tab === "staff" && <StaffSettings state={state} setState={setState} toast={toast} />}
-      {tab === "billing" && <BillingSettings state={state} setState={setState} toast={toast} />}
-      {tab === "integrations" && <IntegrationSettings state={state} setState={setState} toast={toast} />}
-      {tab === "loyalty" && <LoyaltySettings state={state} setState={setState} toast={toast} />}
-      {tab === "audit" && <AuditLogSettings state={state} setState={setState} toast={toast} />}
+          {tab === "garage" && <GarageSettings state={state} setState={setState} toast={toast} />}
+          {tab === "branches" && <BranchSettings state={state} setState={setState} toast={toast} />}
+          {tab === "staff" && <StaffSettings state={state} setState={setState} toast={toast} />}
+          {tab === "billing" && <BillingSettings state={state} setState={setState} toast={toast} />}
+          {tab === "integrations" && <IntegrationSettings state={state} setState={setState} toast={toast} />}
+          {tab === "loyalty" && <LoyaltySettings state={state} setState={setState} toast={toast} />}
+          {tab === "audit" && <AuditLogSettings state={state} setState={setState} toast={toast} />}
+        </>
+      )}
     </div>
   );
 }
@@ -1448,7 +1460,7 @@ function StaffSettings({ state, setState, toast }) {
   return (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
       <table className="table">
-        <thead><tr><th>បុគ្គលិក</th><th>តួនាទី</th><th>នាយកដ្ឋាន</th><th>ជំនាញ</th><th>បន្ទុក</th><th></th></tr></thead>
+        <thead><tr><th>បុគ្គលិក</th><th>តួនាទី</th><th>សិទ្ធិ​ចូល</th><th>នាយកដ្ឋាន</th><th>ជំនាញ</th><th>បន្ទុក</th><th></th></tr></thead>
         <tbody>
           {staff.map(s => (
             <tr key={s.id}>
@@ -1462,6 +1474,7 @@ function StaffSettings({ state, setState, toast }) {
                 </div>
               </td>
               <td>{s.role}</td>
+              <td>{s.accessRole ? <span className="chip" style={{ fontSize: 10 }}>{ROLE_LABEL[s.accessRole] || s.accessRole}</span> : <span className="muted" style={{ fontSize: 11 }}>Owner</span>}{s.email && <div className="mono muted" style={{ fontSize: 9 }}>{s.email}</div>}</td>
               <td className="muted">{s.dept}</td>
               <td>
                 {s.skills && s.skills.map(k => <span key={k} className="chip chip-gray" style={{ fontSize: 9, marginRight: 4 }}>{k}</span>)}
@@ -1482,19 +1495,22 @@ function StaffModal({ staff, setState, toast, onClose }) {
   const [name, setName] = React.useState(staff ? staff.name : "");
   const [role, setRole] = React.useState(staff ? staff.role : "Mechanic");
   const [dept, setDept] = React.useState(staff ? staff.dept : "Workshop");
+  const [email, setEmail] = React.useState(staff ? (staff.email || "") : "");
+  const [accessRole, setAccessRole] = React.useState(staff ? (staff.accessRole || "") : "");
   const PALETTE = ["#22c55e", "#f5b400", "#38bdf8", "#a78bfa", "#f472b6", "#fb923c"];
 
   function submit() {
     if (!name.trim()) { toast("សូមបញ្ចូលឈ្មោះបុគ្គលិក", "error"); return; }
     const parts = name.trim().split(/\s+/);
     const initials = (parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
+    const access = { email: email.trim() || undefined, accessRole: accessRole || undefined };
     if (staff) {
-      setState(s => ({ ...s, staff: s.staff.map(x => x.id === staff.id ? { ...x, name: name.trim(), role, dept, initials } : x) }));
+      setState(s => ({ ...s, staff: s.staff.map(x => x.id === staff.id ? { ...x, name: name.trim(), role, dept, initials, ...access } : x) }));
       toast(`កែបុគ្គលិក ${name} ជោគជ័យ`, "ok");
     } else {
       setState(s => {
         const id = generateId("S", s.staff || []);
-        return { ...s, staff: [...(s.staff || []), { id, name: name.trim(), initials, color: PALETTE[Math.floor(Math.random() * PALETTE.length)], role, dept, load: 0, capacity: 0 }] };
+        return { ...s, staff: [...(s.staff || []), { id, name: name.trim(), initials, color: PALETTE[Math.floor(Math.random() * PALETTE.length)], role, dept, load: 0, capacity: 0, ...access }] };
       });
       toast(`បន្ថែមបុគ្គលិក ${name} ជោគជ័យ`, "ok");
     }
@@ -1513,6 +1529,17 @@ function StaffModal({ staff, setState, toast, onClose }) {
         <div className="field"><label>នាយកដ្ឋាន · DEPT</label>
           <select className="select" value={dept} onChange={e => setDept(e.target.value)}>
             {["Workshop", "Front Desk", "Inventory", "Management"].map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+        <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border-0)', paddingTop: 12, marginTop: 2 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>សិទ្ធិ​ចូល​ប្រើ · ACCESS</div>
+          <div className="muted" style={{ fontSize: 11 }}>ភ្ជាប់​អ៊ីមែល​ចូល​គណនី + តួនាទី​សិទ្ធិ។ ទុក​ទទេ = Owner ដោយ​ស្វ័យ​ប្រវត្តិ។</div>
+        </div>
+        <div className="field"><label>អ៊ីមែល​ចូល · LOGIN EMAIL</label><input className="input mono" value={email} onChange={e => setEmail(e.target.value)} placeholder="staff@email.com" /></div>
+        <div className="field"><label>តួនាទី​សិទ្ធិ · ACCESS ROLE</label>
+          <select className="select" value={accessRole} onChange={e => setAccessRole(e.target.value)}>
+            <option value="">— Owner (default) —</option>
+            {ACCESS_ROLES.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
           </select>
         </div>
       </div>

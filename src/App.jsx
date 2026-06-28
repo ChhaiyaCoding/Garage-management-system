@@ -12,6 +12,7 @@ import { LoginScreen, LoadingScreen } from './screens-auth';
 import { supabase, isConfigured } from './lib/supabase';
 import { loadWorkspace, queueSave, flushSave } from './lib/storage';
 import { sendMessage, lowStockMessage, quoteShareMessage, ownerForwardMessage, isConfigured as telegramConfigured } from './lib/telegram';
+import { RoleContext, resolveRole } from './lib/permissions';
 import { lookupCustomer } from './screens-core';
 import './styles.css';
 
@@ -111,6 +112,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
   const online = useOnline();
 
   const [state, setState] = React.useState(initialState || defaultState());
+  const role = React.useMemo(() => resolveRole(state.staff, userEmail), [state.staff, userEmail]);
 
   // ─── Persistence: debounced save to Supabase on state change ───
   const firstRender = React.useRef(true);
@@ -313,6 +315,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
   }, [search]);
 
   return (
+    <RoleContext.Provider value={role}>
     <div className="app">
       {!online && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 200, background: 'var(--warn)', color: '#0a0d12', padding: '6px 16px', fontSize: 12, fontWeight: 600, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, fontFamily: 'var(--font-en)', letterSpacing: '0.02em' }}>
@@ -427,6 +430,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
 
       {toastView}
     </div>
+    </RoleContext.Provider>
   );
 }
 

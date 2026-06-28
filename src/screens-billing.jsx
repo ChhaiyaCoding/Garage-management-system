@@ -6,6 +6,7 @@ import { Money, Row, exportCsv, lookupCustomer, lookupVehicle, MISSING_C, MISSIN
 import { buildShareUrl, invoiceShareMessage, quoteShareMessage, sendMessage, ownerForwardMessage, reorderMessage, isConfigured as telegramConfigured } from './lib/telegram';
 import { generateId } from './data';
 import { auditEntry, pushAudit } from './lib/audit';
+import { IfCan } from './lib/permissions';
 // ─── Parts, Quotation, Invoices screens ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -143,9 +144,9 @@ function PartsScreen({ state, setState, currency, toast, onNewPart }) {
                       <button className="btn btn-sm btn-ghost" title="កែ" onClick={() => setEditPart(p)}>
                         <Icon.Pen size={14} />
                       </button>
-                      <button className="btn btn-sm btn-ghost" title="លុប" onClick={() => setDelPart(p)}>
+                      <IfCan perm="delete"><button className="btn btn-sm btn-ghost" title="លុប" onClick={() => setDelPart(p)}>
                         <Icon.X size={14} />
-                      </button>
+                      </button></IfCan>
                     </div>
                   </td>
                 </tr>
@@ -613,7 +614,7 @@ function QuotationScreen({ state, setState, currency, onNewQuote, toast, onConve
                       <button className="btn btn-sm btn-ghost" title="View" onClick={() => onView(q.id)}><Icon.Doc size={12} /></button>
                       <button className="btn btn-sm btn-ghost" title="Send" onClick={() => onSend(q.id)}><Icon.Send size={12} /></button>
                       {q.status === "accepted" && <button className="btn btn-sm btn-ghost" title="Convert to Job" onClick={() => onConvert(q.id)}><Icon.Wrench size={12} /></button>}
-                      {setState && <button className="btn btn-sm btn-ghost" title="លុប" onClick={() => setDelQuote(q)}><Icon.X size={12} /></button>}
+                      {setState && <IfCan perm="delete"><button className="btn btn-sm btn-ghost" title="លុប" onClick={() => setDelQuote(q)}><Icon.X size={12} /></button></IfCan>}
                     </div>
                   </td>
                 </tr>
@@ -833,7 +834,7 @@ function InvoicesScreen({ state, setState, currency, onOpenInvoice, onNewInvoice
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-sm btn-ghost" title="Print" onClick={e => { e.stopPropagation(); window.print(); }}><Icon.Print size={12} /></button>
-                      {setState && <button className="btn btn-sm btn-ghost" title="លុប" onClick={e => { e.stopPropagation(); setDelInv(inv); }}><Icon.X size={12} /></button>}
+                      {setState && <IfCan perm="delete"><button className="btn btn-sm btn-ghost" title="លុប" onClick={e => { e.stopPropagation(); setDelInv(inv); }}><Icon.X size={12} /></button></IfCan>}
                     </div>
                   </td>
                 </tr>
@@ -923,9 +924,11 @@ function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
           }
         }}><Icon.Send size={14} /> ផ្ញើ​តាម Telegram</button>
         {inv.status !== "paid" && balance > 0 && (
-          <button className="btn btn-primary" onClick={() => setPayOpen(true)}>
-            <Icon.Money size={14} /> ទទួល​ការ​ទូទាត់ · ​នៅ {moneyUSD(balance)}
-          </button>
+          <IfCan perm="payments">
+            <button className="btn btn-primary" onClick={() => setPayOpen(true)}>
+              <Icon.Money size={14} /> ទទួល​ការ​ទូទាត់ · ​នៅ {moneyUSD(balance)}
+            </button>
+          </IfCan>
         )}
       </>}>
       <div ref={sheetRef} style={{ background: 'white', color: '#0a0d12', padding: 32, borderRadius: 8, fontFamily: 'var(--font-en)' }}>

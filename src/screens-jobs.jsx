@@ -1,6 +1,7 @@
 import React from 'react';
 import GARAGE, { generateId } from './data';
 import { auditEntry, pushAudit } from './lib/audit';
+import { IfCan } from './lib/permissions';
 import { Icon } from './icons';
 import { Modal, Drawer } from './shell';
 import { Money, Row, lookupCustomer, lookupVehicle, vehiclesByOwner, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
@@ -156,7 +157,7 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
             <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>បង្កើត {job.created} · សន្យាបញ្ចប់ {job.promised}</div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button className="icon-btn" title="លុប Job" onClick={() => setDelConfirm(true)}><Icon.Trash size={14} /></button>
+            <IfCan perm="delete"><button className="icon-btn" title="លុប Job" onClick={() => setDelConfirm(true)}><Icon.Trash size={14} /></button></IfCan>
             <button className="icon-btn" onClick={onClose}><Icon.X size={16} /></button>
           </div>
         </div>

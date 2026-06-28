@@ -66,6 +66,8 @@ npm run lint
 - Partial payment + payment history per invoice (PaymentModal, invoice.payments[], status auto paid/partial)
 - Stock accuracy: AddPartRow qty + merge, removePart restores stock
 - Soft delete + Audit Log: all deletes (customer/vehicle/job/part/quote/invoice/booking/member) + payments logged to state.auditLog[]; Settings → Audit Log tab with Restore
+- Duplicate prevention: customer phone + vehicle plate (normPhone/normPlate/findDupPhone/findDupPlate in screens-core)
+- Roles/permissions: src/lib/permissions.js (owner/manager/cashier/mechanic), RoleContext in App, resolveRole by staff email, useCan/IfCan gates. Staff modal assigns email+accessRole. Gates: delete buttons, payment button, Settings tabs. Unassigned email = owner (never locks out)
 
 ---
 
@@ -89,7 +91,6 @@ npm run lint
 - Vendor/Supplier CRUD
 - KHQR (Bakong) QR code on invoice
 - Customer Portal (self-service)
-- Role-based permissions: admin/staff/viewer
 - Technician time tracking + shift management
 - SLA tracking — overdue job indicator
 - Service packages (combo + discount)

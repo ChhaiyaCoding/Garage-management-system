@@ -3,6 +3,7 @@ import GARAGE from './data';
 import { Icon } from './icons';
 import { Modal, Drawer } from './shell';
 import { auditEntry, pushAudit } from './lib/audit';
+import { IfCan } from './lib/permissions';
 import { sendMessage, isConfigured as telegramConfigured, ownerForwardMessage, serviceReminderMessage } from './lib/telegram';
 import { generateId } from './data';
 // ─── Dashboard, Customers & Vehicles, Job Card screens ───
@@ -767,7 +768,7 @@ function CustomerDrawer({ id, state, setState, onClose, currency, onNewJob, onNe
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             {setState && <button className="icon-btn" title="កែប្រែ" onClick={() => setEditing(true)}><Icon.Pen size={14} /></button>}
-            {setState && <button className="icon-btn" title="លុបអតិថិជន" onClick={() => setConfirmDelCust(true)}><Icon.Trash size={14} /></button>}
+            {setState && <IfCan perm="delete"><button className="icon-btn" title="លុបអតិថិជន" onClick={() => setConfirmDelCust(true)}><Icon.Trash size={14} /></button></IfCan>}
             <button className="icon-btn" onClick={onClose}><Icon.X size={16} /></button>
           </div>
         </div>
@@ -818,7 +819,7 @@ function CustomerDrawer({ id, state, setState, onClose, currency, onNewJob, onNe
               {setState && (
                 <div style={{ display: 'flex', gap: 4 }}>
                   <button className="btn btn-sm btn-ghost" title="កែ​រថយន្ត" onClick={() => setEditVeh(v)}><Icon.Pen size={12} /></button>
-                  <button className="btn btn-sm btn-ghost" title="លុប" onClick={() => setConfirmDelVeh(v)}><Icon.X size={12} /></button>
+                  <IfCan perm="delete"><button className="btn btn-sm btn-ghost" title="លុប" onClick={() => setConfirmDelVeh(v)}><Icon.X size={12} /></button></IfCan>
                 </div>
               )}
             </div>
