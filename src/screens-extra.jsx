@@ -1,5 +1,6 @@
 import React from 'react';
 import GARAGE, { generateId } from './data';
+import { auditEntry, pushAudit, ENTITY_KM, ACTION_KM } from './lib/audit';
 import { Icon } from './icons';
 import { Modal } from './shell';
 import { Money, Stat, lookupCustomer, lookupVehicle, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
@@ -292,7 +293,7 @@ function BookingScreen({ state, setState, currency, onAddBooking, onConvertBooki
       </div>
       </>}
       {editBk && <EditBookingModal booking={editBk} state={state} setState={setState} onClose={() => setEditBk(null)} toast={toast} />}
-      {delBk && <ConfirmModal title="លុបការកក់?" message={`លុប ${delBk.id} · ${delBk.time} · ${delBk.service} ឬ​ទេ?`} danger onClose={() => setDelBk(null)} onConfirm={() => { setState(s => ({ ...s, bookings: s.bookings.filter(x => x.id !== delBk.id) })); toast(`លុប ${delBk.id} ជោគជ័យ`, "ok"); setDelBk(null); }} />}
+      {delBk && <ConfirmModal title="លុបការកក់?" message={`លុប ${delBk.id} · ${delBk.time} · ${delBk.service} ឬ​ទេ?`} danger onClose={() => setDelBk(null)} onConfirm={() => { setState(s => ({ ...s, bookings: s.bookings.filter(x => x.id !== delBk.id), auditLog: pushAudit(s, auditEntry("delete", "booking", delBk.id, `លុប ការកក់ ${delBk.id} (${delBk.service})`, delBk)) })); toast(`លុប ${delBk.id} ជោគជ័យ`, "ok"); setDelBk(null); }} />}
     </div>
   );
 }
@@ -704,7 +705,7 @@ function MembersScreen({ state, setState, currency, toast, onAddMember }) {
         </table>
       </div>
       {editMem && <EditMemberModal member={editMem} setState={setState} onClose={() => setEditMem(null)} toast={toast} />}
-      {delMem && <ConfirmModal title="លុបសមាជិក?" message={`លុប ${delMem.name} (${delMem.tier}) ឬ​ទេ?`} danger onClose={() => setDelMem(null)} onConfirm={() => { setState(s => ({ ...s, members: s.members.filter(x => x.id !== delMem.id) })); toast(`លុប ${delMem.name} ជោគជ័យ`, "ok"); setDelMem(null); }} />}
+      {delMem && <ConfirmModal title="លុបសមាជិក?" message={`លុប ${delMem.name} (${delMem.tier}) ឬ​ទេ?`} danger onClose={() => setDelMem(null)} onConfirm={() => { setState(s => ({ ...s, members: s.members.filter(x => x.id !== delMem.id), auditLog: pushAudit(s, auditEntry("delete", "member", delMem.id, `លុប សមាជិក ${delMem.name} (${delMem.tier})`, delMem)) })); toast(`លុប ${delMem.name} ជោគជ័យ`, "ok"); setDelMem(null); }} />}
     </div>
   );
 }
@@ -1232,6 +1233,7 @@ function SettingsScreen({ state, setState, tweaks, setTweak, toast }) {
           { id: "billing", label: "Tax & Invoice" },
           { id: "integrations", label: "Integrations" },
           { id: "loyalty", label: "Loyalty Program" },
+          { id: "audit", label: "កំណត់ហេតុ · Audit Log" },
         ].map(t => (
           <button key={t.id} className={"tab" + (tab === t.id ? " active" : "")} onClick={() => setTab(t.id)}>{t.label}</button>
         ))}
@@ -1243,7 +1245,76 @@ function SettingsScreen({ state, setState, tweaks, setTweak, toast }) {
       {tab === "billing" && <BillingSettings state={state} setState={setState} toast={toast} />}
       {tab === "integrations" && <IntegrationSettings state={state} setState={setState} toast={toast} />}
       {tab === "loyalty" && <LoyaltySettings state={state} setState={setState} toast={toast} />}
+      {tab === "audit" && <AuditLogSettings state={state} setState={setState} toast={toast} />}
     </div>
+  );
+}
+
+function AuditLogSettings({ state, setState, toast }) {
+  const log = state.auditLog || [];
+  const [filter, setFilter] = React.useState("all");
+  const rows = log.filter(e => filter === "all" || e.action === filter);
+
+  function restore(e) {
+    if (!e.snapshot) { toast("គ្មាន​ទិន្នន័យ​ដើម​សម្រាប់​ស្ដារ", "err"); return; }
+    const map = { invoice: "invoices", customer: "customers", vehicle: "vehicles", job: "jobs", part: "parts", member: "members", quote: "quotations", booking: "bookings" };
+    const key = map[e.entity];
+    if (!key) { toast("មិន​អាច​ស្ដារ​ប្រភេទ​នេះ", "err"); return; }
+    setState(s => {
+      const list = s[key] || [];
+      if (list.some(x => x.id === e.entityId)) { toast("មាន​រួច​ហើយ — រំលង", "info"); return s; }
+      const snap = e.snapshot;
+      const extra = {};
+      // Customer snapshot may carry its deleted vehicles
+      if (e.entity === "customer" && snap._vehicles) {
+        const { _vehicles, ...cust } = snap;
+        extra.vehicles = [...(s.vehicles || []), ..._vehicles.filter(v => !(s.vehicles || []).some(x => x.id === v.id))];
+        return { ...s, [key]: [cust, ...list], ...extra, auditLog: pushAudit(s, auditEntry("restore", e.entity, e.entityId, `ស្ដារ ${e.detail}`, null)) };
+      }
+      return { ...s, [key]: [snap, ...list], auditLog: pushAudit(s, auditEntry("restore", e.entity, e.entityId, `ស្ដារ ${e.detail}`, null)) };
+    });
+    toast("ស្ដារ​ជោគជ័យ", "ok");
+  }
+
+  return (
+    <SettingsCard title="កំណត់ហេតុ · Audit Log">
+      <p className="muted" style={{ fontSize: 12, marginTop: -4 }}>កត់ត្រា​ការ​លុប និង​ការ​ទូទាត់ — អាច​ស្ដារ​ record ដែល​លុប​វិញ​បាន។</p>
+      <div className="tabs" style={{ marginBottom: 12 }}>
+        {[["all", "ទាំងអស់"], ["delete", "លុប"], ["payment", "ការបង់"], ["restore", "ស្ដារ"]].map(([id, lbl]) => (
+          <button key={id} className={"tab" + (filter === id ? " active" : "")} onClick={() => setFilter(id)}>{lbl}</button>
+        ))}
+      </div>
+      {rows.length === 0 ? (
+        <p className="muted">មិន​ទាន់​មាន​កំណត់ហេតុ​នៅ​ឡើយ។</p>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ textAlign: "left", color: "var(--muted)" }}>
+                <th style={{ padding: "6px 8px" }}>ពេលវេលា</th>
+                <th style={{ padding: "6px 8px" }}>សកម្មភាព</th>
+                <th style={{ padding: "6px 8px" }}>ប្រភេទ</th>
+                <th style={{ padding: "6px 8px" }}>ព័ត៌មាន</th>
+                <th style={{ padding: "6px 8px" }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(e => (
+                <tr key={e.id} style={{ borderTop: "1px solid var(--border)" }}>
+                  <td style={{ padding: "6px 8px", whiteSpace: "nowrap", fontFamily: "var(--font-mono)", fontSize: 11 }}>{new Date(e.ts).toLocaleString("en-GB")}</td>
+                  <td style={{ padding: "6px 8px" }}><span className="badge">{ACTION_KM[e.action] || e.action}</span></td>
+                  <td style={{ padding: "6px 8px" }}>{ENTITY_KM[e.entity] || e.entity}</td>
+                  <td style={{ padding: "6px 8px" }}>{e.detail}</td>
+                  <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                    {e.action === "delete" && e.snapshot && <button className="btn btn-sm" onClick={() => restore(e)}>ស្ដារ</button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </SettingsCard>
   );
 }
 

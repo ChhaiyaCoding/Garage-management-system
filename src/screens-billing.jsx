@@ -5,6 +5,7 @@ import { Modal } from './shell';
 import { Money, Row, exportCsv, lookupCustomer, lookupVehicle, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
 import { buildShareUrl, invoiceShareMessage, quoteShareMessage, sendMessage, ownerForwardMessage, reorderMessage, isConfigured as telegramConfigured } from './lib/telegram';
 import { generateId } from './data';
+import { auditEntry, pushAudit } from './lib/audit';
 // ─── Parts, Quotation, Invoices screens ───
 const G = GARAGE;
 const { customers, vehicles, parts, jobs, invoices, quotations, bookings, technicians, members,
@@ -170,7 +171,7 @@ function PartsScreen({ state, setState, currency, toast, onNewPart }) {
         })}
       </div>
       {editPart && <EditPartModal part={editPart} setState={setState} onClose={() => setEditPart(null)} toast={toast} />}
-      {delPart && <ConfirmModal title="លុប Part?" message={`លុប ${delPart.name} (${delPart.sku}) ឬ​ទេ?`} danger onClose={() => setDelPart(null)} onConfirm={() => { setState(s => ({ ...s, parts: s.parts.filter(x => x.id !== delPart.id) })); toast(`លុប ${delPart.name} ជោគជ័យ`, "ok"); setDelPart(null); }} />}
+      {delPart && <ConfirmModal title="លុប Part?" message={`លុប ${delPart.name} (${delPart.sku}) ឬ​ទេ?`} danger onClose={() => setDelPart(null)} onConfirm={() => { setState(s => ({ ...s, parts: s.parts.filter(x => x.id !== delPart.id), auditLog: pushAudit(s, auditEntry("delete", "part", delPart.id, `លុប Part ${delPart.name} (${delPart.sku})`, delPart)) })); toast(`លុប ${delPart.name} ជោគជ័យ`, "ok"); setDelPart(null); }} />}
       {reportOpen && <PartsReportModal parts={allParts} currency={currency} onClose={() => setReportOpen(false)} toast={toast} />}
       {reorderOpen && <ReorderModal part={reorderOpen} state={state} setState={setState} onClose={() => setReorderOpen(null)} toast={toast} />}
     </div>
@@ -621,7 +622,7 @@ function QuotationScreen({ state, setState, currency, onNewQuote, toast, onConve
           </tbody>
         </table>
       </div>
-      {delQuote && <ConfirmModal title="លុប Quote?" message={`លុប ${delQuote.id} (តម្លៃ $${delQuote.total}) ឬ​ទេ?`} danger onClose={() => setDelQuote(null)} onConfirm={() => { setState(s => ({ ...s, quotations: s.quotations.filter(x => x.id !== delQuote.id) })); toast(`លុប ${delQuote.id} ជោគជ័យ`, "ok"); setDelQuote(null); }} />}
+      {delQuote && <ConfirmModal title="លុប Quote?" message={`លុប ${delQuote.id} (តម្លៃ $${delQuote.total}) ឬ​ទេ?`} danger onClose={() => setDelQuote(null)} onConfirm={() => { setState(s => ({ ...s, quotations: s.quotations.filter(x => x.id !== delQuote.id), auditLog: pushAudit(s, auditEntry("delete", "quote", delQuote.id, `លុប Quote ${delQuote.id} ($${delQuote.total})`, delQuote)) })); toast(`លុប ${delQuote.id} ជោគជ័យ`, "ok"); setDelQuote(null); }} />}
     </div>
   );
 }
@@ -841,7 +842,7 @@ function InvoicesScreen({ state, setState, currency, onOpenInvoice, onNewInvoice
           </tbody>
         </table>
       </div>
-      {delInv && <ConfirmModal title="លុប Invoice?" message={`លុប ${delInv.id} (សរុប $${delInv.total}) ឬ​ទេ?`} danger onClose={() => setDelInv(null)} onConfirm={() => { setState(s => ({ ...s, invoices: s.invoices.filter(x => x.id !== delInv.id) })); toast(`លុប ${delInv.id} ជោគជ័យ`, "ok"); setDelInv(null); }} />}
+      {delInv && <ConfirmModal title="លុប Invoice?" message={`លុប ${delInv.id} (សរុប $${delInv.total}) ឬ​ទេ?`} danger onClose={() => setDelInv(null)} onConfirm={() => { setState(s => ({ ...s, invoices: s.invoices.filter(x => x.id !== delInv.id), auditLog: pushAudit(s, auditEntry("delete", "invoice", delInv.id, `លុប Invoice ${delInv.id} ($${delInv.total})`, delInv)) })); toast(`លុប ${delInv.id} ជោគជ័យ`, "ok"); setDelInv(null); }} />}
     </div>
   );
 }
@@ -879,6 +880,7 @@ function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
         const status = newPaid >= (i.total || 0) ? "paid" : newPaid > 0 ? "partial" : i.status;
         return { ...i, payments, paid: newPaid, status, method };
       }),
+      auditLog: pushAudit(s, auditEntry("payment", "invoice", inv.id, `ទទួល ${moneyUSD(amt)} (${method}) លើ ${inv.id}`, null)),
     }));
     const newBalance = balance - amt;
     toast(newBalance > 0

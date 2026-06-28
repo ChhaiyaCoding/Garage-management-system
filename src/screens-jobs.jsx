@@ -1,5 +1,6 @@
 import React from 'react';
 import GARAGE, { generateId } from './data';
+import { auditEntry, pushAudit } from './lib/audit';
 import { Icon } from './icons';
 import { Modal, Drawer } from './shell';
 import { Money, Row, lookupCustomer, lookupVehicle, vehiclesByOwner, MISSING_C, MISSING_V, ConfirmModal } from './screens-core';
@@ -328,7 +329,7 @@ function JobDrawer({ id, state, setState, onClose, onGenerateInvoice, onEdit, cu
           )}
         </div>
       </div>
-      {delConfirm && <ConfirmModal title="លុប Job?" message={`លុប ${job.id} · ${job.title} ឬ​ទេ?`} danger onClose={() => setDelConfirm(false)} onConfirm={() => { setState(s => ({ ...s, jobs: s.jobs.filter(j => j.id !== job.id) })); toast(`លុប ${job.id} ជោគជ័យ`, "ok"); setDelConfirm(false); onClose(); }} />}
+      {delConfirm && <ConfirmModal title="លុប Job?" message={`លុប ${job.id} · ${job.title} ឬ​ទេ?`} danger onClose={() => setDelConfirm(false)} onConfirm={() => { setState(s => ({ ...s, jobs: s.jobs.filter(j => j.id !== job.id), auditLog: pushAudit(s, auditEntry("delete", "job", job.id, `លុប Job ${job.id} (${job.title})`, job)) })); toast(`លុប ${job.id} ជោគជ័យ`, "ok"); setDelConfirm(false); onClose(); }} />}
       {printOpen && <JobPrintModal job={job} state={state} currency={currency} onClose={() => setPrintOpen(false)} toast={toast} />}
     </Drawer>
   );

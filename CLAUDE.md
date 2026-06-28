@@ -63,6 +63,9 @@ npm run lint
 - DVI Inspection: connected to real Jobs (job picker, save to state.dvis, Telegram report)
 - Calendar view booking: list / week / month with real dates + nav + click-to-edit
 - Booking date picker: Add + Edit Booking modals support date selection
+- Partial payment + payment history per invoice (PaymentModal, invoice.payments[], status auto paid/partial)
+- Stock accuracy: AddPartRow qty + merge, removePart restores stock
+- Soft delete + Audit Log: all deletes (customer/vehicle/job/part/quote/invoice/booking/member) + payments logged to state.auditLog[]; Settings → Audit Log tab with Restore
 
 ---
 
@@ -81,7 +84,6 @@ npm run lint
 # Features ដែលមិនទាន់ build — reference សម្រាប់ future work
 # ✏️ MOVE TO Working Features នៅពេល build ហើយ
 
-- Partial payment + payment history per invoice
 - Expenses tracking module
 - Purchase Orders for parts
 - Vendor/Supplier CRUD

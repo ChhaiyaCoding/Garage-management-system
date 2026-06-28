@@ -2,6 +2,7 @@ import React from 'react';
 import GARAGE from './data';
 import { Icon } from './icons';
 import { Modal, Drawer } from './shell';
+import { auditEntry, pushAudit } from './lib/audit';
 import { sendMessage, isConfigured as telegramConfigured, ownerForwardMessage, serviceReminderMessage } from './lib/telegram';
 import { generateId } from './data';
 // ─── Dashboard, Customers & Vehicles, Job Card screens ───
@@ -809,8 +810,8 @@ function CustomerDrawer({ id, state, setState, onClose, currency, onNewJob, onNe
         </div>
         {addVehOpen && <AddVehicleModal customerId={c.id} state={state} setState={setState} onClose={() => setAddVehOpen(false)} toast={toast} />}
         {editVeh && <EditVehicleModal vehicle={editVeh} setState={setState} onClose={() => setEditVeh(null)} toast={toast} />}
-        {confirmDelVeh && <ConfirmModal title="លុបរថយន្ត?" message={`លុប ${confirmDelVeh.plate} · ${vehicleLabel(confirmDelVeh)} ឬ​ទេ?`} onClose={() => setConfirmDelVeh(null)} onConfirm={() => { setState(s => ({ ...s, vehicles: s.vehicles.filter(x => x.id !== confirmDelVeh.id) })); toast(`លុប ${confirmDelVeh.plate} ជោគជ័យ`, "ok"); setConfirmDelVeh(null); }} />}
-        {confirmDelCust && <ConfirmModal title="លុបអតិថិជន?" message={`លុប ${c.name} និង​រថយន្ត ${cvehs.length} គ្រឿង? Jobs/Invoices/Quotes នឹង​នៅ​ដដែល​តែ​អត់​មាន​អ្នកជា​​ម្ចាស់។`} danger onClose={() => setConfirmDelCust(false)} onConfirm={() => { setState(s => ({ ...s, customers: s.customers.filter(x => x.id !== c.id), vehicles: (s.vehicles || []).filter(v => v.owner !== c.id) })); toast(`លុប ${c.name} ជោគជ័យ`, "ok"); setConfirmDelCust(false); onClose(); }} />}
+        {confirmDelVeh && <ConfirmModal title="លុបរថយន្ត?" message={`លុប ${confirmDelVeh.plate} · ${vehicleLabel(confirmDelVeh)} ឬ​ទេ?`} onClose={() => setConfirmDelVeh(null)} onConfirm={() => { setState(s => ({ ...s, vehicles: s.vehicles.filter(x => x.id !== confirmDelVeh.id), auditLog: pushAudit(s, auditEntry("delete", "vehicle", confirmDelVeh.id, `លុប រថយន្ត ${confirmDelVeh.plate}`, confirmDelVeh)) })); toast(`លុប ${confirmDelVeh.plate} ជោគជ័យ`, "ok"); setConfirmDelVeh(null); }} />}
+        {confirmDelCust && <ConfirmModal title="លុបអតិថិជន?" message={`លុប ${c.name} និង​រថយន្ត ${cvehs.length} គ្រឿង? Jobs/Invoices/Quotes នឹង​នៅ​ដដែល​តែ​អត់​មាន​អ្នកជា​​ម្ចាស់។`} danger onClose={() => setConfirmDelCust(false)} onConfirm={() => { setState(s => ({ ...s, customers: s.customers.filter(x => x.id !== c.id), vehicles: (s.vehicles || []).filter(v => v.owner !== c.id), auditLog: pushAudit(s, auditEntry("delete", "customer", c.id, `លុប អតិថិជន ${c.name} + រថយន្ត ${cvehs.length}`, { ...c, _vehicles: (s.vehicles || []).filter(v => v.owner === c.id) })) })); toast(`លុប ${c.name} ជោគជ័យ`, "ok"); setConfirmDelCust(false); onClose(); }} />}
 
         <div className="section-heading"><h2 style={{ fontSize: 14 }}>ប្រវត្តិសេវាកម្ម · HISTORY</h2></div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
