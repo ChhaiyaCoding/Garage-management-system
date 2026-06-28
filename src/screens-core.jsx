@@ -16,6 +16,22 @@ function Money({ value, currency }) {
   return <>{moneyUSD(value)}</>;
 }
 
+// ─── Duplicate-prevention helpers ───
+export function normPhone(p) { return (p || "").replace(/\D/g, ""); }
+export function normPlate(p) { return (p || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+// Returns the existing customer with the same phone, or null. Pass ignoreId when editing.
+export function findDupPhone(list, phone, ignoreId) {
+  const n = normPhone(phone);
+  if (n.length < 6) return null; // too short / empty → skip
+  return (list || []).find(c => c.id !== ignoreId && normPhone(c.phone) === n) || null;
+}
+// Returns the existing vehicle with the same plate, or null. Pass ignoreId when editing.
+export function findDupPlate(list, plate, ignoreId) {
+  const n = normPlate(plate);
+  if (!n) return null;
+  return (list || []).find(v => v.id !== ignoreId && normPlate(v.plate) === n) || null;
+}
+
 // ─── State-aware lookups (fall back to static seed data) ───
 function lookupCustomer(id, state) {
   if (!id) return null;
@@ -809,7 +825,7 @@ function CustomerDrawer({ id, state, setState, onClose, currency, onNewJob, onNe
           ))}
         </div>
         {addVehOpen && <AddVehicleModal customerId={c.id} state={state} setState={setState} onClose={() => setAddVehOpen(false)} toast={toast} />}
-        {editVeh && <EditVehicleModal vehicle={editVeh} setState={setState} onClose={() => setEditVeh(null)} toast={toast} />}
+        {editVeh && <EditVehicleModal vehicle={editVeh} state={state} setState={setState} onClose={() => setEditVeh(null)} toast={toast} />}
         {confirmDelVeh && <ConfirmModal title="លុបរថយន្ត?" message={`លុប ${confirmDelVeh.plate} · ${vehicleLabel(confirmDelVeh)} ឬ​ទេ?`} onClose={() => setConfirmDelVeh(null)} onConfirm={() => { setState(s => ({ ...s, vehicles: s.vehicles.filter(x => x.id !== confirmDelVeh.id), auditLog: pushAudit(s, auditEntry("delete", "vehicle", confirmDelVeh.id, `លុប រថយន្ត ${confirmDelVeh.plate}`, confirmDelVeh)) })); toast(`លុប ${confirmDelVeh.plate} ជោគជ័យ`, "ok"); setConfirmDelVeh(null); }} />}
         {confirmDelCust && <ConfirmModal title="លុបអតិថិជន?" message={`លុប ${c.name} និង​រថយន្ត ${cvehs.length} គ្រឿង? Jobs/Invoices/Quotes នឹង​នៅ​ដដែល​តែ​អត់​មាន​អ្នកជា​​ម្ចាស់។`} danger onClose={() => setConfirmDelCust(false)} onConfirm={() => { setState(s => ({ ...s, customers: s.customers.filter(x => x.id !== c.id), vehicles: (s.vehicles || []).filter(v => v.owner !== c.id), auditLog: pushAudit(s, auditEntry("delete", "customer", c.id, `លុប អតិថិជន ${c.name} + រថយន្ត ${cvehs.length}`, { ...c, _vehicles: (s.vehicles || []).filter(v => v.owner === c.id) })) })); toast(`លុប ${c.name} ជោគជ័យ`, "ok"); setConfirmDelCust(false); onClose(); }} />}
 
@@ -860,6 +876,12 @@ function AddCustomerModal({ onClose, state, setState, toast }) {
 
   function submit() {
     if (!name.trim()) { toast("សូមបញ្ចូលឈ្មោះអតិថិជន", "error"); return; }
+    const dupC = findDupPhone(state?.customers, phone);
+    if (dupC) { toast(`លេខ​ទូរស័ព្ទ​នេះ​មាន​រួច​ហើយ → ${dupC.name}`, "error"); return; }
+    if (addVeh && plate.trim()) {
+      const dupV = findDupPlate(state?.vehicles, plate);
+      if (dupV) { toast(`ស្លាក​លេខ ${dupV.plate} មាន​រួច​ហើយ`, "error"); return; }
+    }
     const cid = generateId("CU", state?.customers || []);
     const parts = name.trim().split(/\s+/);
     const initials = (parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
@@ -973,6 +995,8 @@ function EditCustomerModal({ customer, state, setState, onClose, toast }) {
 
   function save() {
     if (!name.trim()) { toast("សូមបញ្ចូលឈ្មោះ", "error"); return; }
+    const dup = findDupPhone(state?.customers, phone, customer.id);
+    if (dup) { toast(`លេខ​ទូរស័ព្ទ​នេះ​មាន​រួច​ហើយ → ${dup.name}`, "error"); return; }
     const parts = name.trim().split(/\s+/);
     const initials = (parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
     setState(s => ({
@@ -1042,6 +1066,8 @@ function AddVehicleModal({ customerId, state, setState, onClose, toast }) {
 
   function save() {
     if (!plate.trim()) { toast("បំពេញ​ស្លាក​លេខ", "error"); return; }
+    const dup = findDupPlate(state?.vehicles, plate);
+    if (dup) { toast(`ស្លាក​លេខ ${dup.plate} មាន​រួច​ហើយ`, "error"); return; }
     const vid = generateId("VE", state?.vehicles || []);
     const v = {
       id: vid, owner: customerId, plate: plate.trim().toUpperCase(),
@@ -1078,7 +1104,7 @@ function AddVehicleModal({ customerId, state, setState, onClose, toast }) {
 }
 
 // ── Edit Vehicle Modal ──
-function EditVehicleModal({ vehicle, setState, onClose, toast }) {
+function EditVehicleModal({ vehicle, state, setState, onClose, toast }) {
   const [plate, setPlate] = React.useState(vehicle.plate || "");
   const [make, setMake] = React.useState(vehicle.make === "—" ? "" : (vehicle.make || ""));
   const [model, setModel] = React.useState(vehicle.model === "—" ? "" : (vehicle.model || ""));
@@ -1090,6 +1116,8 @@ function EditVehicleModal({ vehicle, setState, onClose, toast }) {
 
   function save() {
     if (!plate.trim()) { toast("បំពេញ​ស្លាក​លេខ", "error"); return; }
+    const dup = findDupPlate(state?.vehicles, plate, vehicle.id);
+    if (dup) { toast(`ស្លាក​លេខ ${dup.plate} មាន​រួច​ហើយ`, "error"); return; }
     setState(s => ({
       ...s,
       vehicles: s.vehicles.map(v => v.id === vehicle.id ? {
