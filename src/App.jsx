@@ -4,7 +4,7 @@ import { useTweaks, TweaksPanel, TweakSection, TweakColor, TweakRadio } from './
 import { useShortcuts, SHORTCUTS } from './lib/shortcuts';
 import { useOnline } from './lib/useOnline';
 import { Sidebar, Topbar, useToasts } from './shell';
-import { DashboardScreen, CustomersScreen, CustomerDrawer, AddCustomerModal } from './screens-core';
+import { DashboardScreen, CustomersScreen, CustomerDrawer, VehicleProfileScreen, AddCustomerModal } from './screens-core';
 import { JobsScreen, JobDrawer, NewJobModal, EditJobModal } from './screens-jobs';
 import { PartsScreen, QuotationScreen, NewQuoteModal, QuoteModal, InvoicesScreen, InvoiceModal, NewPartModal, NewInvoiceModal } from './screens-billing';
 import { BookingScreen, DVIScreen, MembersScreen, ReportsScreen, ExpensesScreen, SettingsScreen, AddBookingModal, AddMemberModal } from './screens-extra';
@@ -96,6 +96,8 @@ function App({ initialState, userId, userEmail, onSignOut }) {
   const [route, setRoute] = React.useState("dashboard");
   const [search, setSearch] = React.useState("");
   const [customerOpen, setCustomerOpen] = React.useState(null);
+  const [vehicleProfileId, setVehicleProfileId] = React.useState(null);
+  const vehicleBackRoute = React.useRef("customers");
   const [jobOpen, setJobOpen] = React.useState(null);
   const [invoiceOpen, setInvoiceOpen] = React.useState(null);
   const [quoteOpen, setQuoteOpen] = React.useState(null);
@@ -337,7 +339,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
           onNavigate={(r) => {
             switch (r.type) {
               case "customer": setRoute("customers"); setCustomerOpen(r.id); break;
-              case "vehicle": setRoute("customers"); setCustomerOpen(r.ownerId); break;
+              case "vehicle": vehicleBackRoute.current = route; setVehicleProfileId(r.id); setRoute("vehicle"); break;
               case "job": setRoute("jobs"); setJobOpen(r.id); break;
               case "part": setRoute("parts"); break;
               case "invoice": setRoute("invoices"); setInvoiceOpen(r.id); break;
@@ -358,6 +360,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
         {route === "dvi" && <DVIScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} />}
         {route === "members" && <MembersScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} onAddMember={() => setAddMemberOpen(true)} />}
         {route === "expenses" && <ExpensesScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} />}
+        {route === "vehicle" && <VehicleProfileScreen state={state} vehicleId={vehicleProfileId} currency={tweaks.currency} onBack={() => setRoute(vehicleBackRoute.current || "customers")} onOpenJob={(jid) => jid && setJobOpen(jid)} onOpenInvoice={(iid) => setInvoiceOpen(iid)} />}
         {route === "reports" && <ReportsScreen state={state} currency={tweaks.currency} toast={toast} />}
         {route === "settings" && <SettingsScreen state={state} setState={setState} tweaks={tweaks} setTweak={setTweak} toast={toast} />}
       </main>

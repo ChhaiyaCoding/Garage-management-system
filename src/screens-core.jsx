@@ -1402,5 +1402,159 @@ function CustomerStatementModal({ customer, state, currency, onClose, toast }) {
   );
 }
 
-export { DashboardScreen, CustomersScreen, CustomerDrawer, Stat, Money, Row, AddCustomerModal, EditCustomerModal, AddVehicleModal, EditVehicleModal, ConfirmModal, CustomerStatementModal, exportCsv,
+// ════════════════════════════════════════════════════════════
+// VEHICLE PROFILE — read-only repair-history center
+// ════════════════════════════════════════════════════════════
+function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, onOpenInvoice }) {
+  const [q, setQ] = React.useState("");
+  const v = (state.vehicles || []).find(x => x.id === vehicleId);
+
+  if (!v) {
+    return (
+      <div className="page">
+        <div className="page-head"><div><h1 className="page-title">រថយន្ត</h1></div></div>
+        <div className="card"><p className="muted">រក​រថយន្ត​មិន​ឃើញ។ {onBack && <button className="btn btn-sm" onClick={onBack}>ត្រឡប់</button>}</p></div>
+      </div>
+    );
+  }
+
+  const owner = (state.customers || []).find(c => c.id === v.owner);
+  const partName = (id) => { const p = (state.parts || []).find(x => x.id === id); return p ? p.name : (partsById[id] ? partsById[id].name : id); };
+
+  // Build visits: jobs for this vehicle joined with invoice + DVI …
+  const jobVisits = (state.jobs || []).filter(j => j.vehicle === v.id).map(j => {
+    const inv = (state.invoices || []).find(i => i.job === j.id);
+    const dvi = (state.dvis || []).find(d => d.jobId === j.id);
+    const date = (inv && inv.issued) || (j.promised && j.promised.split(" ")[0]) || (j.created && j.created.split(" ")[0]) || "";
+    const parts = (j.partsUsed || []).map(pu => ({ name: partName(pu.id), qty: pu.qty, price: pu.price }));
+    const services = (j.services || []).map(s => ({ name: s.name, hours: s.hours, rate: s.rate, total: s.total }));
+    return { key: j.id, job: j, inv, dvi, date, mileage: j.mileage, parts, services, title: j.title, tech: j.tech, notes: j.notes };
+  });
+  // …plus invoice-only visits (historical invoices whose job record no longer exists)
+  const usedJobIds = new Set(jobVisits.map(vi => vi.job.id));
+  const invVisits = (state.invoices || []).filter(i => i.vehicle === v.id && !(i.job && usedJobIds.has(i.job))).map(inv => {
+    const dvi = (state.dvis || []).find(d => d.jobId === inv.job);
+    return { key: inv.id, job: null, inv, dvi, date: inv.issued || "", mileage: undefined, parts: [], services: [], title: inv.job ? `សេវាកម្ម · ${inv.job}` : `វិក្កយបត្រ ${inv.id}`, tech: "—", notes: "" };
+  });
+  const visits = [...jobVisits, ...invVisits].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+  // Outstanding for this vehicle (exclude void/refunded)
+  const outstanding = (state.invoices || []).filter(i => i.vehicle === v.id && i.status !== "void" && i.status !== "refunded").reduce((s, i) => s + ((i.total || 0) - (i.paid || 0)), 0);
+
+  // In-history search
+  const ql = q.trim().toLowerCase();
+  function blob(vi) {
+    const dviText = vi.dvi ? vi.dvi.sections.flatMap(sec => (sec.items || []).map(it => `${it.name || ""} ${it.note || ""} ${it.value || ""}`)).join(" ") : "";
+    return [vi.title, vi.notes, ...vi.services.map(s => s.name), ...vi.parts.map(p => p.name), vi.tech, vi.inv && vi.inv.id, dviText].filter(Boolean).join(" ").toLowerCase();
+  }
+  const shown = ql ? visits.filter(vi => blob(vi).includes(ql)) : visits;
+  const hit = (name) => ql && name && name.toLowerCase().includes(ql);
+
+  const invStatusChip = (inv) => {
+    if (!inv) return <span className="chip chip-gray" style={{ fontSize: 10 }}>NO INVOICE</span>;
+    const cls = inv.status === "paid" ? "green" : inv.status === "partial" ? "amber" : inv.status === "void" ? "gray" : inv.status === "refunded" ? "purple" : inv.status === "overdue" ? "red" : "blue";
+    return <span className={"chip chip-" + cls} style={{ fontSize: 10 }}>{(inv.status || "due").toUpperCase()}</span>;
+  };
+
+  const F = ({ label, children }) => (
+    <div><div className="muted" style={{ fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase" }}>{label}</div><div style={{ fontWeight: 600, fontSize: 14, marginTop: 2 }}>{children}</div></div>
+  );
+
+  return (
+    <div className="page">
+      <div className="page-head">
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {onBack && <button className="btn btn-sm btn-ghost" onClick={onBack}><Icon.Left size={16} /></button>}
+          <div>
+            <h1 className="page-title">{v.plate} · {v.make} {v.model}</h1>
+            <div className="page-sub">{v.year} · {v.color || "—"} · ប្រវត្តិ​ជួសជុល {visits.length} លើក</div>
+          </div>
+        </div>
+        <div className="page-actions">
+          {owner && <button className="btn btn-sm" onClick={() => onOpenJob && onOpenJob(null)} style={{ display: "none" }} />}
+        </div>
+      </div>
+
+      {/* Profile facts */}
+      <div className="card" style={{ padding: 18 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
+          <F label="ស្លាកលេខ · Plate">{v.plate}</F>
+          <F label="ម៉ាក/ម៉ូដែល/ឆ្នាំ">{v.make} {v.model} {v.year}</F>
+          <F label="VIN / Chassis"><span className="mono" style={{ fontSize: 12 }}>{v.vin || "—"}</span></F>
+          <F label="លេខ​ម៉ាស៊ីន · Engine"><span className="mono" style={{ fontSize: 12 }}>{v.engineNo || "—"}</span></F>
+          <F label="ម្ចាស់ · Owner">{owner ? owner.name : "—"}</F>
+          <F label="ទូរស័ព្ទ · Phone"><span className="mono" style={{ fontSize: 12 }}>{owner ? owner.phone : "—"}</span></F>
+          <F label="គីឡូ​ចុងក្រោយ · Mileage">{(v.mileage || 0).toLocaleString()} km</F>
+          <F label="សេវា​ចុងក្រោយ · Last Service">{v.lastService || "—"}</F>
+          <F label="ការ​ជំពាក់ · Outstanding"><span style={{ color: outstanding > 0 ? "var(--danger)" : "var(--success)" }}><Money value={outstanding} currency={currency} /></span></F>
+          <F label="សេវា​បន្ទាប់ · Next Service"><span style={{ color: v.status === "overdue" ? "var(--danger)" : v.status === "due" ? "var(--warn)" : "inherit" }}>{v.nextService || "—"}</span></F>
+        </div>
+      </div>
+
+      {/* In-history search */}
+      <div style={{ margin: "16px 0 8px" }}>
+        <div style={{ position: "relative", maxWidth: 480 }}>
+          <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}><Icon.Search size={16} /></span>
+          <input className="input" style={{ paddingLeft: 36 }} value={q} onChange={e => setQ(e.target.value)}
+            placeholder='ស្វែងរក​ក្នុង​ប្រវត្តិ​រថយន្ត​នេះ · ឧ. "Timing belt", "ខ្សែពាន", "Brake pad", "Oil"' />
+        </div>
+        {ql && <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>ឃើញ {shown.length} លើក​ដែល​ផ្គូផ្គង "{q}"</div>}
+      </div>
+
+      {/* Timeline */}
+      {shown.length === 0 ? (
+        <div className="card"><p className="muted">{ql ? `មិន​ឃើញ​ការ​ជួសជុល​ផ្គូផ្គង "${q}" ទេ។` : "មិន​ទាន់​មាន​ប្រវត្តិ​ជួសជុល​សម្រាប់​រថយន្ត​នេះ។"}</p></div>
+      ) : (
+        <div style={{ display: "grid", gap: 12 }}>
+          {shown.map(vi => {
+            const matchedParts = ql ? vi.parts.filter(p => hit(p.name)) : [];
+            const matchedServices = ql ? vi.services.filter(s => hit(s.name)) : [];
+            return (
+              <div key={vi.key} className="card" style={{ padding: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <span className="mono" style={{ fontWeight: 700 }}>{vi.date || "—"}</span>
+                      <span className="muted">·</span>
+                      <span style={{ fontWeight: 600 }}>{vi.mileage ? `${(+vi.mileage).toLocaleString()} km` : "— km"}</span>
+                      {invStatusChip(vi.inv)}
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 700, marginTop: 6 }}>{vi.title}</div>
+                    <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>មេកានិច · {vi.tech || "—"} · {vi.job ? vi.job.id : (vi.inv ? vi.inv.id : "—")}</div>
+
+                    {/* Service + part tags */}
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+                      {vi.services.map((s, i) => <span key={"s" + i} className={"chip " + (hit(s.name) ? "chip-amber" : "chip-gray")} style={{ fontSize: 11 }}>{s.name}</span>)}
+                      {vi.parts.map((p, i) => <span key={"p" + i} className={"chip " + (hit(p.name) ? "chip-amber" : "chip-blue")} style={{ fontSize: 11 }}>{p.name}{p.qty ? ` ×${p.qty}` : ""}</span>)}
+                      {vi.services.length === 0 && vi.parts.length === 0 && <span className="muted" style={{ fontSize: 11 }}>គ្មាន​បញ្ជី​សេវា/Parts</span>}
+                    </div>
+
+                    {/* Matched detail lines when searching */}
+                    {ql && (matchedParts.length > 0 || matchedServices.length > 0) && (
+                      <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--bg-2)", borderRadius: 6, fontSize: 12 }}>
+                        {matchedServices.map((s, i) => <div key={"ms" + i}>↳ <b>{s.name}</b> · Labor {moneyUSD(s.total || (s.hours || 0) * (s.rate || 0))}</div>)}
+                        {matchedParts.map((p, i) => <div key={"mp" + i}>↳ <b>{p.name}</b> · ×{p.qty || 1}{p.price ? ` · ${moneyUSD(p.price)}/ឯកតា` : ""}</div>)}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                    <div className="num" style={{ fontSize: 18, fontWeight: 800 }}><Money value={vi.inv ? vi.inv.total : 0} currency={currency} /></div>
+                    {vi.inv && (vi.inv.total - vi.inv.paid) > 0 && <div style={{ fontSize: 11, color: "var(--danger)" }}>នៅ​ជំពាក់ {moneyUSD(vi.inv.total - vi.inv.paid)}</div>}
+                    <div style={{ display: "flex", gap: 6, marginTop: 10, justifyContent: "flex-end" }}>
+                      {vi.inv && onOpenInvoice && <button className="btn btn-sm btn-ghost" onClick={() => onOpenInvoice(vi.inv.id)}><Icon.Doc size={12} /> Invoice</button>}
+                      {vi.job && onOpenJob && <button className="btn btn-sm" onClick={() => onOpenJob(vi.job.id)}>មើល​លម្អិត</button>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export { DashboardScreen, CustomersScreen, CustomerDrawer, VehicleProfileScreen, Stat, Money, Row, AddCustomerModal, EditCustomerModal, AddVehicleModal, EditVehicleModal, ConfirmModal, CustomerStatementModal, exportCsv,
   lookupCustomer, lookupVehicle, vehiclesByOwner, MISSING_C, MISSING_V };

@@ -893,6 +893,7 @@ function NewJobModal({ onClose, setState, toast, state, prefillCustomer }) {
   const [techId, setTechId] = React.useState("T-01");
   const [promised, setPromised] = React.useState("17:00");
   const [notes, setNotes] = React.useState("");
+  const [mileage, setMileage] = React.useState("");
 
   const customerVehicles = allVehicles.filter(v => v.owner === customerId);
   React.useEffect(() => {
@@ -924,8 +925,14 @@ function NewJobModal({ onClose, setState, toast, state, prefillCustomer }) {
       services: [],
       partsUsed: [],
       notes,
+      mileage: mileage ? +mileage : undefined,
     };
-    setState(s => ({ ...s, jobs: [newJob, ...s.jobs] }));
+    // Keep the vehicle's current odometer in sync if this reading is higher
+    setState(s => ({
+      ...s,
+      jobs: [newJob, ...s.jobs],
+      vehicles: mileage ? (s.vehicles || []).map(v => v.id === vehicleId && (+mileage) > (v.mileage || 0) ? { ...v, mileage: +mileage } : v) : s.vehicles,
+    }));
     toast(`បង្កើត Job ${newId} ជោគជ័យ`, "ok");
     onClose();
   }
@@ -967,9 +974,13 @@ function NewJobModal({ onClose, setState, toast, state, prefillCustomer }) {
             {technicians.map(t => <option key={t.id} value={t.id}>{t.name} · {t.role} · {t.load}/{t.capacity}</option>)}
           </select>
         </div>
-        <div className="field" style={{ gridColumn: '1 / -1' }}>
+        <div className="field">
           <label>សន្យាបញ្ចប់ · PROMISED TIME</label>
           <input className="input" type="time" value={promised} onChange={e => setPromised(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>គីឡូម៉ែត្រ · MILEAGE (km)</label>
+          <input className="input num" type="number" value={mileage} onChange={e => setMileage(e.target.value)} placeholder="ឧ. 85300" />
         </div>
         <div className="field" style={{ gridColumn: '1 / -1' }}>
           <label>កំណត់ត្រា · NOTES</label>
@@ -995,6 +1006,7 @@ function EditJobModal({ id, state, setState, onClose, toast }) {
   const [status, setStatus] = React.useState(job ? job.status : "waiting");
   const [promised, setPromised] = React.useState(job && job.promised ? job.promised.split(' ')[1] || "17:00" : "17:00");
   const [notes, setNotes] = React.useState(job ? job.notes : "");
+  const [mileage, setMileage] = React.useState(job && job.mileage ? job.mileage : "");
   const custVehicles = allVehicles.filter(v => v.owner === customerId);
   React.useEffect(() => {
     if (!custVehicles.find(v => v.id === vehicleId)) {
@@ -1016,7 +1028,9 @@ function EditJobModal({ id, state, setState, onClose, toast }) {
         customer: customerId, vehicle: vehicleId,
         tech: tech.name, techInitials: tech.initials, techColor: tech.color,
         promised: datePart + " " + promised, notes,
+        mileage: mileage ? +mileage : undefined,
       } : j),
+      vehicles: mileage ? (s.vehicles || []).map(v => v.id === vehicleId && (+mileage) > (v.mileage || 0) ? { ...v, mileage: +mileage } : v) : s.vehicles,
     }));
     toast(`កែ Job ${id} ជោគជ័យ`, "ok");
     onClose();
@@ -1068,6 +1082,10 @@ function EditJobModal({ id, state, setState, onClose, toast }) {
         <div className="field">
           <label>សន្យាបញ្ចប់ · PROMISED</label>
           <input className="input" type="time" value={promised} onChange={e => setPromised(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>គីឡូម៉ែត្រ · MILEAGE (km)</label>
+          <input className="input num" type="number" value={mileage} onChange={e => setMileage(e.target.value)} placeholder="ឧ. 85300" />
         </div>
         <div className="field" style={{ gridColumn: '1 / -1' }}>
           <label>កំណត់ត្រា · NOTES</label>
