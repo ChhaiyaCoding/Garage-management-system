@@ -38,6 +38,7 @@ export const ACTION_KM = {
   delete: "លុប",
   restore: "ស្ដារ",
   payment: "ការបង់",
+  refund: "សងវិញ",
   stock: "ស្តុក",
   void: "លុបចោល",
 };

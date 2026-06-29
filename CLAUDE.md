@@ -72,6 +72,7 @@ npm run lint
 - Supplier/Vendor CRUD: state.suppliers[] {id,name,contact,phone,telegramChatId,address,note}. SupplierManagerModal from Parts screen. Part forms use <datalist> of supplier names. ReorderModal sends order to supplier's Telegram if chat ID set (else owner). Delete logged to audit (entity "supplier")
 - KHQR (Bakong): src/lib/khqr.js builds EMVCo MPM string + CRC16-CCITT, renders via `qrcode` pkg. Config in Settings → Tax & Invoice (bakongAccountId/bakongMerchantName/bakongCity). InvoiceModal shows KhqrBlock (scan-to-pay) when balance>0 + account set, else a config hint. USD amount. NOTE: verify with real Bakong app before production
 - Expenses module: state.expenses[] {id,date,category,amount,payee,method,note}. ExpensesScreen (route "expenses", nav in Grow). Monthly view + revenue/expense/net-profit KPIs (revenue = invoices.paid where issued in month), by-category breakdown. ExpenseModal CRUD. Gated by "expenses" perm (owner/manager). Delete logged to audit (entity "expense")
+- Invoice Refund/Void: RefundModal appends negative payment entry {type:"refund"} → recomputes paid; status "refunded" when paid<=0. VoidModal sets status "void" + voidedAt/voidReason (kept as record, excluded from outstanding/revenue). Invoice statuses now: paid/partial/due/overdue/refunded/void. Buttons in InvoiceModal gated (refund=payments, void=delete). Audit actions "refund"/"void". VOID watermark on sheet
 
 ---
 
@@ -79,6 +80,7 @@ npm run lint
 # Features ដែល build មិនទាន់ពេញលេញ — fix មិន rebuild
 # ✏️ UPDATE នៅពេល feature ណាមួយ fix ហើយ
 
+- Refund/void: refund uses negative payment entries (no separate refunds[] ledger); refunded invoices can't take new payment (pay button hidden by design)
 - Send Campaign: fake toast → missing real Telegram broadcast to members
 - Branches/Staff: CRUD exists → not linked to Jobs/Customers, no filter
 - Barcode scanner (Parts): toast placeholder only

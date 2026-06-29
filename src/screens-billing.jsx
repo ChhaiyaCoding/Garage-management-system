@@ -879,7 +879,7 @@ function InvoicesScreen({ state, setState, currency, onOpenInvoice, onNewInvoice
   const allInv = state.invoices;
   const filtered = tab === "all" ? allInv : allInv.filter(i => i.status === tab);
   const paid = allInv.filter(i => i.status === "paid").reduce((s, i) => s + (i.paid || 0), 0);
-  const outstanding = allInv.reduce((s, i) => s + ((i.total || 0) - (i.paid || 0)), 0);
+  const outstanding = allInv.filter(i => i.status !== "void" && i.status !== "refunded").reduce((s, i) => s + ((i.total || 0) - (i.paid || 0)), 0);
   const overdue = allInv.filter(i => i.status === "overdue").reduce((s, i) => s + ((i.total || 0) - (i.paid || 0)), 0);
 
   return (
@@ -925,6 +925,8 @@ function InvoicesScreen({ state, setState, currency, onOpenInvoice, onNewInvoice
           { id: "partial", label: "Partial" },
           { id: "due", label: "នៅជំពាក់" },
           { id: "overdue", label: "Overdue" },
+          { id: "refunded", label: "Refunded" },
+          { id: "void", label: "Void" },
         ].map(t => (
           <button key={t.id} className={"btn btn-sm" + (tab === t.id ? " btn-primary" : "")} onClick={() => setTab(t.id)}>
             {t.label}
@@ -952,7 +954,7 @@ function InvoicesScreen({ state, setState, currency, onOpenInvoice, onNewInvoice
             {filtered.map(inv => {
               const c = lookupCustomer(inv.customer, state) || MISSING_C;
               const v = lookupVehicle(inv.vehicle, state) || MISSING_V;
-              const stCls = inv.status === "paid" ? "green" : inv.status === "partial" ? "amber" : inv.status === "overdue" ? "red" : "blue";
+              const stCls = inv.status === "paid" ? "green" : inv.status === "partial" ? "amber" : inv.status === "overdue" ? "red" : inv.status === "void" ? "gray" : inv.status === "refunded" ? "purple" : "blue";
               return (
                 <tr key={inv.id} onClick={() => onOpenInvoice(inv.id)} style={{ cursor: 'pointer' }}>
                   <td className="mono" style={{ color: 'var(--accent-text)', fontWeight: 700 }}>{inv.id}</td>
@@ -991,7 +993,10 @@ function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
   const sheetRef = React.useRef(null);
   const [downloading, setDownloading] = React.useState(false);
   const [payOpen, setPayOpen] = React.useState(false);
+  const [refundOpen, setRefundOpen] = React.useState(false);
+  const [voidOpen, setVoidOpen] = React.useState(false);
   if (!inv) return null;
+  const isVoid = inv.status === "void";
   const c = lookupCustomer(inv.customer, state) || MISSING_C;
   const v = lookupVehicle(inv.vehicle, state) || MISSING_V;
   // Payment history: derive a display list. Legacy invoices (paid>0, no payments[])
@@ -1027,6 +1032,40 @@ function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
       : `Invoice ${inv.id} · បង់​ពេញ ✓`, "ok");
     setPayOpen(false);
   }
+
+  function recordRefund({ amount, method, date, note }) {
+    const amt = +amount || 0;
+    if (amt <= 0) { toast("ចំនួន​ត្រូវ​តែ​ច្រើន​ជាង 0", "error"); return; }
+    if (amt > totalPaid) { toast(`ការ​សង​មិន​អាច​លើស​ប្រាក់​ដែល​បាន​ទទួល (${moneyUSD(totalPaid)})`, "error"); return; }
+    setState && setState(s => ({
+      ...s,
+      invoices: s.invoices.map(i => {
+        if (i.id !== inv.id) return i;
+        let payments = i.payments ? [...i.payments] : [];
+        if (payments.length === 0 && (i.paid || 0) > 0) {
+          payments.push({ id: "PMT-open", amount: i.paid, method: i.method || "—", date: i.issued, note: "កត់​ទុក​មុន" });
+        }
+        payments.push({ id: generateId("PMT", payments), amount: -amt, method, date, note: note || "", type: "refund" });
+        const newPaid = payments.reduce((a, p) => a + (p.amount || 0), 0);
+        const status = newPaid <= 0 ? "refunded" : newPaid >= (i.total || 0) ? "paid" : "partial";
+        return { ...i, payments, paid: newPaid, status };
+      }),
+      auditLog: pushAudit(s, auditEntry("refund", "invoice", inv.id, `សង​ប្រាក់​វិញ ${moneyUSD(amt)} (${method}) លើ ${inv.id}`, null)),
+    }));
+    toast(`បាន​សង​ប្រាក់​វិញ ${moneyUSD(amt)}`, "ok");
+    setRefundOpen(false);
+  }
+
+  function voidInvoice(reason) {
+    setState && setState(s => ({
+      ...s,
+      invoices: s.invoices.map(i => i.id === inv.id ? { ...i, status: "void", voidedAt: new Date().toISOString().slice(0, 10), voidReason: reason || "" } : i),
+      auditLog: pushAudit(s, auditEntry("void", "invoice", inv.id, `លុបចោល Invoice ${inv.id} (${moneyUSD(inv.total || 0)})${reason ? " · " + reason : ""}`, inv)),
+    }));
+    toast(`Invoice ${inv.id} ត្រូវ​បាន​លុបចោល (VOID)`, "ok");
+    setVoidOpen(false);
+  }
+
   async function downloadPdf() {
     if (!sheetRef.current) return;
     setDownloading(true);
@@ -1061,7 +1100,17 @@ function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
             window.open(buildShareUrl(msg), "_blank");
           }
         }}><Icon.Send size={14} /> ផ្ញើ​តាម Telegram</button>
-        {inv.status !== "paid" && balance > 0 && (
+        {!isVoid && totalPaid > 0 && (
+          <IfCan perm="payments">
+            <button className="btn" onClick={() => setRefundOpen(true)}><Icon.Money size={14} /> សង​ប្រាក់​វិញ · Refund</button>
+          </IfCan>
+        )}
+        {!isVoid && (
+          <IfCan perm="delete">
+            <button className="btn" style={{ color: 'var(--danger)' }} onClick={() => setVoidOpen(true)}><Icon.X size={14} /> លុបចោល · Void</button>
+          </IfCan>
+        )}
+        {!isVoid && inv.status !== "paid" && inv.status !== "refunded" && balance > 0 && (
           <IfCan perm="payments">
             <button className="btn btn-primary" onClick={() => setPayOpen(true)}>
               <Icon.Money size={14} /> ទទួល​ការ​ទូទាត់ · ​នៅ {moneyUSD(balance)}
@@ -1069,7 +1118,10 @@ function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
           </IfCan>
         )}
       </>}>
-      <div ref={sheetRef} style={{ background: 'white', color: '#0a0d12', padding: 32, borderRadius: 8, fontFamily: 'var(--font-en)' }}>
+      <div ref={sheetRef} style={{ background: 'white', color: '#0a0d12', padding: 32, borderRadius: 8, fontFamily: 'var(--font-en)', position: 'relative' }}>
+        {isVoid && (
+          <div style={{ position: 'absolute', top: 80, left: 0, right: 0, textAlign: 'center', transform: 'rotate(-12deg)', fontSize: 72, fontWeight: 900, color: 'rgba(220,38,38,0.18)', letterSpacing: '0.1em', pointerEvents: 'none' }}>VOID</div>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #0a0d12' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
@@ -1161,21 +1213,26 @@ function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
           <div className="empty" style={{ padding: 14, fontSize: 12 }}>មិន​ទាន់​មាន​ការ​បង់</div>
         ) : (
           <div style={{ border: '1px solid var(--border-0)', borderRadius: 8, overflow: 'hidden' }}>
-            {history.map((p, i) => (
+            {history.map((p, i) => {
+              const isRefund = p.type === "refund" || (p.amount || 0) < 0;
+              return (
               <div key={p.id || i} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, padding: '8px 12px', borderTop: i ? '1px solid var(--border-0)' : 'none', alignItems: 'center', fontSize: 13 }}>
                 <div className="mono muted" style={{ fontSize: 11 }}>{p.date || '—'}</div>
-                <div>{p.method || '—'}{p.note ? <span className="muted" style={{ fontSize: 11 }}> · {p.note}</span> : null}</div>
-                <div className="num" style={{ fontWeight: 700, color: 'var(--success)' }}><Money value={p.amount || 0} currency={currency} /></div>
+                <div>{isRefund ? <span style={{ color: 'var(--danger)', fontWeight: 600 }}>↩ សង​វិញ · </span> : null}{p.method || '—'}{p.note ? <span className="muted" style={{ fontSize: 11 }}> · {p.note}</span> : null}</div>
+                <div className="num" style={{ fontWeight: 700, color: isRefund ? 'var(--danger)' : 'var(--success)' }}><Money value={p.amount || 0} currency={currency} /></div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
 
       {/* Bakong KHQR — pay the outstanding balance by scanning */}
-      {balance > 0 && <KhqrBlock config={state.config || {}} amount={balance} billNumber={inv.id} />}
+      {!isVoid && balance > 0 && <KhqrBlock config={state.config || {}} amount={balance} billNumber={inv.id} />}
 
       {payOpen && <PaymentModal inv={inv} balance={balance} currency={currency} onClose={() => setPayOpen(false)} onConfirm={recordPayment} toast={toast} />}
+      {refundOpen && <RefundModal inv={inv} maxRefund={totalPaid} currency={currency} onClose={() => setRefundOpen(false)} onConfirm={recordRefund} toast={toast} />}
+      {voidOpen && <VoidModal inv={inv} onClose={() => setVoidOpen(false)} onConfirm={voidInvoice} />}
     </Modal>
   );
 }
@@ -1277,6 +1334,76 @@ function PaymentModal({ inv, balance, currency, onClose, onConfirm, toast }) {
           <label>កំណត់​ចំណាំ <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>(មិន​បង្ខំ)</span></label>
           <input className="input" value={note} onChange={e => setNote(e.target.value)} placeholder="ឧ. បង់​មុន​ខ្លះ" />
         </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Refund Modal ──
+function RefundModal({ inv, maxRefund, currency, onClose, onConfirm, toast }) {
+  const [amount, setAmount] = React.useState(maxRefund > 0 ? maxRefund.toFixed(2) : "");
+  const [method, setMethod] = React.useState("Cash");
+  const [date, setDate] = React.useState(new Date().toISOString().slice(0, 10));
+  const [note, setNote] = React.useState("");
+  const amt = +amount || 0;
+  const over = amt > maxRefund + 0.001;
+
+  function submit() {
+    if (amt <= 0) { toast("ចំនួន​ត្រូវ​តែ​ច្រើន​ជាង 0", "error"); return; }
+    if (over) { toast(`ការ​សង​មិន​អាច​លើស ${moneyUSD(maxRefund)}`, "error"); return; }
+    onConfirm({ amount: amt, method, date, note });
+  }
+
+  return (
+    <Modal title={`សង​ប្រាក់​វិញ · Refund · ${inv.id}`} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" onClick={submit} disabled={amt <= 0 || over} style={{ background: 'var(--danger)' }}><Icon.Money size={14} /> បញ្ជាក់​ការ​សង</button>
+      </>}>
+      <div style={{ background: 'var(--bg-2)', padding: 12, borderRadius: 8, marginBottom: 14, fontSize: 13 }}>
+        <span className="muted">ប្រាក់​ដែល​បាន​ទទួល: </span><strong className="num"><Money value={maxRefund} currency={currency} /></strong>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>ចំនួន​សង​វិញ ($)</label>
+          <input className="input num" type="number" step="0.01" min="0" value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            <button className="btn btn-sm btn-ghost" onClick={() => setAmount(maxRefund.toFixed(2))}>ពេញ ({moneyUSD(maxRefund)})</button>
+          </div>
+          {over && <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4 }}>⚠️ លើស​ប្រាក់​ដែល​បាន​ទទួល</div>}
+        </div>
+        <div className="field">
+          <label>វិធី​សង · METHOD</label>
+          <select className="select" value={method} onChange={e => setMethod(e.target.value)}>
+            <option>Cash</option><option>ABA Pay</option><option>Wing</option><option>Bakong KHQR</option><option>Bank Transfer</option><option>Other</option>
+          </select>
+        </div>
+        <div className="field">
+          <label>កាល​បរិច្ឆេទ · DATE</label>
+          <input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} />
+        </div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>មូលហេតុ · REASON</label>
+          <input className="input" value={note} onChange={e => setNote(e.target.value)} placeholder="ឧ. អតិថិជន​បោះបង់​សេវា" />
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Void Modal ──
+function VoidModal({ inv, onClose, onConfirm }) {
+  const [reason, setReason] = React.useState("");
+  return (
+    <Modal title={`លុបចោល Invoice · Void · ${inv.id}`} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បោះបង់</button>
+        <button className="btn btn-primary" style={{ background: 'var(--danger)' }} onClick={() => onConfirm(reason)}><Icon.X size={14} /> បញ្ជាក់​ការ​លុបចោល</button>
+      </>}>
+      <p style={{ fontSize: 13, marginTop: 0 }}>Invoice ${inv.id} នឹង​ត្រូវ​សម្គាល់​ជា <b style={{ color: 'var(--danger)' }}>VOID</b> — មិន​រាប់​បញ្ចូល​ក្នុង​ចំណូល/ការ​ជំពាក់​ទៀត​ទេ ប៉ុន្តែ​នៅ​រក្សា​ទុក​ជា​កំណត់ត្រា។</p>
+      <div className="field">
+        <label>មូលហេតុ · REASON <span className="muted" style={{ fontWeight: 400, fontSize: 11 }}>(មិន​បង្ខំ)</span></label>
+        <input className="input" value={reason} onChange={e => setReason(e.target.value)} placeholder="ឧ. បង្កើត​ខុស / ស្ទួន" autoFocus />
       </div>
     </Modal>
   );
