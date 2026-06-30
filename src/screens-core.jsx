@@ -1407,6 +1407,7 @@ function CustomerStatementModal({ customer, state, currency, onClose, toast }) {
 // ════════════════════════════════════════════════════════════
 function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, onOpenInvoice }) {
   const [q, setQ] = React.useState("");
+  const [detail, setDetail] = React.useState(null);
   const v = (state.vehicles || []).find(x => x.id === vehicleId);
 
   if (!v) {
@@ -1543,7 +1544,7 @@ function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, o
                     {vi.inv && (vi.inv.total - vi.inv.paid) > 0 && <div style={{ fontSize: 11, color: "var(--danger)" }}>នៅ​ជំពាក់ {moneyUSD(vi.inv.total - vi.inv.paid)}</div>}
                     <div style={{ display: "flex", gap: 6, marginTop: 10, justifyContent: "flex-end" }}>
                       {vi.inv && onOpenInvoice && <button className="btn btn-sm btn-ghost" onClick={() => onOpenInvoice(vi.inv.id)}><Icon.Doc size={12} /> Invoice</button>}
-                      {vi.job && onOpenJob && <button className="btn btn-sm" onClick={() => onOpenJob(vi.job.id)}>មើល​លម្អិត</button>}
+                      <button className="btn btn-sm" onClick={() => setDetail(vi)}>មើល​លម្អិត</button>
                     </div>
                   </div>
                 </div>
@@ -1552,7 +1553,187 @@ function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, o
           })}
         </div>
       )}
+
+      {detail && <ServiceVisitModal visit={detail} vehicle={v} owner={owner} state={state} currency={currency}
+        onClose={() => setDetail(null)}
+        onOpenJob={onOpenJob} onOpenInvoice={onOpenInvoice} />}
     </div>
+  );
+}
+
+// ── Service Visit Detail (read-only repair record; aggregates Job + Invoice + DVI) ──
+function ServiceVisitModal({ visit, vehicle, owner, state, currency, onClose, onOpenJob, onOpenInvoice }) {
+  const sheetRef = React.useRef(null);
+  const [downloading, setDownloading] = React.useState(false);
+  const inv = visit.inv;
+  const dvi = visit.dvi;
+  const services = visit.services || [];
+  const parts = visit.parts || [];
+  const servicesTotal = services.reduce((s, x) => s + (x.total || (x.hours || 0) * (x.rate || 0)), 0);
+  const partsTotal = parts.reduce((s, p) => s + (p.qty || 0) * (p.price || 0), 0);
+  const subtotal = inv ? (inv.subtotal != null ? inv.subtotal : servicesTotal + partsTotal) : servicesTotal + partsTotal;
+  const tax = inv ? (inv.tax || 0) : 0;
+  const discount = inv ? (inv.discount || 0) : 0;
+  const total = inv ? (inv.total != null ? inv.total : subtotal + tax - discount) : subtotal + tax - discount;
+  const paid = inv ? (inv.paid || 0) : 0;
+  const balance = total - paid;
+  const payments = inv && inv.payments && inv.payments.length
+    ? inv.payments
+    : (inv && paid > 0 ? [{ id: "opening", amount: paid, method: inv.method || "—", date: inv.issued, note: "កត់​ទុក​មុន" }] : []);
+  const garageName = (state.config && state.config.garageName) || "GARAGE OS";
+
+  // DVI flagged items (warn/fail) for quick inspection summary
+  const dviFlags = dvi ? dvi.sections.flatMap(sec => (sec.items || []).filter(it => it.status === "warn" || it.status === "fail").map(it => ({ ...it, section: sec.title }))) : [];
+
+  async function downloadPdf() {
+    if (!sheetRef.current) return;
+    setDownloading(true);
+    try {
+      const { downloadElementAsPdf } = await import('./lib/pdf');
+      await downloadElementAsPdf(sheetRef.current, `Service-${visit.job ? visit.job.id : (inv ? inv.id : "record")}.pdf`);
+    } catch (e) { console.error(e); }
+    finally { setDownloading(false); }
+  }
+
+  const Section = ({ title, children }) => (
+    <div style={{ marginTop: 18 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.14em", color: "#888", marginBottom: 6 }}>{title}</div>
+      {children}
+    </div>
+  );
+  const cellH = { textAlign: "left", padding: "6px 8px", fontSize: 10, letterSpacing: "0.1em", color: "#666" };
+  const cellHR = { ...cellH, textAlign: "right" };
+
+  return (
+    <Modal wide title={`កំណត់ត្រា​ជួសជុល · SERVICE RECORD`} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>បិទ</button>
+        {visit.job && onOpenJob && <button className="btn" onClick={() => { onClose(); onOpenJob(visit.job.id); }}><Icon.Wrench size={14} /> Job Card</button>}
+        {inv && onOpenInvoice && <button className="btn" onClick={() => { onClose(); onOpenInvoice(inv.id); }}><Icon.Doc size={14} /> Invoice</button>}
+        <button className="btn" onClick={() => window.print()}><Icon.Print size={14} /> Print</button>
+        <button className="btn btn-primary" onClick={downloadPdf} disabled={downloading}><Icon.Download size={14} /> {downloading ? "កំពុង​បង្កើត..." : "PDF"}</button>
+      </>}>
+      <div ref={sheetRef} style={{ background: "white", color: "#0a0d12", padding: 32, borderRadius: 8, fontFamily: "var(--font-en)" }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, paddingBottom: 14, borderBottom: "2px solid #0a0d12" }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: "0.02em" }}>{garageName}</div>
+            <div style={{ fontSize: 10, letterSpacing: "0.12em", color: "#666" }}>SERVICE / REPAIR RECORD</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 20, fontWeight: 800 }}>{visit.date || "—"}</div>
+            <div style={{ fontSize: 11, color: "#666" }}>{visit.mileage ? `${(+visit.mileage).toLocaleString()} km` : "— km"} · {visit.job ? visit.job.id : (inv ? inv.id : "—")}</div>
+          </div>
+        </div>
+
+        {/* Customer + Vehicle */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: "0.14em", color: "#888", marginBottom: 4 }}>CUSTOMER</div>
+            <div style={{ fontWeight: 700 }}>{owner ? owner.name : "—"}</div>
+            <div style={{ fontSize: 12, color: "#444" }}>{owner ? owner.phone : "—"}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: "0.14em", color: "#888", marginBottom: 4 }}>VEHICLE</div>
+            <div style={{ fontWeight: 700 }}>{vehicle.plate} · {vehicle.make} {vehicle.model} {vehicle.year}</div>
+            <div style={{ fontSize: 12, color: "#444" }}>VIN {vehicle.vin || "—"} · មេកានិច {visit.tech || "—"}</div>
+          </div>
+        </div>
+
+        {/* Complaint / Notes */}
+        {visit.notes && (
+          <Section title="បញ្ហា / កំណត់ត្រា · COMPLAINT / NOTES">
+            <div style={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{visit.notes}</div>
+          </Section>
+        )}
+
+        {/* Inspection (DVI) */}
+        {dvi && (
+          <Section title="លទ្ធផល​ត្រួតពិនិត្យ · INSPECTION (DVI)">
+            <div style={{ fontSize: 12, marginBottom: 6 }}>
+              <span style={{ color: "#16a34a" }}>✓ {dvi.counts ? dvi.counts.pass : 0} pass</span> · <span style={{ color: "#d97706" }}>⚠ {dvi.counts ? dvi.counts.warn : 0} warn</span> · <span style={{ color: "#dc2626" }}>✕ {dvi.counts ? dvi.counts.fail : 0} fail</span>
+            </div>
+            {dviFlags.length > 0 && (
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12 }}>
+                {dviFlags.map((it, i) => <li key={i} style={{ color: it.status === "fail" ? "#dc2626" : "#b45309" }}>{it.name}{it.value ? ` (${it.value})` : ""}{it.note ? ` — ${it.note}` : ""}</li>)}
+              </ul>
+            )}
+          </Section>
+        )}
+
+        {/* Work performed / Labor */}
+        {services.length > 0 && (
+          <Section title="ការងារ​បាន​ធ្វើ · WORK PERFORMED / LABOR">
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead><tr style={{ background: "#f5f5f5" }}><th style={cellH}>SERVICE</th><th style={cellHR}>HOURS</th><th style={cellHR}>RATE</th><th style={cellHR}>TOTAL</th></tr></thead>
+              <tbody>
+                {services.map((s, i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid #eee" }}>
+                    <td style={{ padding: "6px 8px" }}>{s.name}</td>
+                    <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--font-mono)" }}>{s.hours != null ? s.hours : "—"}</td>
+                    <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--font-mono)" }}>{s.rate != null ? moneyUSD(s.rate) : "—"}</td>
+                    <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{moneyUSD(s.total || (s.hours || 0) * (s.rate || 0))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Section>
+        )}
+
+        {/* Parts used */}
+        {parts.length > 0 && (
+          <Section title="គ្រឿងបន្លាស់ · PARTS USED">
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead><tr style={{ background: "#f5f5f5" }}><th style={cellH}>PART</th><th style={cellHR}>QTY</th><th style={cellHR}>UNIT</th><th style={cellHR}>TOTAL</th></tr></thead>
+              <tbody>
+                {parts.map((p, i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid #eee" }}>
+                    <td style={{ padding: "6px 8px" }}>{p.name}</td>
+                    <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--font-mono)" }}>{p.qty || 1}</td>
+                    <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--font-mono)" }}>{moneyUSD(p.price || 0)}</td>
+                    <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{moneyUSD((p.qty || 0) * (p.price || 0))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Section>
+        )}
+
+        {/* Totals */}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
+          <table style={{ fontSize: 13, minWidth: 240 }}>
+            <tbody>
+              <tr><td style={{ padding: 4, color: "#666" }}>Subtotal</td><td style={{ padding: 4, textAlign: "right", fontFamily: "var(--font-mono)" }}>{moneyUSD(subtotal)}</td></tr>
+              {discount > 0 && <tr><td style={{ padding: 4, color: "#666" }}>Discount</td><td style={{ padding: 4, textAlign: "right", fontFamily: "var(--font-mono)" }}>−{moneyUSD(discount)}</td></tr>}
+              {tax > 0 && <tr><td style={{ padding: 4, color: "#666" }}>Tax</td><td style={{ padding: 4, textAlign: "right", fontFamily: "var(--font-mono)" }}>{moneyUSD(tax)}</td></tr>}
+              <tr style={{ borderTop: "1px solid #ddd" }}><td style={{ padding: 4, fontWeight: 800 }}>TOTAL</td><td style={{ padding: 4, textAlign: "right", fontFamily: "var(--font-mono)", fontWeight: 800 }}>{moneyUSD(total)}</td></tr>
+              <tr><td style={{ padding: 4, color: "#666" }}>Paid</td><td style={{ padding: 4, textAlign: "right", fontFamily: "var(--font-mono)" }}>{moneyUSD(paid)}</td></tr>
+              <tr><td style={{ padding: 4, color: balance > 0 ? "#dc2626" : "#16a34a", fontWeight: 700 }}>Balance</td><td style={{ padding: 4, textAlign: "right", fontFamily: "var(--font-mono)", fontWeight: 700, color: balance > 0 ? "#dc2626" : "#16a34a" }}>{moneyUSD(balance)}</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Payment history */}
+        {payments.length > 0 && (
+          <Section title="ប្រវត្តិ​ការ​បង់ · PAYMENT HISTORY">
+            {payments.map((p, i) => {
+              const isRefund = p.type === "refund" || (p.amount || 0) < 0;
+              return (
+                <div key={p.id || i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "4px 0", borderBottom: "1px solid #f0f0f0" }}>
+                  <span style={{ color: "#444" }}>{p.date || "—"} · {isRefund ? "↩ សងវិញ · " : ""}{p.method || "—"}{p.note ? ` · ${p.note}` : ""}</span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: isRefund ? "#dc2626" : "#16a34a" }}>{moneyUSD(p.amount || 0)}</span>
+                </div>
+              );
+            })}
+          </Section>
+        )}
+
+        {/* Warranty (P2 placeholder) */}
+        {inv && inv.warranty && (
+          <Section title="ការ​ធានា · WARRANTY"><div style={{ fontSize: 12 }}>{inv.warranty}</div></Section>
+        )}
+      </div>
+    </Modal>
   );
 }
 
