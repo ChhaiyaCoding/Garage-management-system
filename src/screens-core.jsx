@@ -1405,9 +1405,35 @@ function CustomerStatementModal({ customer, state, currency, onClose, toast }) {
 // ════════════════════════════════════════════════════════════
 // VEHICLE PROFILE — read-only repair-history center
 // ════════════════════════════════════════════════════════════
+
+// Warranty status for a part installed at a given visit.
+// Warranty = whichever comes first (months from install date, or km from install odometer).
+function warrantyInfo(part, visitDate, visitMileage, currentMileage) {
+  if (!part) return null;
+  const wm = part.warrantyMonths, wk = part.warrantyKm;
+  if (!wm && !wk) return null;
+  let expDate = null, expKm = null;
+  if (wm && visitDate) { const d = new Date(visitDate); if (!isNaN(d.getTime())) { d.setMonth(d.getMonth() + (+wm)); expDate = d; } }
+  if (wk && visitMileage != null) expKm = (+visitMileage) + (+wk);
+  const now = new Date();
+  const dateOk = expDate ? now <= expDate : true;
+  const kmOk = (expKm != null && currentMileage != null) ? (+currentMileage) <= expKm : true;
+  return { active: dateOk && kmOk, wm, wk, expDate: expDate ? expDate.toISOString().slice(0, 10) : null, expKm };
+}
+
+function warrantyLabel(w) {
+  if (!w) return "";
+  const parts = [];
+  if (w.wm) parts.push(`${w.wm} ខែ`);
+  if (w.wk) parts.push(`${(+w.wk).toLocaleString()} km`);
+  return parts.join(" / ");
+}
+
 function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, onOpenInvoice }) {
   const [q, setQ] = React.useState("");
   const [detail, setDetail] = React.useState(null);
+  const [fMech, setFMech] = React.useState("all");
+  const [fStatus, setFStatus] = React.useState("all");
   const v = (state.vehicles || []).find(x => x.id === vehicleId);
 
   if (!v) {
@@ -1420,14 +1446,14 @@ function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, o
   }
 
   const owner = (state.customers || []).find(c => c.id === v.owner);
-  const partName = (id) => { const p = (state.parts || []).find(x => x.id === id); return p ? p.name : (partsById[id] ? partsById[id].name : id); };
+  const findPart = (id) => (state.parts || []).find(x => x.id === id) || partsById[id] || null;
 
   // Build visits: jobs for this vehicle joined with invoice + DVI …
   const jobVisits = (state.jobs || []).filter(j => j.vehicle === v.id).map(j => {
     const inv = (state.invoices || []).find(i => i.job === j.id);
     const dvi = (state.dvis || []).find(d => d.jobId === j.id);
     const date = (inv && inv.issued) || (j.promised && j.promised.split(" ")[0]) || (j.created && j.created.split(" ")[0]) || "";
-    const parts = (j.partsUsed || []).map(pu => ({ name: partName(pu.id), qty: pu.qty, price: pu.price }));
+    const parts = (j.partsUsed || []).map(pu => { const po = findPart(pu.id); return { id: pu.id, name: po ? po.name : pu.id, qty: pu.qty, price: pu.price, part: po, warranty: warrantyInfo(po, (inv && inv.issued) || (j.promised && j.promised.split(" ")[0]), j.mileage, v.mileage) }; });
     const services = (j.services || []).map(s => ({ name: s.name, hours: s.hours, rate: s.rate, total: s.total }));
     return { key: j.id, job: j, inv, dvi, date, mileage: j.mileage, parts, services, title: j.title, tech: j.tech, notes: j.notes };
   });
@@ -1448,8 +1474,31 @@ function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, o
     const dviText = vi.dvi ? vi.dvi.sections.flatMap(sec => (sec.items || []).map(it => `${it.name || ""} ${it.note || ""} ${it.value || ""}`)).join(" ") : "";
     return [vi.title, vi.notes, ...vi.services.map(s => s.name), ...vi.parts.map(p => p.name), vi.tech, vi.inv && vi.inv.id, dviText].filter(Boolean).join(" ").toLowerCase();
   }
-  const shown = ql ? visits.filter(vi => blob(vi).includes(ql)) : visits;
+  const mechanics = [...new Set(visits.map(vi => vi.tech).filter(t => t && t !== "—"))];
+  const shown = visits.filter(vi => {
+    if (ql && !blob(vi).includes(ql)) return false;
+    if (fMech !== "all" && vi.tech !== fMech) return false;
+    if (fStatus === "paid" && !(vi.inv && vi.inv.status === "paid")) return false;
+    if (fStatus === "unpaid" && !(vi.inv && (vi.inv.total - vi.inv.paid) > 0)) return false;
+    return true;
+  });
   const hit = (name) => ql && name && name.toLowerCase().includes(ql);
+  const filtersActive = ql || fMech !== "all" || fStatus !== "all";
+
+  // Reminders / suggestions (mileage + date + warranty)
+  const today = new Date();
+  const reminders = [];
+  if (v.nextService) {
+    const nd = new Date(v.nextService);
+    if (!isNaN(nd.getTime())) {
+      const days = Math.round((nd - today) / 86400000);
+      if (days < 0) reminders.push({ kind: "danger", text: `សេវា​ថែទាំ​ហួស​កំណត់ ${Math.abs(days)} ថ្ងៃ (${v.nextService})` });
+      else if (days <= 14) reminders.push({ kind: "warn", text: `សេវា​ថែទាំ​បន្ទាប់​ក្នុង ${days} ថ្ងៃ (${v.nextService})` });
+    }
+  }
+  const activeWarranties = [];
+  visits.forEach(vi => (vi.parts || []).forEach(p => { if (p.warranty && p.warranty.active) activeWarranties.push({ name: p.name, w: p.warranty, date: vi.date }); }));
+  if (activeWarranties.length) reminders.push({ kind: "ok", text: `${activeWarranties.length} គ្រឿងបន្លាស់​នៅ​ក្នុង​ការ​ធានា`, items: activeWarranties });
 
   const invStatusChip = (inv) => {
     if (!inv) return <span className="chip chip-gray" style={{ fontSize: 10 }}>NO INVOICE</span>;
@@ -1492,19 +1541,46 @@ function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, o
         </div>
       </div>
 
-      {/* In-history search */}
-      <div style={{ margin: "16px 0 8px" }}>
-        <div style={{ position: "relative", maxWidth: 480 }}>
-          <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}><Icon.Search size={16} /></span>
-          <input className="input" style={{ paddingLeft: 36 }} value={q} onChange={e => setQ(e.target.value)}
-            placeholder='ស្វែងរក​ក្នុង​ប្រវត្តិ​រថយន្ត​នេះ · ឧ. "Timing belt", "ខ្សែពាន", "Brake pad", "Oil"' />
+      {/* Reminders / suggestions */}
+      {reminders.length > 0 && (
+        <div style={{ display: "grid", gap: 8, marginTop: 14 }}>
+          {reminders.map((r, i) => (
+            <div key={i} className="card" style={{ padding: "10px 14px", borderLeft: `3px solid var(--${r.kind === "danger" ? "danger" : r.kind === "warn" ? "warn" : "success"})`, display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 16 }}>{r.kind === "danger" ? "🔴" : r.kind === "warn" ? "🟡" : "🛡"}</span>
+              <div style={{ fontSize: 13 }}>
+                <span style={{ fontWeight: 600 }}>{r.text}</span>
+                {r.items && <span className="muted" style={{ fontSize: 12 }}> · {r.items.slice(0, 4).map(it => `${it.name}${it.w.expDate ? ` (ដល់ ${it.w.expDate})` : ""}`).join(", ")}{r.items.length > 4 ? "…" : ""}</span>}
+              </div>
+            </div>
+          ))}
         </div>
-        {ql && <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>ឃើញ {shown.length} លើក​ដែល​ផ្គូផ្គង "{q}"</div>}
+      )}
+
+      {/* In-history search + filters */}
+      <div style={{ margin: "16px 0 8px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ position: "relative", flex: "1 1 320px", maxWidth: 480 }}>
+          <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}><Icon.Search size={16} /></span>
+          <input className="input" style={{ paddingLeft: 36, width: "100%" }} value={q} onChange={e => setQ(e.target.value)}
+            placeholder='ស្វែងរក​ក្នុង​ប្រវត្តិ · ឧ. "Timing belt", "ខ្សែពាន", "Brake pad", "Oil"' />
+        </div>
+        {mechanics.length > 0 && (
+          <select className="select" style={{ width: "auto" }} value={fMech} onChange={e => setFMech(e.target.value)}>
+            <option value="all">មេកានិច​ទាំងអស់</option>
+            {mechanics.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        )}
+        <select className="select" style={{ width: "auto" }} value={fStatus} onChange={e => setFStatus(e.target.value)}>
+          <option value="all">ស្ថានភាព​ទាំងអស់</option>
+          <option value="paid">បង់​រួច</option>
+          <option value="unpaid">នៅ​ជំពាក់</option>
+        </select>
+        {filtersActive && <button className="btn btn-sm btn-ghost" onClick={() => { setQ(""); setFMech("all"); setFStatus("all"); }}>លុប​តម្រង</button>}
       </div>
+      {filtersActive && <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>ឃើញ {shown.length} / {visits.length} លើក</div>}
 
       {/* Timeline */}
       {shown.length === 0 ? (
-        <div className="card"><p className="muted">{ql ? `មិន​ឃើញ​ការ​ជួសជុល​ផ្គូផ្គង "${q}" ទេ។` : "មិន​ទាន់​មាន​ប្រវត្តិ​ជួសជុល​សម្រាប់​រថយន្ត​នេះ។"}</p></div>
+        <div className="card"><p className="muted">{filtersActive ? "មិន​ឃើញ​ការ​ជួសជុល​ផ្គូផ្គង​តម្រង​ទេ។" : "មិន​ទាន់​មាន​ប្រវត្តិ​ជួសជុល​សម្រាប់​រថយន្ត​នេះ។"}</p></div>
       ) : (
         <div style={{ display: "grid", gap: 12 }}>
           {shown.map(vi => {
@@ -1534,7 +1610,7 @@ function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, o
                     {ql && (matchedParts.length > 0 || matchedServices.length > 0) && (
                       <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--bg-2)", borderRadius: 6, fontSize: 12 }}>
                         {matchedServices.map((s, i) => <div key={"ms" + i}>↳ <b>{s.name}</b> · Labor {moneyUSD(s.total || (s.hours || 0) * (s.rate || 0))}</div>)}
-                        {matchedParts.map((p, i) => <div key={"mp" + i}>↳ <b>{p.name}</b> · ×{p.qty || 1}{p.price ? ` · ${moneyUSD(p.price)}/ឯកតា` : ""}</div>)}
+                        {matchedParts.map((p, i) => <div key={"mp" + i}>↳ <b>{p.name}</b> · ×{p.qty || 1}{p.price ? ` · ${moneyUSD(p.price)}/ឯកតា` : ""}{p.warranty ? <span style={{ color: p.warranty.active ? "var(--success)" : "var(--danger)", fontWeight: 600 }}> · 🛡 {warrantyLabel(p.warranty)} · {p.warranty.active ? "នៅ​ក្នុង​ការ​ធានា" : "អស់​ការ​ធានា"}</span> : null}</div>)}
                       </div>
                     )}
                   </div>
@@ -1684,7 +1760,7 @@ function ServiceVisitModal({ visit, vehicle, owner, state, currency, onClose, on
         {parts.length > 0 && (
           <Section title="គ្រឿងបន្លាស់ · PARTS USED">
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-              <thead><tr style={{ background: "#f5f5f5" }}><th style={cellH}>PART</th><th style={cellHR}>QTY</th><th style={cellHR}>UNIT</th><th style={cellHR}>TOTAL</th></tr></thead>
+              <thead><tr style={{ background: "#f5f5f5" }}><th style={cellH}>PART</th><th style={cellHR}>QTY</th><th style={cellHR}>UNIT</th><th style={cellHR}>TOTAL</th><th style={cellH}>WARRANTY</th></tr></thead>
               <tbody>
                 {parts.map((p, i) => (
                   <tr key={i} style={{ borderBottom: "1px solid #eee" }}>
@@ -1692,6 +1768,7 @@ function ServiceVisitModal({ visit, vehicle, owner, state, currency, onClose, on
                     <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--font-mono)" }}>{p.qty || 1}</td>
                     <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--font-mono)" }}>{moneyUSD(p.price || 0)}</td>
                     <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{moneyUSD((p.qty || 0) * (p.price || 0))}</td>
+                    <td style={{ padding: "6px 8px", fontSize: 11, color: p.warranty ? (p.warranty.active ? "#16a34a" : "#dc2626") : "#999" }}>{p.warranty ? `🛡 ${warrantyLabel(p.warranty)} · ${p.warranty.active ? "Active" : "Expired"}` : "—"}</td>
                   </tr>
                 ))}
               </tbody>

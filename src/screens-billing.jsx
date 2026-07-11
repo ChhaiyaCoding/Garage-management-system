@@ -596,6 +596,8 @@ function EditPartModal({ part, state, setState, onClose, toast }) {
   const [cost, setCost] = React.useState(part.cost || 0);
   const [price, setPrice] = React.useState(part.price || 0);
   const [location, setLocation] = React.useState(part.location === "—" ? "" : (part.location || ""));
+  const [wMonths, setWMonths] = React.useState(part.warrantyMonths || "");
+  const [wKm, setWKm] = React.useState(part.warrantyKm || "");
 
   function save() {
     if (!name.trim()) { toast("បំពេញឈ្មោះ", "error"); return; }
@@ -614,6 +616,8 @@ function EditPartModal({ part, state, setState, onClose, toast }) {
         cost: +cost || 0,
         price: +price || 0,
         location: location.trim().toUpperCase() || "—",
+        warrantyMonths: wMonths ? +wMonths : undefined,
+        warrantyKm: wKm ? +wKm : undefined,
       } : p),
     }));
     toast(`រក្សាទុក ${name} ជោគជ័យ`, "ok");
@@ -641,6 +645,8 @@ function EditPartModal({ part, state, setState, onClose, toast }) {
         <div className="field"><label>Reorder Level</label><input className="input" type="number" value={reorder} onChange={e => setReorder(e.target.value)} /></div>
         <div className="field"><label>តម្លៃដើម · COST ($)</label><input className="input" type="number" step="0.01" value={cost} onChange={e => setCost(e.target.value)} /></div>
         <div className="field"><label>តម្លៃលក់ · PRICE ($)</label><input className="input" type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} /></div>
+        <div className="field"><label>ការធានា · WARRANTY (ខែ)</label><input className="input" type="number" value={wMonths} onChange={e => setWMonths(e.target.value)} placeholder="ឧ. 6" /></div>
+        <div className="field"><label>ការធានា · WARRANTY (km)</label><input className="input" type="number" value={wKm} onChange={e => setWKm(e.target.value)} placeholder="ឧ. 10000" /></div>
       </div>
     </Modal>
   );
@@ -1420,6 +1426,8 @@ function NewPartModal({ onClose, state, setState, toast }) {
   const [cost, setCost] = React.useState(0);
   const [price, setPrice] = React.useState(0);
   const [location, setLocation] = React.useState("");
+  const [wMonths, setWMonths] = React.useState("");
+  const [wKm, setWKm] = React.useState("");
   const supplierNames = (state?.suppliers || []).map(x => x.name);
 
   function submit() {
@@ -1431,6 +1439,8 @@ function NewPartModal({ onClose, state, setState, toast }) {
       category, supplier: supplier.trim() || "—",
       stock: +stock, reorder: +reorder, price: +price, cost: +cost,
       location: location.trim().toUpperCase() || "—",
+      warrantyMonths: wMonths ? +wMonths : undefined,
+      warrantyKm: wKm ? +wKm : undefined,
     };
     setState(s => ({ ...s, parts: [newP, ...s.parts] }));
     toast(`បន្ថែម Part ${newP.name} (${newP.sku}) ជោគជ័យ`, "ok");
@@ -1458,6 +1468,8 @@ function NewPartModal({ onClose, state, setState, toast }) {
         <div className="field"><label>Reorder Level</label><input className="input" type="number" value={reorder} onChange={e => setReorder(e.target.value)} /></div>
         <div className="field"><label>តម្លៃដើម · COST ($)</label><input className="input" type="number" step="0.01" value={cost} onChange={e => setCost(e.target.value)} /></div>
         <div className="field"><label>តម្លៃលក់ · PRICE ($)</label><input className="input" type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} /></div>
+        <div className="field"><label>ការធានា · WARRANTY (ខែ)</label><input className="input" type="number" value={wMonths} onChange={e => setWMonths(e.target.value)} placeholder="ឧ. 6" /></div>
+        <div className="field"><label>ការធានា · WARRANTY (km)</label><input className="input" type="number" value={wKm} onChange={e => setWKm(e.target.value)} placeholder="ឧ. 10000" /></div>
       </div>
     </Modal>
   );
