@@ -1434,6 +1434,7 @@ function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, o
   const [detail, setDetail] = React.useState(null);
   const [fMech, setFMech] = React.useState("all");
   const [fStatus, setFStatus] = React.useState("all");
+  const [fCat, setFCat] = React.useState("all");
   const v = (state.vehicles || []).find(x => x.id === vehicleId);
 
   if (!v) {
@@ -1475,15 +1476,17 @@ function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, o
     return [vi.title, vi.notes, ...vi.services.map(s => s.name), ...vi.parts.map(p => p.name), vi.tech, vi.inv && vi.inv.id, dviText].filter(Boolean).join(" ").toLowerCase();
   }
   const mechanics = [...new Set(visits.map(vi => vi.tech).filter(t => t && t !== "—"))];
+  const categories = [...new Set(visits.flatMap(vi => (vi.parts || []).map(p => p.part && p.part.category).filter(Boolean)))];
   const shown = visits.filter(vi => {
     if (ql && !blob(vi).includes(ql)) return false;
     if (fMech !== "all" && vi.tech !== fMech) return false;
     if (fStatus === "paid" && !(vi.inv && vi.inv.status === "paid")) return false;
     if (fStatus === "unpaid" && !(vi.inv && (vi.inv.total - vi.inv.paid) > 0)) return false;
+    if (fCat !== "all" && !(vi.parts || []).some(p => p.part && p.part.category === fCat)) return false;
     return true;
   });
   const hit = (name) => ql && name && name.toLowerCase().includes(ql);
-  const filtersActive = ql || fMech !== "all" || fStatus !== "all";
+  const filtersActive = ql || fMech !== "all" || fStatus !== "all" || fCat !== "all";
 
   // Reminders / suggestions (mileage + date + warranty)
   const today = new Date();
@@ -1574,7 +1577,13 @@ function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, o
           <option value="paid">បង់​រួច</option>
           <option value="unpaid">នៅ​ជំពាក់</option>
         </select>
-        {filtersActive && <button className="btn btn-sm btn-ghost" onClick={() => { setQ(""); setFMech("all"); setFStatus("all"); }}>លុប​តម្រង</button>}
+        {categories.length > 0 && (
+          <select className="select" style={{ width: "auto" }} value={fCat} onChange={e => setFCat(e.target.value)}>
+            <option value="all">ប្រភេទ Part ​ទាំងអស់</option>
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
+        {filtersActive && <button className="btn btn-sm btn-ghost" onClick={() => { setQ(""); setFMech("all"); setFStatus("all"); setFCat("all"); }}>លុប​តម្រង</button>}
       </div>
       {filtersActive && <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>ឃើញ {shown.length} / {visits.length} លើក</div>}
 
