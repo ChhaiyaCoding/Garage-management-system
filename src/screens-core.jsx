@@ -1429,6 +1429,64 @@ function warrantyLabel(w) {
   return parts.join(" / ");
 }
 
+// ─── Repair action vocabulary ───
+// The data model has no explicit action field yet, so V1 INFERS the action from
+// the service/part description (KH + EN keywords). Display-only — nothing is stored.
+// Sprint 2 should make this an explicit field chosen when recording the work.
+const REPAIR_ACTIONS = {
+  Replace: { km: "ផ្លាស់ប្ដូរ", cls: "chip-blue" },
+  Repair: { km: "ជួសជុល", cls: "chip-amber" },
+  Clean: { km: "សម្អាត", cls: "chip-teal" },
+  Add: { km: "បន្ថែម", cls: "chip-green" },
+  Adjust: { km: "តម្រូវ", cls: "chip-purple" },
+  Inspect: { km: "ត្រួតពិនិត្យ", cls: "chip-gray" },
+  Remove: { km: "ដក", cls: "chip-red" },
+  Install: { km: "ដំឡើង", cls: "chip-green" },
+};
+
+function inferAction(text, isPart) {
+  const t = (text || "").toLowerCase();
+  const has = (...ws) => ws.some(w => t.includes(w));
+  if (has("ផ្លាស់", "ប្ដូរ", "ប្តូរ", "replace", "change", "renew")) return "Replace";
+  if (has("សម្អាត", "លាង", "clean", "wash", "flush")) return "Clean";
+  if (has("ត្រួតពិនិត្យ", "ពិនិត្យ", "inspect", "check", "diagnos", "scan", "test")) return "Inspect";
+  if (has("តម្រូវ", "adjust", "align", "balance", "calibrat", "rotat")) return "Adjust";
+  if (has("បន្ថែម", "បំពេញ", "add", "top up", "topup", "refill", "fill")) return "Add";
+  if (has("ដំឡើង", "ភ្ជាប់", "install", "fit", "mount")) return "Install";
+  if (has("ដក", "ដោះ", "remove", "detach")) return "Remove";
+  if (has("ជួសជុល", "ស្ដារ", "repair", "fix", "overhaul")) return "Repair";
+  return isPart ? "Replace" : "Repair"; // sensible defaults
+}
+
+// Payment state of a visit, shown as the "Paid Date" column.
+function paidInfo(inv) {
+  if (!inv) return { label: "—", cls: "muted" };
+  if (inv.status === "void") return { label: "VOID", cls: "chip chip-gray" };
+  if (inv.status === "refunded") return { label: "REFUNDED", cls: "chip chip-purple" };
+  const bal = (inv.total || 0) - (inv.paid || 0);
+  if (bal <= 0) {
+    const pays = (inv.payments || []).filter(p => (p.amount || 0) > 0);
+    const last = pays.length ? pays[pays.length - 1].date : inv.issued;
+    return { label: last || "—", cls: "paid" };
+  }
+  if ((inv.paid || 0) > 0) return { label: "Partial", cls: "chip chip-amber" };
+  return { label: "Unpaid", cls: "chip chip-red" };
+}
+
+// Merge a visit's labor + parts into ONE chronological work list (entry order preserved).
+function workRows(vi) {
+  const rows = [];
+  (vi.services || []).forEach(s => rows.push({
+    action: inferAction(s.name, false), desc: s.name, qty: s.hours != null ? s.hours : 1,
+    unit: s.hours != null ? "ម៉ោង" : "", amount: s.total || (s.hours || 0) * (s.rate || 0), isPart: false,
+  }));
+  (vi.parts || []).forEach(p => rows.push({
+    action: inferAction(p.name, true), desc: p.name, qty: p.qty || 1, unit: "",
+    amount: (p.qty || 0) * (p.price || 0), isPart: true, warranty: p.warranty, unitPrice: p.price,
+  }));
+  return rows;
+}
+
 function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, onOpenInvoice }) {
   const [q, setQ] = React.useState("");
   const [detail, setDetail] = React.useState(null);
@@ -1502,12 +1560,6 @@ function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, o
   const activeWarranties = [];
   visits.forEach(vi => (vi.parts || []).forEach(p => { if (p.warranty && p.warranty.active) activeWarranties.push({ name: p.name, w: p.warranty, date: vi.date }); }));
   if (activeWarranties.length) reminders.push({ kind: "ok", text: `${activeWarranties.length} គ្រឿងបន្លាស់​នៅ​ក្នុង​ការ​ធានា`, items: activeWarranties });
-
-  const invStatusChip = (inv) => {
-    if (!inv) return <span className="chip chip-gray" style={{ fontSize: 10 }}>NO INVOICE</span>;
-    const cls = inv.status === "paid" ? "green" : inv.status === "partial" ? "amber" : inv.status === "void" ? "gray" : inv.status === "refunded" ? "purple" : inv.status === "overdue" ? "red" : "blue";
-    return <span className={"chip chip-" + cls} style={{ fontSize: 10 }}>{(inv.status || "due").toUpperCase()}</span>;
-  };
 
   const F = ({ label, children }) => (
     <div><div className="muted" style={{ fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase" }}>{label}</div><div style={{ fontWeight: 600, fontSize: 14, marginTop: 2 }}>{children}</div></div>
@@ -1587,55 +1639,69 @@ function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, o
       </div>
       {filtersActive && <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>ឃើញ {shown.length} / {visits.length} លើក</div>}
 
-      {/* Timeline */}
+      {/* Visit history table — one row = one visit */}
       {shown.length === 0 ? (
         <div className="card"><p className="muted">{filtersActive ? "មិន​ឃើញ​ការ​ជួសជុល​ផ្គូផ្គង​តម្រង​ទេ។" : "មិន​ទាន់​មាន​ប្រវត្តិ​ជួសជុល​សម្រាប់​រថយន្ត​នេះ។"}</p></div>
       ) : (
-        <div style={{ display: "grid", gap: 12 }}>
-          {shown.map(vi => {
-            const matchedParts = ql ? vi.parts.filter(p => hit(p.name)) : [];
-            const matchedServices = ql ? vi.services.filter(s => hit(s.name)) : [];
-            return (
-              <div key={vi.key} className="card" style={{ padding: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                      <span className="mono" style={{ fontWeight: 700 }}>{vi.date || "—"}</span>
-                      <span className="muted">·</span>
-                      <span style={{ fontWeight: 600 }}>{vi.mileage ? `${(+vi.mileage).toLocaleString()} km` : "— km"}</span>
-                      {invStatusChip(vi.inv)}
-                    </div>
-                    <div style={{ fontSize: 15, fontWeight: 700, marginTop: 6 }}>{vi.title}</div>
-                    <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>មេកានិច · {vi.tech || "—"} · {vi.job ? vi.job.id : (vi.inv ? vi.inv.id : "—")}</div>
-
-                    {/* Service + part tags */}
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
-                      {vi.services.map((s, i) => <span key={"s" + i} className={"chip " + (hit(s.name) ? "chip-amber" : "chip-gray")} style={{ fontSize: 11 }}>{s.name}</span>)}
-                      {vi.parts.map((p, i) => <span key={"p" + i} className={"chip " + (hit(p.name) ? "chip-amber" : "chip-blue")} style={{ fontSize: 11 }}>{p.name}{p.qty ? ` ×${p.qty}` : ""}</span>)}
-                      {vi.services.length === 0 && vi.parts.length === 0 && <span className="muted" style={{ fontSize: 11 }}>គ្មាន​បញ្ជី​សេវា/Parts</span>}
-                    </div>
-
-                    {/* Matched detail lines when searching */}
-                    {ql && (matchedParts.length > 0 || matchedServices.length > 0) && (
-                      <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--bg-2)", borderRadius: 6, fontSize: 12 }}>
-                        {matchedServices.map((s, i) => <div key={"ms" + i}>↳ <b>{s.name}</b> · Labor {moneyUSD(s.total || (s.hours || 0) * (s.rate || 0))}</div>)}
-                        {matchedParts.map((p, i) => <div key={"mp" + i}>↳ <b>{p.name}</b> · ×{p.qty || 1}{p.price ? ` · ${moneyUSD(p.price)}/ឯកតា` : ""}{p.warranty ? <span style={{ color: p.warranty.active ? "var(--success)" : "var(--danger)", fontWeight: 600 }}> · 🛡 {warrantyLabel(p.warranty)} · {p.warranty.active ? "នៅ​ក្នុង​ការ​ធានា" : "អស់​ការ​ធានា"}</span> : null}</div>)}
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                    <div className="num" style={{ fontSize: 18, fontWeight: 800 }}><Money value={vi.inv ? vi.inv.total : 0} currency={currency} /></div>
-                    {vi.inv && (vi.inv.total - vi.inv.paid) > 0 && <div style={{ fontSize: 11, color: "var(--danger)" }}>នៅ​ជំពាក់ {moneyUSD(vi.inv.total - vi.inv.paid)}</div>}
-                    <div style={{ display: "flex", gap: 6, marginTop: 10, justifyContent: "flex-end" }}>
-                      {vi.inv && onOpenInvoice && <button className="btn btn-sm btn-ghost" onClick={() => onOpenInvoice(vi.inv.id)}><Icon.Doc size={12} /> Invoice</button>}
-                      <button className="btn btn-sm" onClick={() => setDetail(vi)}>មើល​លម្អិត</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+          <div style={{ overflowX: "auto" }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>ថ្ងៃ​បង់ · PAID</th>
+                  <th>វិក្កយបត្រ · INVOICE</th>
+                  <th>ថ្ងៃ​ចូល · VISIT</th>
+                  <th className="num">គីឡូ · KM</th>
+                  <th>សេវាកម្ម · SERVICE</th>
+                  <th className="num">សរុប · TOTAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map(vi => {
+                  const pi = paidInfo(vi.inv);
+                  const rows = workRows(vi);
+                  const computed = rows.reduce((s, r) => s + (r.amount || 0), 0);
+                  const total = vi.inv ? (vi.inv.total || 0) : computed;
+                  const matched = ql ? rows.filter(r => hit(r.desc)) : [];
+                  const summaryItems = rows.slice(0, 3).map(r => r.desc).join(" · ");
+                  return (
+                    <tr key={vi.key} style={{ cursor: "pointer" }} onClick={() => setDetail(vi)} title="បើក​កំណត់ត្រា​ជួសជុល">
+                      <td style={{ whiteSpace: "nowrap" }}>
+                        {pi.cls === "paid" ? <span className="mono" style={{ color: "var(--success)" }}>{pi.label}</span>
+                          : pi.cls === "muted" ? <span className="muted">—</span>
+                            : <span className={pi.cls} style={{ fontSize: 10 }}>{pi.label}</span>}
+                      </td>
+                      <td className="mono" style={{ fontSize: 12, color: vi.inv ? "var(--accent-text)" : "var(--muted)" }}>{vi.inv ? vi.inv.id : "—"}</td>
+                      <td className="mono" style={{ fontSize: 12, whiteSpace: "nowrap" }}>{vi.date || "—"}</td>
+                      <td className="num" style={{ whiteSpace: "nowrap" }}>{vi.mileage ? (+vi.mileage).toLocaleString() : "—"}</td>
+                      <td style={{ maxWidth: 380 }}>
+                        <div style={{ fontWeight: 600 }}>{vi.title}</div>
+                        <div className="muted" style={{ fontSize: 11 }}>
+                          {summaryItems || "គ្មាន​បញ្ជី​ការងារ"}{rows.length > 3 ? ` +${rows.length - 3}` : ""}
+                          {vi.tech && vi.tech !== "—" ? ` · ${vi.tech}` : ""}
+                        </div>
+                        {matched.length > 0 && (
+                          <div style={{ marginTop: 4, fontSize: 11 }}>
+                            {matched.map((r, i) => (
+                              <span key={i} className="chip chip-amber" style={{ fontSize: 10, marginRight: 4 }}>
+                                {r.desc}{r.isPart ? ` ×${r.qty}` : ""} · {moneyUSD(r.amount || 0)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="num" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>
+                        <Money value={total} currency={currency} />
+                        {vi.inv && (vi.inv.total - vi.inv.paid) > 0 && (
+                          <div style={{ fontSize: 10, color: "var(--danger)", fontWeight: 500 }}>នៅ {moneyUSD(vi.inv.total - vi.inv.paid)}</div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -1654,6 +1720,7 @@ function ServiceVisitModal({ visit, vehicle, owner, state, currency, onClose, on
   const dvi = visit.dvi;
   const services = visit.services || [];
   const parts = visit.parts || [];
+  const rows = workRows(visit); // labor + parts merged into one chronological list
   const servicesTotal = services.reduce((s, x) => s + (x.total || (x.hours || 0) * (x.rate || 0)), 0);
   const partsTotal = parts.reduce((s, p) => s + (p.qty || 0) * (p.price || 0), 0);
   const subtotal = inv ? (inv.subtotal != null ? inv.subtotal : servicesTotal + partsTotal) : servicesTotal + partsTotal;
@@ -1690,7 +1757,7 @@ function ServiceVisitModal({ visit, vehicle, owner, state, currency, onClose, on
   const cellHR = { ...cellH, textAlign: "right" };
 
   return (
-    <Modal wide title={`កំណត់ត្រា​ជួសជុល · SERVICE RECORD`} onClose={onClose}
+    <Modal wide title={`កំណត់ត្រា​ជួសជុល · REPAIR DETAIL`} onClose={onClose}
       footer={<>
         <button className="btn" onClick={onClose}>បិទ</button>
         {visit.job && onOpenJob && <button className="btn" onClick={() => { onClose(); onOpenJob(visit.job.id); }}><Icon.Wrench size={14} /> Job Card</button>}
@@ -1746,40 +1813,43 @@ function ServiceVisitModal({ visit, vehicle, owner, state, currency, onClose, on
           </Section>
         )}
 
-        {/* Work performed / Labor */}
-        {services.length > 0 && (
-          <Section title="ការងារ​បាន​ធ្វើ · WORK PERFORMED / LABOR">
+        {/* Work performed — ONE table, labor + parts merged, in entry order */}
+        {rows.length > 0 && (
+          <Section title="ការងារ​បាន​ធ្វើ · WORK PERFORMED">
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-              <thead><tr style={{ background: "#f5f5f5" }}><th style={cellH}>SERVICE</th><th style={cellHR}>HOURS</th><th style={cellHR}>RATE</th><th style={cellHR}>TOTAL</th></tr></thead>
+              <thead>
+                <tr style={{ background: "#f5f5f5" }}>
+                  <th style={cellH}>ACTION</th>
+                  <th style={cellH}>DESCRIPTION</th>
+                  <th style={cellH}>MECHANIC</th>
+                  <th style={cellHR}>QTY</th>
+                  <th style={cellHR}>AMOUNT</th>
+                </tr>
+              </thead>
               <tbody>
-                {services.map((s, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid #eee" }}>
-                    <td style={{ padding: "6px 8px" }}>{s.name}</td>
-                    <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--font-mono)" }}>{s.hours != null ? s.hours : "—"}</td>
-                    <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--font-mono)" }}>{s.rate != null ? moneyUSD(s.rate) : "—"}</td>
-                    <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{moneyUSD(s.total || (s.hours || 0) * (s.rate || 0))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Section>
-        )}
-
-        {/* Parts used */}
-        {parts.length > 0 && (
-          <Section title="គ្រឿងបន្លាស់ · PARTS USED">
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-              <thead><tr style={{ background: "#f5f5f5" }}><th style={cellH}>PART</th><th style={cellHR}>QTY</th><th style={cellHR}>UNIT</th><th style={cellHR}>TOTAL</th><th style={cellH}>WARRANTY</th></tr></thead>
-              <tbody>
-                {parts.map((p, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid #eee" }}>
-                    <td style={{ padding: "6px 8px" }}>{p.name}</td>
-                    <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--font-mono)" }}>{p.qty || 1}</td>
-                    <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--font-mono)" }}>{moneyUSD(p.price || 0)}</td>
-                    <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{moneyUSD((p.qty || 0) * (p.price || 0))}</td>
-                    <td style={{ padding: "6px 8px", fontSize: 11, color: p.warranty ? (p.warranty.active ? "#16a34a" : "#dc2626") : "#999" }}>{p.warranty ? `🛡 ${warrantyLabel(p.warranty)} · ${p.warranty.active ? "Active" : "Expired"}` : "—"}</td>
-                  </tr>
-                ))}
+                {rows.map((r, i) => {
+                  const a = REPAIR_ACTIONS[r.action] || REPAIR_ACTIONS.Repair;
+                  return (
+                    <tr key={i} style={{ borderBottom: "1px solid #eee" }}>
+                      <td style={{ padding: "7px 8px", whiteSpace: "nowrap" }}>
+                        <span style={{ display: "inline-block", padding: "2px 7px", borderRadius: 4, background: "#eef1f5", color: "#0a0d12", fontSize: 10, fontWeight: 700, letterSpacing: "0.04em" }}>{r.action.toUpperCase()}</span>
+                        <div style={{ fontSize: 10, color: "#888", marginTop: 2 }}>{a.km}</div>
+                      </td>
+                      <td style={{ padding: "7px 8px" }}>
+                        {r.desc}
+                        {r.isPart && r.unitPrice ? <span style={{ color: "#888" }}> · {moneyUSD(r.unitPrice)}/ឯកតា</span> : null}
+                        {r.warranty && (
+                          <div style={{ fontSize: 10, color: r.warranty.active ? "#16a34a" : "#dc2626", marginTop: 2 }}>
+                            🛡 {warrantyLabel(r.warranty)} · {r.warranty.active ? "Active" : "Expired"}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: "7px 8px", color: "#444" }}>{visit.tech || "—"}</td>
+                      <td style={{ padding: "7px 8px", textAlign: "right", fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>{r.qty}{r.unit ? ` ${r.unit}` : ""}</td>
+                      <td style={{ padding: "7px 8px", textAlign: "right", fontFamily: "var(--font-mono)", fontWeight: 700 }}>{moneyUSD(r.amount || 0)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </Section>
