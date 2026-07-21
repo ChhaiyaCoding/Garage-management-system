@@ -1487,7 +1487,22 @@ function workRows(vi) {
   return rows;
 }
 
-function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, onOpenInvoice, onNewVisit }) {
+// Derived Visit state — never stored, never managed by hand.
+// The user records business actions; the state is read back from them:
+//   started a visit → open · created an invoice → invoiced · paid in full → paid
+function visitState(job, inv) {
+  if (!inv || inv.status === "void") return "open";
+  const balance = (inv.total || 0) - (inv.paid || 0);
+  return balance <= 0 ? "paid" : "invoiced";
+}
+
+const VISIT_STATE_KM = {
+  open: { label: "OPEN · កំពុងធ្វើ", cls: "chip-blue" },
+  invoiced: { label: "INVOICED · រង់ចាំបង់", cls: "chip-amber" },
+  paid: { label: "PAID · បង់រួច", cls: "chip-green" },
+};
+
+function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, onOpenInvoice, onNewVisit, onCreateInvoice }) {
   const [q, setQ] = React.useState("");
   const [detail, setDetail] = React.useState(null);
   const [fMech, setFMech] = React.useState("all");
@@ -1524,13 +1539,18 @@ function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, o
   });
   const visits = [...jobVisits, ...invVisits].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 
-  // Active visit = an open job for this vehicle (not yet done/delivered/cancelled).
-  const CLOSED = ["done", "delivered", "cancelled"];
-  const activeJob = (state.jobs || []).find(j => j.vehicle === v.id && !CLOSED.includes(j.status));
+  // Active visit = a visit for this vehicle that is not yet paid in full.
+  // Full payment is what completes a visit — no manual "close" step.
+  const activeJob = (state.jobs || [])
+    .filter(j => j.vehicle === v.id && j.status !== "cancelled")
+    .find(j => visitState(j, (state.invoices || []).find(i => i.job === j.id)) !== "paid");
+  const activeInv = activeJob ? (state.invoices || []).find(i => i.job === activeJob.id) : null;
+  const activeState = activeJob ? visitState(activeJob, activeInv) : null;
   const activeTotal = activeJob
     ? (activeJob.services || []).reduce((s, x) => s + (x.total || (x.hours || 0) * (x.rate || 0)), 0)
       + (activeJob.partsUsed || []).reduce((s, p) => s + (p.qty || 0) * (p.price || 0), 0)
     : 0;
+  const activeBalance = activeInv ? (activeInv.total || 0) - (activeInv.paid || 0) : 0;
 
   // Outstanding for this vehicle (exclude void/refunded)
   const outstanding = (state.invoices || []).filter(i => i.vehicle === v.id && i.status !== "void" && i.status !== "refunded").reduce((s, i) => s + ((i.total || 0) - (i.paid || 0)), 0);
@@ -1590,20 +1610,33 @@ function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, o
         </div>
       </div>
 
-      {/* Active Visit banner — this car is currently in the shop */}
+      {/* Active Visit banner — state is derived from what the user did, never set by hand */}
       {activeJob && (
         <div className="card" style={{ padding: "12px 16px", borderLeft: "3px solid var(--accent)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
             <span style={{ fontSize: 20 }}>🔧</span>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>កំពុង​ស្ថិត​ក្នុង Visit · IN SHOP</div>
-              <div className="muted" style={{ fontSize: 12 }}>
-                {activeJob.title || activeJob.id} · មេកានិច {activeJob.tech || "—"} · <span className="chip chip-blue" style={{ fontSize: 10 }}>{(activeJob.status || "waiting").toUpperCase()}</span>
-                {activeTotal > 0 ? <> · {moneyUSD(activeTotal)}</> : null}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontWeight: 700, fontSize: 14 }}>Visit បច្ចុប្បន្ន</span>
+                <span className={"chip " + VISIT_STATE_KM[activeState].cls} style={{ fontSize: 10 }}>{VISIT_STATE_KM[activeState].label}</span>
+              </div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                {activeJob.title || activeJob.id} · មេកានិច {activeJob.tech || "—"}
+                {activeState === "invoiced"
+                  ? <> · {activeInv.id} · នៅ​ជំពាក់ <b style={{ color: "var(--danger)" }}>{moneyUSD(activeBalance)}</b></>
+                  : activeTotal > 0 ? <> · {moneyUSD(activeTotal)}</> : null}
               </div>
             </div>
           </div>
-          <button className="btn btn-primary btn-sm" onClick={() => onOpenJob && onOpenJob(activeJob.id)}><Icon.Wrench size={14} /> បន្ត · CONTINUE</button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className="btn btn-sm" onClick={() => onOpenJob && onOpenJob(activeJob.id)}><Icon.Wrench size={14} /> កត់​ការងារ</button>
+            {activeState === "open" && activeTotal > 0 && onCreateInvoice && (
+              <button className="btn btn-primary btn-sm" onClick={() => onCreateInvoice(activeJob.id)}><Icon.Doc size={14} /> ចេញ​វិក្កយបត្រ</button>
+            )}
+            {activeState === "invoiced" && onOpenInvoice && (
+              <button className="btn btn-primary btn-sm" onClick={() => onOpenInvoice(activeInv.id)}><Icon.Money size={14} /> ទទួល​ប្រាក់</button>
+            )}
+          </div>
         </div>
       )}
 

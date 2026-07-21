@@ -994,6 +994,30 @@ function InvoicesScreen({ state, setState, currency, onOpenInvoice, onNewInvoice
   );
 }
 
+// Real invoice lines, in priority order:
+//   1. the job's actual labor + parts (the work that was really done)
+//   2. lines stored on the invoice itself (direct invoices)
+//   3. a single fallback line so the document still balances
+function invoiceLines(inv, state) {
+  const job = inv && inv.job && inv.job !== "—" ? (state.jobs || []).find(j => j.id === inv.job) : null;
+  if (job) {
+    const lines = [];
+    (job.services || []).forEach(s => lines.push({
+      desc: s.name, qty: s.hours != null ? s.hours : 1,
+      rate: s.rate != null ? s.rate : (s.total || 0), amount: s.total || (s.hours || 0) * (s.rate || 0),
+    }));
+    (job.partsUsed || []).forEach(p => {
+      const part = (state.parts || []).find(x => x.id === p.id) || partsById[p.id];
+      lines.push({ desc: part ? part.name : p.id, qty: p.qty || 1, rate: p.price || 0, amount: (p.qty || 0) * (p.price || 0) });
+    });
+    if (lines.length) return lines;
+  }
+  if (inv && inv.lineItems && inv.lineItems.length) {
+    return inv.lineItems.map(it => ({ desc: it.desc || "—", qty: it.qty || 1, rate: it.price || 0, amount: (it.qty || 1) * (it.price || 0) }));
+  }
+  return [{ desc: "សេវាកម្ម · Service", qty: 1, rate: inv ? inv.subtotal || 0 : 0, amount: inv ? inv.subtotal || 0 : 0 }];
+}
+
 function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
   const inv = state.invoices.find(i => i.id === id);
   const sheetRef = React.useRef(null);
@@ -1005,6 +1029,7 @@ function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
   const isVoid = inv.status === "void";
   const c = lookupCustomer(inv.customer, state) || MISSING_C;
   const v = lookupVehicle(inv.vehicle, state) || MISSING_V;
+  const lines = invoiceLines(inv, state);
   // Payment history: derive a display list. Legacy invoices (paid>0, no payments[])
   // get a synthetic "opening" row so the balance always reconciles.
   const history = inv.payments && inv.payments.length
@@ -1171,18 +1196,14 @@ function InvoiceModal({ id, state, setState, currency, onClose, toast }) {
             </tr>
           </thead>
           <tbody>
-            <tr style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '10px 12px' }}>Labor · service charges</td>
-              <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>—</td>
-              <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>—</td>
-              <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{moneyUSD(inv.subtotal * 0.6)}</td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '10px 12px' }}>Parts & materials</td>
-              <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>—</td>
-              <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>—</td>
-              <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{moneyUSD(inv.subtotal * 0.4)}</td>
-            </tr>
+            {lines.map((ln, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
+                <td style={{ padding: '10px 12px' }}>{ln.desc}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{ln.qty}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{moneyUSD(ln.rate || 0)}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{moneyUSD(ln.amount || 0)}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
 
@@ -1641,6 +1662,7 @@ function NewInvoiceModal({ onClose, state, setState, toast, currency }) {
     const newInv = {
       id, job: "—", customer: customerId, vehicle: vehicleId, issued: new Date().toISOString().slice(0, 10),
       subtotal, tax, total, paid: 0, status: "due", method: "—",
+      lineItems: items.map(x => ({ desc: x.desc, qty: x.qty, price: x.price })),
     };
     setState(s => ({ ...s, invoices: [newInv, ...s.invoices] }));
     toast(`បង្កើត Invoice ${id} ($${total}) ជោគជ័យ`, "ok");

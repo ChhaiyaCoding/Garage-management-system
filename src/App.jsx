@@ -361,7 +361,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
         {route === "dvi" && <DVIScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} />}
         {route === "members" && <MembersScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} onAddMember={() => setAddMemberOpen(true)} />}
         {route === "expenses" && <ExpensesScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} />}
-        {route === "vehicle" && <VehicleProfileScreen state={state} vehicleId={vehicleProfileId} currency={tweaks.currency} onBack={() => setRoute(vehicleBackRoute.current || "customers")} onOpenJob={(jid) => jid && setJobOpen(jid)} onOpenInvoice={(iid) => setInvoiceOpen(iid)} onNewVisit={(vid, cid) => { setNewJobPrefill(cid || ""); setNewJobPrefillVehicle(vid || ""); setNewJobOpen(true); }} />}
+        {route === "vehicle" && <VehicleProfileScreen state={state} vehicleId={vehicleProfileId} currency={tweaks.currency} onBack={() => setRoute(vehicleBackRoute.current || "customers")} onOpenJob={(jid) => jid && setJobOpen(jid)} onOpenInvoice={(iid) => setInvoiceOpen(iid)} onNewVisit={(vid, cid) => { setNewJobPrefill(cid || ""); setNewJobPrefillVehicle(vid || ""); setNewJobOpen(true); }} onCreateInvoice={(jid) => generateInvoice(jid)} />}
         {route === "reports" && <ReportsScreen state={state} currency={tweaks.currency} toast={toast} />}
         {route === "settings" && <SettingsScreen state={state} setState={setState} tweaks={tweaks} setTweak={setTweak} toast={toast} />}
       </main>
