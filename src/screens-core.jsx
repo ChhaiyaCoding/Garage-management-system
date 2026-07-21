@@ -1487,7 +1487,7 @@ function workRows(vi) {
   return rows;
 }
 
-function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, onOpenInvoice }) {
+function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, onOpenInvoice, onNewVisit }) {
   const [q, setQ] = React.useState("");
   const [detail, setDetail] = React.useState(null);
   const [fMech, setFMech] = React.useState("all");
@@ -1523,6 +1523,14 @@ function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, o
     return { key: inv.id, job: null, inv, dvi, date: inv.issued || "", mileage: undefined, parts: [], services: [], title: inv.job ? `សេវាកម្ម · ${inv.job}` : `វិក្កយបត្រ ${inv.id}`, tech: "—", notes: "" };
   });
   const visits = [...jobVisits, ...invVisits].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+  // Active visit = an open job for this vehicle (not yet done/delivered/cancelled).
+  const CLOSED = ["done", "delivered", "cancelled"];
+  const activeJob = (state.jobs || []).find(j => j.vehicle === v.id && !CLOSED.includes(j.status));
+  const activeTotal = activeJob
+    ? (activeJob.services || []).reduce((s, x) => s + (x.total || (x.hours || 0) * (x.rate || 0)), 0)
+      + (activeJob.partsUsed || []).reduce((s, p) => s + (p.qty || 0) * (p.price || 0), 0)
+    : 0;
 
   // Outstanding for this vehicle (exclude void/refunded)
   const outstanding = (state.invoices || []).filter(i => i.vehicle === v.id && i.status !== "void" && i.status !== "refunded").reduce((s, i) => s + ((i.total || 0) - (i.paid || 0)), 0);
@@ -1576,9 +1584,28 @@ function VehicleProfileScreen({ state, vehicleId, currency, onBack, onOpenJob, o
           </div>
         </div>
         <div className="page-actions">
-          {owner && <button className="btn btn-sm" onClick={() => onOpenJob && onOpenJob(null)} style={{ display: "none" }} />}
+          {!activeJob && onNewVisit && (
+            <button className="btn btn-primary" onClick={() => onNewVisit(v.id, v.owner)}><Icon.Plus size={14} /> Visit ថ្មី · NEW VISIT</button>
+          )}
         </div>
       </div>
+
+      {/* Active Visit banner — this car is currently in the shop */}
+      {activeJob && (
+        <div className="card" style={{ padding: "12px 16px", borderLeft: "3px solid var(--accent)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+            <span style={{ fontSize: 20 }}>🔧</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>កំពុង​ស្ថិត​ក្នុង Visit · IN SHOP</div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                {activeJob.title || activeJob.id} · មេកានិច {activeJob.tech || "—"} · <span className="chip chip-blue" style={{ fontSize: 10 }}>{(activeJob.status || "waiting").toUpperCase()}</span>
+                {activeTotal > 0 ? <> · {moneyUSD(activeTotal)}</> : null}
+              </div>
+            </div>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={() => onOpenJob && onOpenJob(activeJob.id)}><Icon.Wrench size={14} /> បន្ត · CONTINUE</button>
+        </div>
+      )}
 
       {/* Profile facts */}
       <div className="card" style={{ padding: 18 }}>

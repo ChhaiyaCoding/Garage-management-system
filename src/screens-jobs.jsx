@@ -882,18 +882,20 @@ function AddServiceRow({ jobId, setState, toast }) {
 }
 
 // ── New Job modal ──
-function NewJobModal({ onClose, setState, toast, state, prefillCustomer }) {
+function NewJobModal({ onClose, setState, toast, state, prefillCustomer, prefillVehicle }) {
   const allCustomers = (state && state.customers) || customers;
   const allVehicles = (state && state.vehicles) || vehicles;
-  const initialCustomer = prefillCustomer || (allCustomers[0] && allCustomers[0].id) || "CU-1001";
+  // If a specific vehicle is prefilled, derive its owner so the customer matches.
+  const prefillVeh = prefillVehicle ? allVehicles.find(v => v.id === prefillVehicle) : null;
+  const initialCustomer = (prefillVeh && prefillVeh.owner) || prefillCustomer || (allCustomers[0] && allCustomers[0].id) || "CU-1001";
   const [customerId, setCustomerId] = React.useState(initialCustomer);
-  const [vehicleId, setVehicleId] = React.useState("");
+  const [vehicleId, setVehicleId] = React.useState(prefillVehicle || "");
   const [title, setTitle] = React.useState("");
   const [priority, setPriority] = React.useState("normal");
   const [techId, setTechId] = React.useState("T-01");
   const [promised, setPromised] = React.useState("17:00");
   const [notes, setNotes] = React.useState("");
-  const [mileage, setMileage] = React.useState("");
+  const [mileage, setMileage] = React.useState(prefillVeh && prefillVeh.mileage ? prefillVeh.mileage : "");
 
   const customerVehicles = allVehicles.filter(v => v.owner === customerId);
   React.useEffect(() => {

@@ -103,6 +103,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
   const [quoteOpen, setQuoteOpen] = React.useState(null);
   const [newJobOpen, setNewJobOpen] = React.useState(false);
   const [newJobPrefill, setNewJobPrefill] = React.useState("");
+  const [newJobPrefillVehicle, setNewJobPrefillVehicle] = React.useState("");
   const [newQuoteOpen, setNewQuoteOpen] = React.useState(false);
   const [newQuotePrefill, setNewQuotePrefill] = React.useState("");
   const [editJobOpen, setEditJobOpen] = React.useState(null);
@@ -360,7 +361,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
         {route === "dvi" && <DVIScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} />}
         {route === "members" && <MembersScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} onAddMember={() => setAddMemberOpen(true)} />}
         {route === "expenses" && <ExpensesScreen state={state} setState={setState} currency={tweaks.currency} toast={toast} />}
-        {route === "vehicle" && <VehicleProfileScreen state={state} vehicleId={vehicleProfileId} currency={tweaks.currency} onBack={() => setRoute(vehicleBackRoute.current || "customers")} onOpenJob={(jid) => jid && setJobOpen(jid)} onOpenInvoice={(iid) => setInvoiceOpen(iid)} />}
+        {route === "vehicle" && <VehicleProfileScreen state={state} vehicleId={vehicleProfileId} currency={tweaks.currency} onBack={() => setRoute(vehicleBackRoute.current || "customers")} onOpenJob={(jid) => jid && setJobOpen(jid)} onOpenInvoice={(iid) => setInvoiceOpen(iid)} onNewVisit={(vid, cid) => { setNewJobPrefill(cid || ""); setNewJobPrefillVehicle(vid || ""); setNewJobOpen(true); }} />}
         {route === "reports" && <ReportsScreen state={state} currency={tweaks.currency} toast={toast} />}
         {route === "settings" && <SettingsScreen state={state} setState={setState} tweaks={tweaks} setTweak={setTweak} toast={toast} />}
       </main>
@@ -374,7 +375,7 @@ function App({ initialState, userId, userEmail, onSignOut }) {
       {jobOpen && <JobDrawer id={jobOpen} state={state} setState={setState} onClose={() => setJobOpen(null)} onGenerateInvoice={generateInvoice} onEdit={(jid) => { setJobOpen(null); setEditJobOpen(jid); }} currency={tweaks.currency} toast={toast} userId={userId} />}
       {invoiceOpen && <InvoiceModal id={invoiceOpen} state={state} setState={setState} currency={tweaks.currency} onClose={() => setInvoiceOpen(null)} toast={toast} />}
       {quoteOpen && <QuoteModal id={quoteOpen} state={state} setState={setState} currency={tweaks.currency} onClose={() => setQuoteOpen(null)} toast={toast} onConvert={convertQuoteToJob} onSend={sendQuote} />}
-      {newJobOpen && <NewJobModal onClose={() => { setNewJobOpen(false); setNewJobPrefill(""); }} setState={setState} toast={toast} state={state} prefillCustomer={newJobPrefill} />}
+      {newJobOpen && <NewJobModal onClose={() => { setNewJobOpen(false); setNewJobPrefill(""); setNewJobPrefillVehicle(""); }} setState={setState} toast={toast} state={state} prefillCustomer={newJobPrefill} prefillVehicle={newJobPrefillVehicle} />}
       {newQuoteOpen && <NewQuoteModal onClose={() => { setNewQuoteOpen(false); setNewQuotePrefill(""); }} setState={setState} toast={toast} currency={tweaks.currency} state={state} prefillCustomer={newQuotePrefill} />}
       {editJobOpen && <EditJobModal id={editJobOpen} state={state} setState={setState} onClose={() => setEditJobOpen(null)} toast={toast} />}
       {newPartOpen && <NewPartModal onClose={() => setNewPartOpen(false)} state={state} setState={setState} toast={toast} />}
