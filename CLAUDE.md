@@ -2,6 +2,46 @@
 # ឯកសារនេះ → Claude Code អានដោយស្វ័យប្រវត្តិរាល់ Session
 # កែផ្នែកណាដែលខុសពី Project ពិត
 
+## ⭐ PRODUCT DNA — governs every decision. Read first.
+Garage OS is not built to have the most features. It is built to be the easiest and
+fastest garage system to use every day.
+
+**Core principles**
+- Build for real garage workflows, not software workflows.
+- Reduce clicks, reduce thinking, reduce duplicate work.
+- Build → Use → Observe → Improve.
+- Solve real pain points before adding new features.
+- Keep the UI simple, clean and fast.
+
+**Core structure** — Vehicle is the permanent identity; Visits belong to a Vehicle.
+```
+Customer └── Vehicle └── Visits ├── Repair History ├── Quotation
+                                ├── Invoice ├── Payment ├── Warranty └── Reminder
+```
+
+**Product priorities (in order)**
+1. Universal Search  2. Vehicle Workspace  3. Repair History  4. Repair Detail
+5. Quotation  6. Invoice  7. Payment  8. Parts
+
+**Design principles**
+- Vehicle Workspace is the daily operating center.
+- Repair History uses a table, not a timeline.
+- Repair Detail is separate from Invoice.
+- Parts and Labor appear in ONE unified work list.
+- Search is the primary entry point.
+
+**Workflow principles**
+- Users record work. The system derives state automatically whenever possible.
+- Avoid manual workflow management. Never force users to manage statuses.
+
+**Do NOT spend time improving:** Job Card UI · DVI · Dashboard · Loyalty · Reports ·
+Online Booking · Photo Upload.
+`job` remains an INTERNAL data model — it must not become the primary user workflow.
+
+**Decision rule:** "Does this make garage work faster and simpler?" If not, don't build it.
+Never preserve a feature just because it exists. Every feature must justify its place
+based on real daily garage operations.
+
 ## Stack
 # បច្ចេកវិទ្យាដែល Project ប្រើ — កុំផ្លាស់ប្តូរដោយខ្លួនឯង
 - React 19 + Vite 8, JavaScript (no TypeScript)
